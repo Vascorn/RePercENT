@@ -1,0 +1,19 @@
+# Common data science, ML, and utility libraries
+numpy
+pandas
+scipy
+scikit-learn
+matplotlib
+seaborn
+plotly
+jupyterlab
+notebook
+ipykernel
+tqdm
+joblib
+
+# Deep learning
+torch
+torchvision
+torchaudio
+tensorflow
