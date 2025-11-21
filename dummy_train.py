@@ -6,7 +6,7 @@ def train(epochs= 5):
         # renerate radom loss values
         loss = np.random.rand()
         # wandb.log({"loss": loss})
-        print(f"Epoch {epoch + 1} / {epochs}, Loss: {loss:.4f}")
+        print(f"* Epoch {epoch + 1} / {epochs}, Loss: {loss:.4f}")
 
 
 if __name__ == "__main__":
