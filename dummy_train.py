@@ -1,6 +1,5 @@
 import numpy as np
-import torch
-import random
+import wandb
 
 def train(epochs= 5):
     for epoch in range(epochs):

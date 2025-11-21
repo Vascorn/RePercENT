@@ -10,6 +10,7 @@ from torch.nn.functional import pad
 from torch.nn import functional as F
 
 sys.path.append(os.getcwd())
+sys.path.append(os.path.abspath(os.path.join(os.getcwd(), '../../')))
 
 import torch
 import torchtext as text
@@ -17,10 +18,14 @@ from collections import defaultdict
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import DataLoader, Dataset
 
-from robustness.text_robust import add_text_noise
-from robustness.timeseries_robust import add_timeseries_noise
+
+from src.preprocessing.text_robust import add_text_noise
+from src.preprocessing.timeseries_robust import add_timeseries_noise
 
 np.seterr(divide='ignore', invalid='ignore')
+
+
+
 
 def drop_entry(dataset):
     """Drop entries where there's no text in the data."""
@@ -190,8 +195,6 @@ class Affectdataset(Dataset):
         text = torch.tensor(self.dataset['text'][ind])
 
         
-        
-        
 
         if self.aligned:
             try:
@@ -290,15 +293,14 @@ def get_dataloader(
     for dataset in alldata:
         processed_dataset[dataset] = alldata[dataset]
 
-    train = DataLoader(Affectdataset(processed_dataset['train'], flatten_time_series, task=task, max_pad=max_pad,               max_pad_num=max_seq_len, data_type=data_type, z_norm=z_norm), \
-                       shuffle=train_shuffle, num_workers=num_workers, batch_size=batch_size, \
-                       collate_fn=process)
+    train = DataLoader(Affectdataset(processed_dataset['train'], flatten_time_series, task=task, max_pad=max_pad,               
+                                     max_pad_num=max_seq_len, data_type=data_type, z_norm=z_norm), \
+                                    shuffle=train_shuffle, num_workers=num_workers, batch_size=batch_size, \
+                                    collate_fn=process)
     valid = DataLoader(Affectdataset(processed_dataset['valid'], flatten_time_series, task=task, max_pad=max_pad, max_pad_num=max_seq_len, data_type=data_type, z_norm=z_norm), \
                        shuffle=False, num_workers=num_workers, batch_size=batch_size, \
                        collate_fn=process)
-    # test = DataLoader(Affectdataset(processed_dataset['test'], flatten_time_series, task=task), \
-    #                   shuffle=False, num_workers=num_workers, batch_size=batch_size, \
-    #                   collate_fn=process)
+    # adds noise to test data
     if robust_test:
         vids = [id for id in alldata['test']['id']]
 
@@ -353,15 +355,7 @@ def get_dataloader(
                 DataLoader(Affectdataset(test, flatten_time_series, task=task, max_pad=max_pad, max_pad_num=max_seq_len, data_type=data_type, z_norm=z_norm), shuffle=False, num_workers=num_workers,
                         batch_size=batch_size, collate_fn=process))
 
-        # Add timeseries noises
-
-        # for i, text in enumerate(robust_text_numpy):
-        
-        #     alldata_test = timeseries_robustness([alldata['test']['vision'], alldata['test']['audio'], text], noise_level=i/10)
-        #     test.append(alldata_test)
-
         robust_timeseries = []
-        # alldata['test'] = drop_entry(alldata['test'])
         for i in range(10):
             robust_timeseries_tmp = add_timeseries_noise(
                 [alldata['test']['vision'].copy(), alldata['test']['audio'].copy(), alldata['test']['text'].copy()],
@@ -385,7 +379,6 @@ def get_dataloader(
         test_robust_data['robust_timeseries'] = robust_timeseries
         return train, valid, test_robust_data
     else:
-        # test = dict()
         test = DataLoader(Affectdataset(processed_dataset['test'], flatten_time_series, task=task, max_pad=max_pad, max_pad_num=max_seq_len, data_type=data_type, z_norm=z_norm), \
                       shuffle=False, num_workers=num_workers, batch_size=batch_size, \
                       collate_fn=process)
