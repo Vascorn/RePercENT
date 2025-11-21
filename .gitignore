@@ -208,3 +208,5 @@ __marimo__/
 
 # ignore the data/ directory
 data/
+scripts/
+Dockerfile
