@@ -4,7 +4,7 @@ import time
 
 
 run = wandb.init(project= "dummy-training", 
-                 comment= "testing wandb logging",
+                 notes= "testing wandb logging",
                  mode= "online",
                  config= {
                      "epochs": 10
