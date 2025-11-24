@@ -8,7 +8,7 @@ def train(epochs= 5):
         loss = np.random.rand()
         # wandb.log({"loss": loss})
         # pause for 30 seconds
-        time.sleep(30)
+        time.sleep(100)
         print(f"Epoch {epoch + 1} / {epochs}, Loss: {loss:.4f}")
 
 
