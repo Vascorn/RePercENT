@@ -1,6 +1,7 @@
 import numpy as np
 # import wandb
 
+
 def train(epochs= 5):
     for epoch in range(epochs):
         # renerate radom loss values
