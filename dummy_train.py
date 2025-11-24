@@ -2,6 +2,7 @@ import numpy as np
 import wandb
 import time
 
+
 run = wandb.init(project= "dummy-training", 
                  comment= "testing wandb logging",
                  mode= "online",
@@ -20,3 +21,4 @@ def train(epochs= 5):
 if __name__ == "__main__":
     epochs = run.config.epochs
     train(epochs)
+    wandb.finish()
