@@ -1,5 +1,5 @@
 import numpy as np
-import wandb
+# import wandb
 
 def train(epochs= 5):
     for epoch in range(epochs):
