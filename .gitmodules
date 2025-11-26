@@ -1,0 +1,3 @@
+[submodule "DisentangledSSL"]
+	path = DisentangledSSL
+	url = https://github.com/uhlerlab/DisentangledSSL.git
