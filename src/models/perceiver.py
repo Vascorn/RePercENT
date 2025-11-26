@@ -62,6 +62,7 @@ class PreNorm(nn.Module):
         return self.fn(x, **kwargs)
 
 class GEGLU(nn.Module):
+    # Implementation of Gated Linear Unit with GELU (Generalized Linear Unit) activation
     def forward(self, x):
         x, gates = x.chunk(2, dim = -1)
         return x * F.gelu(gates)
@@ -125,9 +126,9 @@ class Perceiver(nn.Module):
     def __init__(
         self,
         *,
-        num_freq_bands,
         depth,
-        max_freq,
+        num_freq_bands= None,
+        max_freq= None,
         input_channels = 3,
         input_axis = 2,
         num_latents = 512,
@@ -178,8 +179,13 @@ class Perceiver(nn.Module):
         self.num_freq_bands = num_freq_bands
 
         self.fourier_encode_data = fourier_encode_data
-        fourier_channels = (input_axis * ((num_freq_bands * 2) + 1)) if fourier_encode_data else 0
-        input_dim = fourier_channels + input_channels
+        # If fourier encoding, you must provide num_freq_bands and max_freq
+        if fourier_encode_data:
+            assert exists(num_freq_bands) and exists(max_freq), 'must provide num_freq_bands and max_freq if you are fourier encoding the data'
+            fourier_channels = (input_axis * ((num_freq_bands * 2) + 1)) if fourier_encode_data else 0
+            input_dim = fourier_channels + input_channels
+        else:
+            input_dim = input_channels
 
         self.latents = nn.Parameter(torch.randn(num_latents, latent_dim))
 
@@ -197,18 +203,22 @@ class Perceiver(nn.Module):
 
             self_attns = nn.ModuleList([])
 
+            # append self attention blocks of latents
             for block_ind in range(self_per_cross_attn):
                 self_attns.append(nn.ModuleList([
                     get_latent_attn(**cache_args, key = block_ind),
                     get_latent_ff(**cache_args, key = block_ind)
                 ]))
 
+            # for each layer, append cross attention between latents and inputs, 
+            # followed by feedforward, then the self attention blocks of latents
             self.layers.append(nn.ModuleList([
                 get_cross_attn(**cache_args),
                 get_cross_ff(**cache_args),
                 self_attns
             ]))
 
+        # classifier head that mean pools the latents and projects to number of classes (linear probing)
         self.to_logits = nn.Sequential(
             Reduce('b n d -> b d', 'mean'),
             nn.LayerNorm(latent_dim),
@@ -220,8 +230,9 @@ class Perceiver(nn.Module):
         data,
         mask = None,
         return_embeddings = False
-    ):
+        ):
         b, *axis, _, device, dtype = *data.shape, data.device, data.dtype
+        
         assert len(axis) == self.input_axis, 'input data must have the right number of axis'
 
         if self.fourier_encode_data:
