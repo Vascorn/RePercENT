@@ -1,7 +1,10 @@
 import torch
 import torch.nn as nn
 from torch.distributions import Normal, Independent
-import utils
+import os, sys
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+import src.DisentangledSSL.utils as utils
 import math
 
 def mlp(dim, hidden_dim, output_dim, layers, activation, initialization = 'xavier'):

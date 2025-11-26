@@ -1,7 +1,13 @@
 import torch
 import numpy as np
 from torch.utils.data import Dataset
-from models import *
+# Adjust sys.path to import always from src
+import os
+import sys
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+print(sys.path)
+from src.DisentangledSSL.models import mlp
 
 #############################
 #  Synthetic Dataset Class  #
