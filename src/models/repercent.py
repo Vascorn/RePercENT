@@ -5,6 +5,7 @@ import torch.nn as nn
 import torch
 from typing import Literal, List
 from src.DisentangledSSL.models import ProbabilisticEncoder 
+from src.DisentangledSSL.losses import SupConLoss, ortho_loss
 
 
 class simpleEncoder(nn.Module):
@@ -43,9 +44,6 @@ class DisenEncoder(nn.Module):
         self.t = self.perceiver.input_channels # the temporal dimension of the i^th modality (Z \in R^{t x d})
         self.d = self.perceiver.input_channels  # the feature dimension of the i^th modality (Z \in R^{t x d})
 
-        self.head12 = ProbabilisticEncoder(latent_dim, latent_dim, initialization='normal', distribution='vmf', vmfkappa=1e3)
-        # self.decoder = decoder_model  # Decoder model to reconstruct original modalities
-        # self.maping = {'z11': 0, 'z12': 1} # Mapping of the disentangled latent representations to the corresponding position in the perceiver output
 
     def forward(self, x):
         Z = self.encoder(x)  # Encode input data Xi to get latent representation Zi
@@ -53,29 +51,53 @@ class DisenEncoder(nn.Module):
         return out
 
 class RePercENT(nn.Module):
-    def __init__(self, M: int = 2, disenEncoder: List[DisenEncoder] = None, disen_mapping: dict[int, dict] = {'M1': {'z11': 0, 'z12': 1}, 'M2': {'z22': 0, 'z21': 1}}) -> None:
+    def __init__(self, M: int = 2, disenEncoder: List[DisenEncoder] = None, \
+        disen_mapping: dict[int, dict] = {'M_1': {'U_12': 0, 'S_12': 1}, 'M_2': {'U_21': 0, 'S_21': 1}},
+        a: float = 1.0, lmd: float= 0.5, ortho_norm: bool= True) -> None:
+        '''
+        RePercENT model for multi-modal representation learning with disentangled factors.
+        Args:
+            M (int): Number of modalities.
+            disenEncoder (List[DisenEncoder]): List of DisenEncoder instances for each modality.
+            disen_mapping (dict): Mapping the position of each disentangled factor to the corresponding position in the output of each Perceiver based encoder (disenEncoder). 
+                                The keys are the different modalities (e.g., 'M_1', 'M_2', ..., 'M_N'), and the values are dictionaries that map the names of the disentangled 
+                                factors (e.g., 'U_12' -> unique component of modality 1 with respect to modality 2, 'S_12' -> shared component between modality 1 and 2, etc.) 
+                                to their respective indices in the output tensor of the corresponding DisenEncoder.
+        '''
+
         super(RePercENT, self).__init__()
 
         assert M == len(disenEncoder), "Number of modalities M must match the length of disenEncoder list"
-
+        
         self.M = M  # Number of modalities
+        self.latent_dim = disenEncoder[0].perceiver.latent_dim  # All DisenEncoders must have the same latent dimension
+
+        for de in disenEncoder:
+            assert de.perceiver.latent_dim == self.latent_dim, "All DisenEncoders must have the same latent dimension"
+
         self.disenEncoders = nn.ModuleList(disenEncoder)  # List of DisenEncoder instances for each modality
-        self.probab_heads = nn.ModuleList([]) # List of probabilistic heads for each shared disentangled factor 
+        self.prob_heads = nn.ModuleList([ProbabilisticEncoder(nn.Identity(), distribution= "vmf") for _ in range(self.M)])  # Probabilistic heads for each of S_12 and S_21 - assuming only two modalities
+
         self.disen_mapping = disen_mapping
         self.iterations = 0
+        self.critic = SupConLoss()
+        self.norm = lambda x: nn.functional.normalize(x, dim=-1)
+        self.a = alpha
+        self.lmd = lmd
+        self.ortho_norm = ortho_norm
+        self.loss_ortho = lambda x, y: ortho_loss(x, y, norm= self.ortho_norm)
 
     def forward(self, x1, x2, v1, v2):
         """
         Forward pass through the RePercENT model.
         Args:
-            x1: Input data for modality 1
-            x2: Input data for modality 2
-            v1: Augmented input data for modality 1
-            v2: Augmented input data for modality 2
+        x1: Input data for modality 1.
+        x2: Input data for modality 2.
+        v1: Augmented view of input data for modality 1.
+        v2: Augmented view of input data for modality 2.
         """
         self.iterations += 1
-
-        # The following assumes two modalities for simplicity - extension to M > 2 to be done
+        
         Z1 = self.disenEncoders[0](x1)  # Encode modality 1
         Z2 = self.disenEncoders[1](x2)  # Encode modality 2
 
@@ -83,26 +105,36 @@ class RePercENT(nn.Module):
         Z1_v = self.disenEncoders[0](v1)  # Encode modality 1 augmented
         Z2_v = self.disenEncoders[1](v2)  # Encode modality 2 augmented
 
+        u_12_pos = self.disen_mapping['M_1']['U_12']
+        s_12_pos = self.disen_mapping['M_1']['S_12']
+        u_21_pos = self.disen_mapping['M_2']['U_21']
+        s_21_pos = self.disen_mapping['M_2']['S_21']
 
-        # CONTINUE FROM HERE!!!!!!!!!!
+        # extract each component
+        #unique
+        u_12 = Z1[u_12_pos, :]  # Unique component from modality 1
+        u_12_v = Z1_v[u_12_pos, :]  # Unique component from modality 1 augmented
+        u_21 = Z2[u_21_pos, :]  # Unique component from modality 2
+        u_21_v = Z2_v[u_21_pos, :]  # Unique component from modality 2 augmented
+        # shared
+        s_12 = Z1[s_12_pos, :]  # Shared component from modality 1
+        s_12_v = Z1_v[s_12_pos, :]  # Shared component from modality 1 augmented
+        s_21 = Z2[s_21_pos, :]  # Shared component from modality 2
+        s_21_v = Z2_v[s_21_pos, :]  # Shared component from modality 2 augmented
 
-        e1 = self.encoder_x1s(x1)
-        e2 = self.encoder_x2s(x2)
-        e1_v = self.encoder_x1s(v1)
-        e2_v = self.encoder_x2s(v2)
+        # add probabilistic heads for shared components
+        p_s_12_given_x1, mu1 = self.prob_heads[0](s_12)
+        p_s_21_given_x2, mu2 = self.prob_heads[1](s_21)
+        p_s_12_v_given_v1, mu1_v = self.prob_heads[0](s_12_v)
+        p_s_21_v_given_v2, mu2_v = self.prob_heads[1](s_21_v)
 
-        p_zs1_given_x1, mu1 = self.phead1(e1)
-        p_zs2_given_x2, mu2 = self.phead2(e2)
-        p_zsv1_given_v1, mu1_v = self.phead1(e1_v)
-        p_zsv2_given_v2, mu2_v = self.phead2(e2_v)
+        s_12 = p_s_12_given_x1.rsample()
+        s_21 = p_s_21_given_x2.rsample()
+        s_12_v = p_s_12_v_given_v1.rsample()
+        s_21_v = p_s_21_v_given_v2.rsample()
 
-        zs1 = p_zs1_given_x1.rsample()
-        zs2 = p_zs2_given_x2.rsample()
-        zsv1 = p_zsv1_given_v1.rsample()
-        zsv2 = p_zsv2_given_v2.rsample()
-
-        concat_embed = torch.cat([zs1.unsqueeze(dim=1), zs2.unsqueeze(dim=1)], dim=1)
-        concat_embed_v = torch.cat([zsv1.unsqueeze(dim=1), zsv2.unsqueeze(dim=1)], dim=1)
+        concat_embed = torch.cat([s_12.unsqueeze(dim=1), s_21.unsqueeze(dim=1)], dim=1)
+        concat_embed_v = torch.cat([s_12_v.unsqueeze(dim=1), s_21_v.unsqueeze(dim=1)], dim=1)
         joint_loss, loss_x, loss_y = self.critic(concat_embed)
         joint_loss_v, loss_x_v, loss_y_v = self.critic(concat_embed_v)
         joint_loss = 0.5 * (joint_loss + joint_loss_v)
@@ -110,59 +142,42 @@ class RePercENT(nn.Module):
         loss_y = 0.5 * (loss_y + loss_y_v)
         loss_shared = joint_loss
 
-        if self.condzs:
-            z1x1 = self.encoder_x1(torch.cat([x1, e1], dim=1))
-            z1xv1 = self.encoder_x1(torch.cat([v1, e1_v], dim=1))
-            z2x2 = self.encoder_x2(torch.cat([x2, e2], dim=1))
-            z2xv2 = self.encoder_x2(torch.cat([v2, e2_v], dim=1))
-        else:
-            z1x1 = self.encoder_x1(x1)
-            z1xv1 = self.encoder_x1(v1)
-            z2x2 = self.encoder_x2(x2)
-            z2xv2 = self.encoder_x2(v2)
 
-        if self.apdzs:
-            if self.usezsx:
-                zjointx1 = torch.cat([z1x1, e1], dim=1)
-                zjointx2 = torch.cat([z2x2, e2], dim=1)
-                zjointxv1 = torch.cat([z1xv1, e1_v], dim=1)
-                zjointxv2 = torch.cat([z2xv2, e2_v], dim=1)
-            else:
-                zjointx1 = torch.cat([z1x1, e2], dim=1)
-                zjointx2 = torch.cat([z2x2, e1], dim=1)
-                zjointxv1 = torch.cat([z1xv1, e2_v], dim=1)
-                zjointxv2 = torch.cat([z2xv2, e1_v], dim=1)
+        # now compute the losses for the specific components
 
-            if self.proj:
-                zjointx1 = self.projection_x1(zjointx1)
-                zjointx2 = self.projection_x2(zjointx2)
-                zjointxv1 = self.projection_x1(zjointxv1)
-                zjointxv2 = self.projection_x2(zjointxv2)
+        zjoint1 = torch.cat([u_12, Z2[s_21_pos, :]], dim=1)
+        zjoint2 = torch.cat([u_21, Z1[s_12_pos, :]], dim=1)
+        zjoint1_v = torch.cat([u_12_v, Z2_v[s_21_pos, :]], dim=1)
+        zjoint2_v = torch.cat([u_21_v, Z1_v[s_12_pos, :]], dim=1)
 
-            zjointx1, zjointx2 = nn.functional.normalize(zjointx1, dim=-1), nn.functional.normalize(zjointx2, dim=-1)
-            zjointxv1, zjointxv2 = nn.functional.normalize(zjointxv1, dim=-1), nn.functional.normalize(zjointxv2, dim=-1)
-            concat_embed_x1 = torch.cat([zjointx1.unsqueeze(dim=1), zjointxv1.unsqueeze(dim=1)], dim=1)
-            concat_embed_x2 = torch.cat([zjointx2.unsqueeze(dim=1), zjointxv2.unsqueeze(dim=1)], dim=1)
-        else:
-            z1x1_norm, z2x2_norm = nn.functional.normalize(z1x1, dim=-1), nn.functional.normalize(z2x2, dim=-1)
-            z1xv1_norm, z2xv2_norm = nn.functional.normalize(z1xv1, dim=-1), nn.functional.normalize(z2xv2, dim=-1)
-            concat_embed_x1 = torch.cat([z1x1_norm.unsqueeze(dim=1), z1xv1_norm.unsqueeze(dim=1)], dim=1)
-            concat_embed_x2 = torch.cat([z2x2_norm.unsqueeze(dim=1), z2xv2_norm.unsqueeze(dim=1)], dim=1)
+        # normalize the joint representations across last dimension
+        zjoint1 = self.norm(zjoint1)
+        zjoint2 = self.norm(zjoint2)
+        zjoint1_v = self.norm(zjoint1_v)
+        zjoint2_v = self.norm(zjoint2_v)
 
-        specific_loss_x1, loss_x1, loss_y1 = self.critic(concat_embed_x1)
-        specific_loss_x2, loss_x2, loss_y2 = self.critic(concat_embed_x2)
-
-        loss_specific = specific_loss_x1 + specific_loss_x2
-
-        if self.lmd_end_value > 0:
-            lmd = self.lmd_scheduler(self.iterations)
-        else:
-            lmd = self.lmd_start_value
-
-        loss_ortho = 0.5 * (ortho_loss(z1x1, e1, norm=self.ortho_norm) + ortho_loss(z2x2, e2, norm=self.ortho_norm)) + \
-                    0.5 * (ortho_loss(z1xv1, e1_v, norm=self.ortho_norm) + ortho_loss(z2xv2, e2_v, norm=self.ortho_norm))
+        concat_embed_x1 = torch.cat([zjoint1.unsqueeze(dim=1), zjoint2.unsqueeze(dim=1)], dim=1)
+        concat_embed_x2 = torch.cat([zjoint1_v.unsqueeze(dim=1), zjoint2_v.unsqueeze(dim=1)], dim=1)
         
-        loss = 2 * loss_shared/(1+self.a) + self.a * loss_specific/(1+self.a) + lmd * loss_ortho
 
-        return loss, {'loss': loss.item(), 'shared': loss_shared.item(), 'clip': joint_loss.item(), 'loss_x': loss_x.item(), 'loss_y': loss_y.item(),
-                       'specific': loss_specific.item(), 'ortho': loss_ortho.item(), 'lmd': lmd}
+        unique_loss_x1, loss_x1, loss_y1 = self.critic(concat_embed_x1)
+        unique_loss_x2, loss_x2, loss_y2 = self.critic(concat_embed_x2)
+        unique_loss = unique_loss_x1 + unique_loss_x2
+
+        loss_ortho = 0.5 * (self.ortho_loss(u_12, Z1[s_12_pos, :]) + self.ortho_loss(u_21, Z2[s_21_pos, :])) + \
+            0.5 * (self.ortho_loss(u_12_v, Z1_v[s_12_pos, :]) + self.ortho_loss(u_21_v, Z2_v[s_21_pos, :]))
+
+        loss = 2 * loss_shared/(1+ self.a) + self.a * unique_loss/(1+ self.a) + self.lmd * loss_ortho
+
+
+        # update logs
+        loss_logs = {'loss': loss.item(),
+                     'shared': loss_shared.item(),
+                     'clip': joint_loss.item(),
+                     'loss_x': loss_x.item(),
+                     'loss_y': loss_y.item(),
+                     'unique': unique_loss.item(),
+                     'ortho': loss_ortho.item()
+                     }
+
+        return loss, loss_logs
