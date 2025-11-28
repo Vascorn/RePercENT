@@ -156,8 +156,8 @@ class RePercENT(nn.Module):
         zjoint1_v = self.norm(zjoint1_v)
         zjoint2_v = self.norm(zjoint2_v)
 
-        concat_embed_x1 = torch.cat([zjoint1.unsqueeze(dim=1), zjoint2.unsqueeze(dim=1)], dim=1)
-        concat_embed_x2 = torch.cat([zjoint1_v.unsqueeze(dim=1), zjoint2_v.unsqueeze(dim=1)], dim=1)
+        concat_embed_x1 = torch.cat([zjoint1.unsqueeze(dim=1), zjoint1_v.unsqueeze(dim=1)], dim=1)
+        concat_embed_x2 = torch.cat([zjoint2.unsqueeze(dim=1), zjoint2_v.unsqueeze(dim=1)], dim=1)
         
 
         unique_loss_x1, loss_x1, loss_y1 = self.critic(concat_embed_x1)
