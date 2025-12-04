@@ -31,14 +31,18 @@ def cache_fn(f):
     return cached_fn
 
 def fourier_encode(x, max_freq, num_bands = 4):
+    
     x = x.unsqueeze(-1)
+    
     device, dtype, orig_x = x.device, x.dtype, x
 
-    scales = torch.linspace(1., max_freq / 2, num_bands, device = device, dtype = dtype)
+    scales = torch.linspace(1., max_freq / 2, num_bands, device = device, dtype = dtype) # change this line. no need to create every time
+    
     scales = scales[(*((None,) * (len(x.shape) - 1)), Ellipsis)]
-
+    
     x = x * scales * pi
     x = torch.cat([x.sin(), x.cos()], dim = -1)
+    
     x = torch.cat((x, orig_x), dim = -1)
     return x
 
@@ -237,15 +241,15 @@ class Perceiver(nn.Module):
 
         if self.fourier_encode_data:
             # calculate fourier encoded positions in the range of [-1, 1], for all axis
-
             axis_pos = list(map(lambda size: torch.linspace(-1., 1., steps=size, device=device, dtype=dtype), axis))
             pos = torch.stack(torch.meshgrid(*axis_pos, indexing = 'ij'), dim = -1)
+            
             enc_pos = fourier_encode(pos, self.max_freq, self.num_freq_bands)
             enc_pos = rearrange(enc_pos, '... n d -> ... (n d)')
             enc_pos = repeat(enc_pos, '... -> b ...', b = b)
-
+            
             data = torch.cat((data, enc_pos), dim = -1)
-
+            
         # concat to channels of data and flatten axis
 
         data = rearrange(data, 'b ... d -> b (...) d')
