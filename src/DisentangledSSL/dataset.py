@@ -6,7 +6,6 @@ import os
 import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-print(sys.path)
 from src.DisentangledSSL.models import mlp
 
 #############################
@@ -50,14 +49,14 @@ def generate_data(n_samples, hidden_dim, dim_info, weight_info, label_weight_inf
     Z = np.concatenate((t_Z1, t_Zs), axis=-1)
     T1 = np.random.uniform(-1.0,1.0,(Z.shape[-1], dim_info['X']))
     X = Z @ T1
-
+    print(f"Generated X with shape: {X.shape}")
     # Generate Y by transforming Z2 and Zs
     t_Z2 = data['Z2'][:, :weight_info['Z2']]
     Z = np.concatenate((t_Z2, t_Zs), axis=-1)
     T2 = np.random.uniform(-1.0,1.0,(Z.shape[-1], dim_info['Y']))
     Y = Z @ T2
     total_data = np.array([X, Y])
-
+    print(f"Generated Y with shape: {Y.shape}")
     def get_label(label_weight_info, seed):
       p_Z1 = t_Z1[:, :label_weight_info['Z1']]
       p_Zs = t_Zs[:, :label_weight_info['Zs']]
