@@ -3,6 +3,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 import torch.nn as nn
 import torch
+import typing
 from typing import Literal, List
 from src.DisentangledSSL.models import ProbabilisticEncoder 
 from src.DisentangledSSL.losses import SupConLoss, ortho_loss
@@ -37,18 +38,20 @@ class simpleEncoder(nn.Module):
 
 # Initial version for RePercENT model that handles two modalities
 class DisenEncoder(nn.Module):
-    def __init__(self, input_dim, latent_dim, num_latents= 2, encoder_model= None, perceiver_model=None):
-        super(DisenEncoder, self).__init__()
+    def __init__(self, encoder_model= None, perceiver_model=None):
+        super().__init__()
         self.encoder = encoder_model
         self.perceiver = perceiver_model
-        self.t = self.perceiver.input_axis # the temporal dimension of the i^th modality (Z \in R^{t x d})
-        self.d = self.perceiver.input_channels  # the feature dimension of the i^th modality (Z \in R^{t x d})
 
 
     def forward(self, x):
-        Z = self.encoder(x)  # Encode input data Xi to get latent representation Zi
+        Z = self.encoder(x)  # Encode input data Xi to get latent representation Z
         out = self.perceiver(Z)  # Pass latent representation through Perceiver to extract the disentangled features
         return out
+
+    def __repr__(self):
+        print(f"DisenEncoder with encoder: {self.encoder} and perceiver: {self.perceiver}")
+        return
 
 class RePercENT(nn.Module):
     def __init__(self, M: int = 2, disenEncoder: List[DisenEncoder] = None, \
@@ -64,21 +67,22 @@ class RePercENT(nn.Module):
                                 to their respective indices in the output tensor of the corresponding DisenEncoder.
         '''
 
-        super(RePercENT, self).__init__()
+        super().__init__()
 
         assert M == len(disenEncoder), "Number of modalities M must match the length of disenEncoder list"
         
         self.M = M  # Number of modalities
-        self.latent_dim = disenEncoder[0].perceiver.latent_dim  # All DisenEncoders must have the same latent dimension
+        # self.latent_dim = disenEncoder[0].perceiver.latents.shape[-1]  # All DisenEncoders must have the same latent dimension
 
-        for de in disenEncoder:
-            assert de.perceiver.latent_dim == self.latent_dim, "All DisenEncoders must have the same latent dimension"
+        # for de in disenEncoder:
+        #     assert de.perceiver.latents.shape[-1] == self.latent_dim, "All DisenEncoders must have the same latent dimension"
 
         self.disenEncoders = nn.ModuleList(disenEncoder)  # List of DisenEncoder instances for each modality
         self.prob_heads = nn.ModuleList([ProbabilisticEncoder(nn.Identity(), distribution= "vmf") for _ in range(self.M)])  # Probabilistic heads for each of S_12 and S_21 - assuming only two modalities
 
         self.disen_mapping = disen_mapping
         self.iterations = 0
+        self.norm = lambda x: nn.functional.normalize(x, dim=-1)
         
 
     def forward(self, x1, x2):
@@ -93,7 +97,7 @@ class RePercENT(nn.Module):
         Z1 = self.disenEncoders[0](x1)  # Encode modality 1
         Z2 = self.disenEncoders[1](x2)  # Encode modality 2
 
-
+        
         u_12_pos = self.disen_mapping['M_1']['U_12']
         s_12_pos = self.disen_mapping['M_1']['S_12']
         u_21_pos = self.disen_mapping['M_2']['U_21']
@@ -101,11 +105,11 @@ class RePercENT(nn.Module):
 
         # extract each component
         #unique
-        u_12 = Z1[u_12_pos, :]  # Unique component from modality 1
-        u_21 = Z2[u_21_pos, :]  # Unique component from modality 2
+        u_12 = Z1[:, u_12_pos, :]  # Unique component from modality 1
+        u_21 = Z2[:, u_21_pos, :]  # Unique component from modality 2
         # shared
-        s_12 = Z1[s_12_pos, :]  # Shared component from modality 1
-        s_21 = Z2[s_21_pos, :]  # Shared component from modality 2
+        s_12 = Z1[:, s_12_pos, :]  # Shared component from modality 1
+        s_21 = Z2[:, s_21_pos, :]  # Shared component from modality 2
 
         # add probabilistic heads for shared components
         p_s_12_given_x1, mu1 = self.prob_heads[0](s_12)
@@ -134,13 +138,13 @@ class RePercENT(nn.Module):
 # It is based on the JointDisenModel from the DisentangledSSL package (https://github.com/uhlerlab/DisentangledSSL)
 class DisenLoss(nn.Module):
     def __init__(self, alpha: float = 1.0, lmd: float= 0.5, ortho_norm: bool= True) -> None:
-        super(DisenLoss, self).__init__()
+        super().__init__()
         self.critic = SupConLoss()
         self.norm = lambda x: nn.functional.normalize(x, dim=-1)
         self.alpha = alpha
         self.lmd = lmd
         self.ortho_norm = ortho_norm
-        self.loss_ortho = lambda x, y: ortho_loss(x, y, norm= self.ortho_norm)
+        self.ortho_loss = lambda x, y: torch.norm(torch.matmul(self.norm(x).T, self.norm(y))) if self.ortho_norm else NotImplementedError('Please set norm=True')
 
     def forward(self, outputs, outputs_aug):
         """
@@ -185,11 +189,10 @@ class DisenLoss(nn.Module):
                      0.5 * (self.ortho_loss(u_12_aug, s_12_aug) + self.ortho_loss(u_21_aug, s_21_aug))
 
         # Total loss
-        loss = 2 * joint_loss / (1 + self.alpha) + self.alpha * unique_loss / (1 + self.alpha) + self.lmd * loss_ortho
+        loss = joint_loss #2 * joint_loss / (1 + self.alpha) + self.alpha * unique_loss / (1 + self.alpha) + self.lmd * loss_ortho
 
         loss_logs = {'loss': loss.item(),
-                     'shared': loss_shared.item(),
-                     'clip': joint_loss.item(),
+                     'shared': joint_loss.item(),
                      'loss_x': loss_x.item(),
                      'loss_y': loss_y.item(),
                      'unique': unique_loss.item(),

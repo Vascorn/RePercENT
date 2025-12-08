@@ -4,27 +4,28 @@ from torch.utils.data import Dataset
 # Adjust sys.path to import always from src
 import os
 import sys
-from typing import Dict, Any, Callable, Optional, Sequence, Tuple, List, Union
+import torch
+from typing import Dict, Any, Callable, Optional, Sequence, Tuple, List, Union, Literal
 import torch.nn as nn
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 class MultimodalDataset(Dataset):
   def __init__(self, total_data, labels_1 = None, labels_2=None, labels_s=None):
-    self.data = torch.from_numpy(total_data).float()
-    self.num_modalities = self.data.shape[0]
+    self.data = total_data
+    self.num_modalities = len(self.data[0])
     self.labels_1 = labels_1
     self.labels_2 = labels_2
     self.labels_s = labels_s
   
   def __len__(self):
-    return self.data.shape[1]
+    return len(self.data)
 
   def __getitem__(self, idx):
     if self.labels_1 is not None:
-        return tuple([self.data[i, idx] for i in range(self.num_modalities)] + [self.labels_1[idx]] + [self.labels_2[idx]] + [self.labels_s[idx]])
+        return tuple([torch.from_numpy(self.data[idx][i]).to(torch.float32) for i in range(self.num_modalities)] + [self.labels_1[idx]] + [self.labels_2[idx]] + [self.labels_s[idx]])
     else:
-        return tuple([self.data[i, idx] for i in range(self.num_modalities)])
+        return tuple([torch.from_numpy(self.data[idx][i]).to(torch.float32) for i in range(self.num_modalities)])
         
   def sample_batch(self, batch_size):
     sample_idxs = np.random.choice(self.__len__(), batch_size, replace=False)
@@ -57,15 +58,15 @@ class GenerateData():
         random_mat = np.random.randn(t, d)
         return random_mat / np.linalg.norm(random_mat, axis=1, keepdims=True)
 
-    def create_modulation_mats(self, t1: int = 5, t2: int = 5, gamma: float = 10.0):
+    def create_modulation_mats(self, t1: int = 5, t2: int = 5, gamma1: float = 10.0, gamma2: float = 10.0):
         self.d1 = self.latent_dims['Z1'] + self.latent_dims['Zs'] # dimensionality for modality 1
         self.d2 = self.latent_dims['Z2'] + self.latent_dims['Zs'] # dimensionality for modality 2
         self.t1 = t1
         self.t2 = t2
         match self.mod_type:
             case "rbf":
-                self.W1 = self.rbf_mod(t1, self.d1, gamma)
-                self.W2 = self.rbf_mod(t2, self.d2, gamma)
+                self.W1 = self.rbf_mod(t1, self.d1, gamma1)
+                self.W2 = self.rbf_mod(t2, self.d2, gamma2)
             case "random":
                 self.W1 = self.random_mod(t1, self.d1)
                 self.W2 = self.random_mod(t2, self.d2)
@@ -79,7 +80,7 @@ class GenerateData():
         Converts a continuous latent factor (t_Z) into a binary categorical label (0/1)
         using a fixed, random linear projection and median thresholding.
         """
-        torch.manual_seed(seed)
+        
         # latent_factor_t is (N_samples, D_latent)
         d = latent_factor_t.shape[1]
         
@@ -102,8 +103,13 @@ class GenerateData():
         
         return total_labels
 
-    def create_dataset(self):
-        self.set_seed(0)
+    def normalize_data(self, data):
+        # Normalize data across the last dimension
+        norm_data = data / np.linalg.norm(data, axis=-1, keepdims=True)
+        return norm_data
+
+    def create_dataset(self, sigma: float = 0.1, t1: int = 5, t2: int = 5, gamma1: float = 10.0, gamma2: float = 10.0, normalize: bool = True):
+        
         # Generate latent factors
         data = {}
         for k, d in self.latent_dims.items():
@@ -116,7 +122,7 @@ class GenerateData():
 
         if not hasattr(self, 'W1') or not hasattr(self, 'W2'):
             print("Modulation matrices not found, creating with default parameters for each modality.")
-            self.create_modulation_mats()
+            self.create_modulation_mats(t1=t1, t2=t2, gamma1=gamma1, gamma2=gamma2)
 
         # generate modulation matrices
         Z1 = np.concatenate((t_Z1, t_Zs), axis=-1)  # Latent representation for modality 1
@@ -125,7 +131,10 @@ class GenerateData():
 
         X1 = Z1[:, None, :] * self.W1[None, :, :] # Modulated data for modality 1
         X2 = Z2[:, None, :] * self.W2[None, :, :] # Modulated data for modality 2
-        
+        print(f"before normalization sample: {X1[0, :, 0:5]}")
+        X1 = self.normalize_data(X1) if normalize else X1
+        X2 = self.normalize_data(X2) if normalize else X2
+        print(f"after normalization sample: {X1[0, :, 0:5]}")
         # --- D. Generate Disentanglement Labels (Y1, Y2, Ys) ---
     
         # Y1: Derived ONLY from t_Z1 (Specific 1)
@@ -137,8 +146,8 @@ class GenerateData():
         # Y2: Derived ONLY from t_Z2 (Specific 2)
         labels_2 = self.generate_labels(t_Z2, seed= np.random.randint(0, 10000))
         
-        total_data = np.array([X1, X2])  # Shape: (2, N_samples, t, d)
-        
+        print(f"X1 shape: {X1.shape}, X2 shape: {X2.shape}")
+        total_data = [(x1, x2) for (x1, x2) in zip(X1, X2)] # list of tuples for each sample
 
         # pack into a dictionary
         self.dataset_dict = {
@@ -158,17 +167,91 @@ class GenerateData():
         
         print("Dataset Information:")
         print(f"Number of samples: {self.N_data}")
-        print(f"Modality 1 data shape: {self.dataset_dict['total_data'][0].shape}")
-        print(f"Modality 2 data shape: {self.dataset_dict['total_data'][1].shape}")
+        print(f"Modality 1 data shape: {len(self.dataset_dict['total_data'])}")
         print(f"Labels 1 shape: {self.dataset_dict['labels_1'].shape}, Unique classes: {np.unique(self.dataset_dict['labels_1'])}")
         print(f"Labels 2 shape: {self.dataset_dict['labels_2'].shape}, Unique classes: {np.unique(self.dataset_dict['labels_2'])}")
         print(f"Labels s shape: {self.dataset_dict['labels_s'].shape}, Unique classes: {np.unique(self.dataset_dict['labels_s'])}")
 
+    # Defining simple aumentations
+    def noise(self, x, snr_db= 20):
+        """
+        Adds Gaussian noise to the input tensor.
+        Args:
+            x (torch.Tensor): Input data tensor.
+            snr_db (float): Signal-to-noise ratio in decibels.
+        Returns:
+            torch.Tensor: Noisy data tensor.
+        """
+        snr = 10 ** (snr_db / 10)
+        sig_power = torch.mean(x ** 2, dim = (-1, -2), keepdim= True)
+        noise_power = sig_power / snr
+        noise = torch.randn_like(x) * torch.sqrt(noise_power)
+        noisy_x = x + noise
+        return noisy_x
+
+    def swap(self, x):
+        """
+        Swaps the first and second halves of the input tensor along the last dimension, i.e., each input array is swapped along the columns.
+        Args:
+            x (torch.Tensor): Input data tensor.
+        Returns:
+            torch.Tensor: Swapped data tensor.
+        """
+        mid = x.shape[-1] // 2
+        swapped = torch.cat([x[..., mid:], x[..., :mid]], dim=-1)
+        return swapped
+
+    def random_drop(self, x, drop_scale=10):
+        """
+        Randomly drops a fraction of the input tensor's elements by setting them to zero.
+        Args:
+            x (torch.Tensor): Input data tensor.
+            drop_scale (int): The fraction of elements to drop (1/ drop_scale).
+        Returns:
+            x_aug (torch.Tensor): Data tensor with random elements dropped.
+        """
+        seq_len = x.shape[-2]
+        feat_dim = x.shape[-1]
+        drop_num = (seq_len * feat_dim) // drop_scale # total number of elements to drop, given that the last two dims are (seq length x features)
+        drop_idxs_x = np.random.choice(seq_len, drop_num // 2, replace= True)
+        drop_idxs_y = np.random.choice(feat_dim, drop_num // 2, replace= True)
+        x_aug = torch.clone(x)
+        x_aug[..., drop_idxs_x, drop_idxs_y] = 0.0
+        return x_aug
+
+
+    def augment_data(self, X, aug_type: Literal['noise', 'swap', 'random_drop', 'random']='noise', **kwargs):
+        """
+        Simple data augmentation by adding Gaussian noise.
+        Args:
+            X (torch.Tensor): Input data tensor.
+            aug_type (str): Type of augmentation ('noise', 'swap', 'random_drop').
+            *args: Additional arguments for the augmentation function.
+        Returns:
+            X_aug (torch.Tensor): Augmented data tensor.
+        """
+        aug = aug_type if aug_type != 'random' else np.random.choice(['noise', 'swap', 'random_drop'])
+        match aug:
+            case 'noise':
+                X_aug = self.noise(X, kwargs.get("snr_db", 20))
+            case 'swap':
+                X_aug = self.swap(X)    
+            case 'random_drop':
+                X_aug = self.random_drop(X, kwargs.get("drop_scale", 10))
+            case _:
+                raise ValueError(f"Unsupported augmentation type: {aug_type}")
+        return X_aug
+
     # configure seed for all randomness
     @staticmethod   
-    def set_seed(seed: int):
+    def set_seed(seed: int, device= 'cpu'):
         np.random.seed(seed)
-        torch.manual_seed(seed)
+
+        if device == "cuda":
+            try:
+                torch.cuda.manual_seed_all(seed)
+            except RuntimeError:
+                pass  # CUDA not properly initialized, continue without it
 
 
 

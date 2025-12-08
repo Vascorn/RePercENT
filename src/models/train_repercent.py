@@ -100,7 +100,7 @@ def train_loop(model, train_loader, optimizer, dissen_loss, noise_scale=0.01, dr
     return epoch_loss, epoch_logs
 
 
-def train_model(model, train_loader, train_dataset, test_dataset, dissen_loss, optimizer, num_epoch=50, noise_scale=0.01, drop_scale=10):
+def train_model(model, train_loader, test_loader, dissen_loss, optimizer, num_epoch=50, noise_scale=0.01, drop_scale=10):
         lr_scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, num_epoch, eta_min=0, last_epoch=-1)
         train_loss_logs = {"loss": [], "logs": {}}
         test_loss_logs = {"loss": [], "logs": {}}
@@ -117,7 +117,7 @@ def train_model(model, train_loader, train_dataset, test_dataset, dissen_loss, o
             model.eval()
             with torch.no_grad():
                 epoch_test_loss = 0.0
-                for i_batch, data_batch in enumerate(test_dataset):
+                for i_batch, data_batch in enumerate(test_loader):
                     x1 = data_batch[0].float().cuda()
                     x2 = data_batch[1].float().cuda()
                     x1 = augment_data(x1, noise_scale, drop_scale)
@@ -128,7 +128,7 @@ def train_model(model, train_loader, train_dataset, test_dataset, dissen_loss, o
                     out_aug = model(x1_aug, x2_aug)
                     loss_test, logs_test = dissen_loss(out, out_aug)
                     epoch_test_loss += loss_test.item()
-                epoch_test_loss /= len(test_dataset)
+                epoch_test_loss /= len(test_loader)
                 test_loss_logs["loss"].append(epoch_test_loss)
                 test_loss_logs["logs"][_iter] = logs_test
                 print(f"Test Loss: {epoch_test_loss:.4f}")

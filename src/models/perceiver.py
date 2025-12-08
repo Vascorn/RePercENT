@@ -141,7 +141,7 @@ class Perceiver(nn.Module):
         latent_heads = 8,
         cross_dim_head = 64,
         latent_dim_head = 64,
-        num_classes = 1000,
+        num_classes = None,
         attn_dropout = 0.,
         ff_dropout = 0.,
         weight_tie_layers = False,
@@ -192,7 +192,7 @@ class Perceiver(nn.Module):
             input_dim = input_channels
 
         self.latents = nn.Parameter(torch.randn(num_latents, latent_dim))
-
+        
         get_cross_attn = lambda: PreNorm(latent_dim, Attention(latent_dim, input_dim, heads = cross_heads, dim_head = cross_dim_head, dropout = attn_dropout), context_dim = input_dim)
         get_cross_ff = lambda: PreNorm(latent_dim, FeedForward(latent_dim, dropout = ff_dropout))
         get_latent_attn = lambda: PreNorm(latent_dim, Attention(latent_dim, heads = latent_heads, dim_head = latent_dim_head, dropout = attn_dropout))
@@ -223,11 +223,14 @@ class Perceiver(nn.Module):
             ]))
 
         # classifier head that mean pools the latents and projects to number of classes (linear probing)
-        self.to_logits = nn.Sequential(
-            Reduce('b n d -> b d', 'mean'),
-            nn.LayerNorm(latent_dim),
-            nn.Linear(latent_dim, num_classes)
-        ) if final_classifier_head else nn.Identity()
+        if num_classes is not None:
+            self.to_logits = nn.Sequential(
+                Reduce('b n d -> b d', 'mean'),
+                nn.LayerNorm(latent_dim),
+                nn.Linear(latent_dim, num_classes)
+            ) if final_classifier_head else nn.Identity()
+        else:
+            self.to_logits = nn.Identity()
 
     def forward(
         self,
@@ -249,23 +252,20 @@ class Perceiver(nn.Module):
             enc_pos = repeat(enc_pos, '... -> b ...', b = b)
             
             data = torch.cat((data, enc_pos), dim = -1)
-            
-        # concat to channels of data and flatten axis
 
+        # concat to channels of data and flatten axis
         data = rearrange(data, 'b ... d -> b (...) d')
 
         x = repeat(self.latents, 'n d -> b n d', b = b)
-
+        
         # layers
-
         for cross_attn, cross_ff, self_attns in self.layers:
             x = cross_attn(x, context = data, mask = mask) + x
             x = cross_ff(x) + x
-
             for self_attn, self_ff in self_attns:
                 x = self_attn(x) + x
                 x = self_ff(x) + x
-
+        
         # allow for fetching embeddings
 
         if return_embeddings:
