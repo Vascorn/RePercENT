@@ -118,12 +118,15 @@ class RePercENT(nn.Module):
         s_12_prob= p_s_12_given_x1.rsample()
         s_21_prob= p_s_21_given_x2.rsample()
 
-        s_concat = torch.cat([s_12_prob.unsqueeze(dim=1), s_21_prob.unsqueeze(dim=1)], dim=1)
-        
+        # s_concat = torch.cat([s_12_prob.unsqueeze(dim=1), s_21_prob.unsqueeze(dim=1)], dim=1) # THIS IS THE ORIGINAL
+        s_concat = torch.cat([s_12.unsqueeze(dim=1), s_21.unsqueeze(dim=1)], dim=1) # MODIFIED THAT USES NO PROBABILISTIC SAMPLING
+        s_concat = self.norm(s_concat)
         # now compute the losses for the specific components
 
-        z_1_concat = torch.cat([u_12, s_21], dim=1)
-        z_2_concat = torch.cat([u_21, s_12], dim=1)
+        # z_1_concat = torch.cat([u_12, s_21], dim=1) # THIS IS THE ORIGINAL
+        # z_2_concat = torch.cat([u_21, s_12], dim=1)
+        z_1_concat = torch.cat([u_12, s_12], dim=1) # MODIFIED TO USE THE IDENTICAL SHARED COMPONENTS
+        z_2_concat = torch.cat([u_21, s_21], dim=1)
 
         # normalize the joint representations across last dimension
         z_1_concat = self.norm(z_1_concat)
@@ -189,7 +192,7 @@ class DisenLoss(nn.Module):
                      0.5 * (self.ortho_loss(u_12_aug, s_12_aug) + self.ortho_loss(u_21_aug, s_21_aug))
 
         # Total loss
-        loss = joint_loss #2 * joint_loss / (1 + self.alpha) + self.alpha * unique_loss / (1 + self.alpha) + self.lmd * loss_ortho
+        loss = 2 * joint_loss / (1 + self.alpha) + self.alpha * unique_loss / (1 + self.alpha) + self.lmd * loss_ortho
 
         loss_logs = {'loss': loss.item(),
                      'shared': joint_loss.item(),

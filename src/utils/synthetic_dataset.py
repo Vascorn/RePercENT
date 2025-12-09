@@ -39,7 +39,7 @@ class GenerateData():
         """
         Args:
             N_data (int): Number of data samples to generate.
-            mod_type (str): Type of modulation ('rbf', 'random'). This defines how each modality vectors with be projected across time.
+            mod_type (str): Type of modulation ('rbf', 'random', 'identity'). This defines how each modality vectors with be projected across time.
             latent_dims (Dict[str, int]): Dictionary specifying the dimensions of shared and modality-specific latent factors.
         """
         self.N_data = N_data
@@ -70,6 +70,9 @@ class GenerateData():
             case "random":
                 self.W1 = self.random_mod(t1, self.d1)
                 self.W2 = self.random_mod(t2, self.d2)
+            case "identity":
+                self.W1 = np.ones((t1, self.d1))
+                self.W2 = np.ones((t2, self.d2))
             case _:
                 raise ValueError("Unsupported modulation type")
         
@@ -131,10 +134,10 @@ class GenerateData():
 
         X1 = Z1[:, None, :] * self.W1[None, :, :] # Modulated data for modality 1
         X2 = Z2[:, None, :] * self.W2[None, :, :] # Modulated data for modality 2
-        print(f"before normalization sample: {X1[0, :, 0:5]}")
+        print(f"before normalization sample: {X1[0, :, -5:]}")
         X1 = self.normalize_data(X1) if normalize else X1
         X2 = self.normalize_data(X2) if normalize else X2
-        print(f"after normalization sample: {X1[0, :, 0:5]}")
+        print(f"after normalization sample: {X1[0, :, -5:]}")
         # --- D. Generate Disentanglement Labels (Y1, Y2, Ys) ---
     
         # Y1: Derived ONLY from t_Z1 (Specific 1)
@@ -173,7 +176,7 @@ class GenerateData():
         print(f"Labels s shape: {self.dataset_dict['labels_s'].shape}, Unique classes: {np.unique(self.dataset_dict['labels_s'])}")
 
     # Defining simple aumentations
-    def noise(self, x, snr_db= 20):
+    def noise(self, x, scale= 0.01):
         """
         Adds Gaussian noise to the input tensor.
         Args:
@@ -182,10 +185,14 @@ class GenerateData():
         Returns:
             torch.Tensor: Noisy data tensor.
         """
-        snr = 10 ** (snr_db / 10)
-        sig_power = torch.mean(x ** 2, dim = (-1, -2), keepdim= True)
-        noise_power = sig_power / snr
-        noise = torch.randn_like(x) * torch.sqrt(noise_power)
+        epsilon = 0.01  # fraction of vector norm
+
+        # generate random directions
+        noise = torch.randn_like(x)
+
+        # scale noise to be a small fraction of each vector's norm
+        noise = noise / noise.norm(dim=1, keepdim=True) * (x.norm(dim=-1, keepdim=True) * epsilon)
+
         noisy_x = x + noise
         return noisy_x
 
@@ -233,7 +240,7 @@ class GenerateData():
         aug = aug_type if aug_type != 'random' else np.random.choice(['noise', 'swap', 'random_drop'])
         match aug:
             case 'noise':
-                X_aug = self.noise(X, kwargs.get("snr_db", 20))
+                X_aug = self.noise(X, kwargs.get("scale", 0.0001))
             case 'swap':
                 X_aug = self.swap(X)    
             case 'random_drop':
