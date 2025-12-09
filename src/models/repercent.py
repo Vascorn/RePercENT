@@ -7,6 +7,7 @@ import typing
 from typing import Literal, List
 from src.DisentangledSSL.models import ProbabilisticEncoder 
 from src.DisentangledSSL.losses import SupConLoss, ortho_loss
+from src.DisentangledSSL.utils import ExponentialScheduler
 
 
 class simpleEncoder(nn.Module):
@@ -78,10 +79,9 @@ class RePercENT(nn.Module):
         #     assert de.perceiver.latents.shape[-1] == self.latent_dim, "All DisenEncoders must have the same latent dimension"
 
         self.disenEncoders = nn.ModuleList(disenEncoder)  # List of DisenEncoder instances for each modality
-        self.prob_heads = nn.ModuleList([ProbabilisticEncoder(nn.Identity(), distribution= "vmf") for _ in range(self.M)])  # Probabilistic heads for each of S_12 and S_21 - assuming only two modalities
+        self.prob_heads = nn.ModuleList([ProbabilisticEncoder(nn.Identity(), distribution= "vmf", vmfkappa= 1e3) for _ in range(self.M)])  # Probabilistic heads for each of S_12 and S_21 - assuming only two modalities
 
         self.disen_mapping = disen_mapping
-        self.iterations = 0
         self.norm = lambda x: nn.functional.normalize(x, dim=-1)
         
 
@@ -92,7 +92,6 @@ class RePercENT(nn.Module):
         x1: Input data for modality 1.
         x2: Input data for modality 2.
         """
-        self.iterations += 1
         
         Z1 = self.disenEncoders[0](x1)  # Encode modality 1
         Z2 = self.disenEncoders[1](x2)  # Encode modality 2
@@ -118,15 +117,15 @@ class RePercENT(nn.Module):
         s_12_prob= p_s_12_given_x1.rsample()
         s_21_prob= p_s_21_given_x2.rsample()
 
-        # s_concat = torch.cat([s_12_prob.unsqueeze(dim=1), s_21_prob.unsqueeze(dim=1)], dim=1) # THIS IS THE ORIGINAL
-        s_concat = torch.cat([s_12.unsqueeze(dim=1), s_21.unsqueeze(dim=1)], dim=1) # MODIFIED THAT USES NO PROBABILISTIC SAMPLING
-        s_concat = self.norm(s_concat)
+        s_concat = torch.cat([s_12_prob.unsqueeze(dim=1), s_21_prob.unsqueeze(dim=1)], dim=1) # THIS IS THE ORIGINAL
+        # s_concat = torch.cat([s_12.unsqueeze(dim=1), s_21.unsqueeze(dim=1)], dim=1) # MODIFIED THAT USES NO PROBABILISTIC SAMPLING
+        # s_concat = self.norm(s_concat)
         # now compute the losses for the specific components
 
-        # z_1_concat = torch.cat([u_12, s_21], dim=1) # THIS IS THE ORIGINAL
-        # z_2_concat = torch.cat([u_21, s_12], dim=1)
-        z_1_concat = torch.cat([u_12, s_12], dim=1) # MODIFIED TO USE THE IDENTICAL SHARED COMPONENTS
-        z_2_concat = torch.cat([u_21, s_21], dim=1)
+        z_1_concat = torch.cat([u_12, s_21], dim=1) # THIS IS THE ORIGINAL
+        z_2_concat = torch.cat([u_21, s_12], dim=1)
+        # z_1_concat = torch.cat([u_12, s_12], dim=1) # MODIFIED TO USE THE IDENTICAL SHARED COMPONENTS
+        # z_2_concat = torch.cat([u_21, s_21], dim=1)
 
         # normalize the joint representations across last dimension
         z_1_concat = self.norm(z_1_concat)
@@ -140,12 +139,18 @@ class RePercENT(nn.Module):
 # This function with calculate the custom pairwise loss for the RePercENT model
 # It is based on the JointDisenModel from the DisentangledSSL package (https://github.com/uhlerlab/DisentangledSSL)
 class DisenLoss(nn.Module):
-    def __init__(self, alpha: float = 1.0, lmd: float= 0.5, ortho_norm: bool= True) -> None:
+    def __init__(self, alpha: float = 1.0, lmd: float= 0.5, lmd_start_value: float= 1e-3, lmd_end_value: float= 1, lmd_n_iterations: int=1e4, lmd_start_iteration: int=5e3, ortho_norm: bool= True) -> None:
         super().__init__()
         self.critic = SupConLoss()
         self.norm = lambda x: nn.functional.normalize(x, dim=-1)
         self.alpha = alpha
         self.lmd = lmd
+        self.lmd_scheduler = None if lmd_end_value <= 0 else ExponentialScheduler(start_value=lmd_start_value, end_value=lmd_end_value,
+                                                             n_iterations=lmd_n_iterations, start_iteration=lmd_start_iteration)
+
+        self.lmd_start_value = lmd_start_value
+        self.lmd_end_value = lmd_end_value
+        self.iterations = 0
         self.ortho_norm = ortho_norm
         self.ortho_loss = lambda x, y: torch.norm(torch.matmul(self.norm(x).T, self.norm(y))) if self.ortho_norm else NotImplementedError('Please set norm=True')
 
@@ -159,7 +164,7 @@ class DisenLoss(nn.Module):
             loss: Total loss as a scalar tensor.
             
         """
-
+        self.iterations += 1
         u_12, s_21, s_12_prob = outputs["Z1"]
         u_21, s_12, s_21_prob = outputs["Z2"]
         s_concat = outputs["s_concat"]
@@ -192,6 +197,9 @@ class DisenLoss(nn.Module):
                      0.5 * (self.ortho_loss(u_12_aug, s_12_aug) + self.ortho_loss(u_21_aug, s_21_aug))
 
         # Total loss
+        if self.lmd_scheduler is not None:
+            self.lmd = self.lmd_scheduler(self.iterations)
+
         loss = 2 * joint_loss / (1 + self.alpha) + self.alpha * unique_loss / (1 + self.alpha) + self.lmd * loss_ortho
 
         loss_logs = {'loss': loss.item(),
@@ -199,7 +207,8 @@ class DisenLoss(nn.Module):
                      'loss_x': loss_x.item(),
                      'loss_y': loss_y.item(),
                      'unique': unique_loss.item(),
-                     'ortho': loss_ortho.item()
+                     'ortho': loss_ortho.item(),
+                     'lmd': self.lmd
                      }
         return loss, loss_logs
 

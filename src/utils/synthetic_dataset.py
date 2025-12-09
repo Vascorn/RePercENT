@@ -115,9 +115,11 @@ class GenerateData():
         
         # Generate latent factors
         data = {}
-        for k, d in self.latent_dims.items():
+        
+        for i, (k, d) in enumerate(self.latent_dims.items()):
             # sample a random latent factor from a standard normal distribution
-            data[k] = np.random.multivariate_normal(np.zeros((d,)), np.eye(d) * 0.5, size= self.N_data)
+            
+            data[k] = np.random.multivariate_normal(np.zeros((d,)), np.eye(d) * sigma * (i + 1), size= self.N_data)
         
         t_Z1 = data['Z1']
         t_Zs = data['Zs']
