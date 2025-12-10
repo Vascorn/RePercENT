@@ -239,10 +239,10 @@ class GenerateData():
         Returns:
             X_aug (torch.Tensor): Augmented data tensor.
         """
-        aug = aug_type if aug_type != 'random' else np.random.choice(['noise', 'swap', 'random_drop'])
+        aug = aug_type if aug_type != 'random' else np.random.choice(['swap', 'random_drop'])
         match aug:
             case 'noise':
-                X_aug = self.noise(X, kwargs.get("scale", 0.0001))
+                X_aug = self.noise(X, kwargs.get("scale", 0.1e-5))
             case 'swap':
                 X_aug = self.swap(X)    
             case 'random_drop':
