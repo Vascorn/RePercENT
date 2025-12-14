@@ -56,7 +56,8 @@ class DisenEncoder(nn.Module):
 
 class RePercENT(nn.Module):
     def __init__(self, M: int = 2, disenEncoder: List[DisenEncoder] = None, \
-        disen_mapping: dict[int, dict] = {'M_1': {'U_12': 0, 'S_12': 1}, 'M_2': {'U_21': 0, 'S_21': 1}}) -> None:
+        disen_mapping: dict[int, dict] = {'M_1': {'U_12': 0, 'S_12': 1}, 'M_2': {'U_21': 0, 'S_21': 1}},
+        vmfkappa: float= 1e3) -> None:
         '''
         RePercENT model for multi-modal representation learning with disentangled factors.
         Args:
@@ -66,6 +67,7 @@ class RePercENT(nn.Module):
                                 The keys are the different modalities (e.g., 'M_1', 'M_2', ..., 'M_N'), and the values are dictionaries that map the names of the disentangled 
                                 factors (e.g., 'U_12' -> unique component of modality 1 with respect to modality 2, 'S_12' -> shared component between modality 1 and 2, etc.) 
                                 to their respective indices in the output tensor of the corresponding DisenEncoder.
+            vmfkappa (float): Concentration parameter for the vMF distribution in the probabilistic encoder heads. Default is 1e3.
         '''
 
         super().__init__()
