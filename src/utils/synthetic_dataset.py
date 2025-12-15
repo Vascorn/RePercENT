@@ -10,6 +10,36 @@ import torch.nn as nn
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
+
+def save_dataset(dataset, save_path: str, data_config: Dict[str, Any]= None):
+     # create directory if it doesn't exist
+    
+    os.makedirs(os.path.dirname(save_path), exist_ok=True)
+    torch.save(dataset, os.path.join(save_path, "dataset.pt"))
+    print(f"Dataset saved at {save_path}")
+    # create a README file with the data configuration
+    if data_config is not None:
+        readme_path = os.path.join(save_path, "README.md")
+        with open(readme_path, 'w') as f:
+                f.write("### Dataset Configuration\n\n")
+                for key, value in data_config["create_data"].items():
+                    if isinstance(value, dict):
+                        print(f"Writing config section: {key}")
+                        f.write(f"* {key}: \n\n")
+                        for sub_key, sub_value in value.items():
+                            f.write(f"  - **{sub_key}**: {sub_value}\n")
+                        f.write("\n")
+                    else:
+                        f.write(f"* **{key}**: {value}\n")
+        print(f"README saved at {readme_path}")
+    return
+
+def save_data_split(train_dataset, test_dataset, save_path: str):
+    os.makedirs(save_path, exist_ok=True)
+    torch.save({'train_dataset': train_dataset, 'test_dataset': test_dataset}, os.path.join(save_path, "data_split.pt"))
+    print(f"Data split saved at {save_path}")
+    return
+
 class MultimodalDataset(Dataset):
   def __init__(self, total_data, labels_1 = None, labels_2=None, labels_s=None):
     self.data = total_data
@@ -97,9 +127,14 @@ class GenerateData():
         # Apply projection and non-linearity (ReLU makes it non-trivially related)
         score_vector = projector(torch.relu(torch.Tensor(latent_factor_t))).numpy().flatten() 
         
-        # Add small noise for robustness
-        score_vector += np.random.normal(0, 0.01, score_vector.shape)
+        # Normalize the score vector
+        # score_vector = score_vector / np.linalg.norm(score_vector)
         
+        # add some noise for robustness
+        # np.random.seed(seed)
+        # noise = np.random.normal(0, 0.005, size= score_vector.shape)
+        # score_vector += noise
+            
         # Thresholding based on the median (ensures a balanced 50/50 split of classes)
         midprob = np.median(score_vector)
         total_labels = (score_vector >= midprob).astype(int)
@@ -111,7 +146,7 @@ class GenerateData():
         norm_data = data / np.linalg.norm(data, axis=-1, keepdims=True)
         return norm_data
 
-    def create_dataset(self, sigma: float = 0.1, t1: int = 5, t2: int = 5, gamma1: float = 10.0, gamma2: float = 10.0, normalize: bool = True):
+    def create_dataset(self, sigma: float = 1, t1: int = 5, t2: int = 5, gamma1: float = 10.0, gamma2: float = 10.0, normalize: bool = True):
         
         # Generate latent factors
         data = {}
@@ -136,10 +171,10 @@ class GenerateData():
 
         X1 = Z1[:, None, :] * self.W1[None, :, :] # Modulated data for modality 1
         X2 = Z2[:, None, :] * self.W2[None, :, :] # Modulated data for modality 2
-        print(f"before normalization sample: {X1[0, :, -5:]}")
+        print(f"before normalization sample: {X1[0, :, :]}")
         X1 = self.normalize_data(X1) if normalize else X1
         X2 = self.normalize_data(X2) if normalize else X2
-        print(f"after normalization sample: {X1[0, :, -5:]}")
+        print(f"after normalization sample: {X1[0, :, :]}")
         # --- D. Generate Disentanglement Labels (Y1, Y2, Ys) ---
     
         # Y1: Derived ONLY from t_Z1 (Specific 1)

@@ -11,7 +11,7 @@ perceiver:
   num_latents: 2 # Number of latent vectors, i.e. the number of disentangled factors to extract from each modality
   cross_heads: 2
   pos_encoding: true
-  latent_dim: 16 # The dimension of each latent vector
+  latent_dim: 8 # The dimension of each latent vector
   latent_heads: 1
 
 repercent:

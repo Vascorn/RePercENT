@@ -15,7 +15,7 @@ disen_loss:
 
 optimizer:
   name: "adam"
-  lr: 0.001
+  lr: 0.005
   weight_decay: 0.00001
 
 

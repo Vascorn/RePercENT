@@ -187,9 +187,10 @@ def train(gen_data, train_loader, test_loader, model, optimizer, disen_loss, epo
         
         # Save model checkpoint every 10 epochs and at the end
         if (_iter + 1) % 10 == 0 or (_iter + 1) == epochs:
-            checkpoint_name = f"checkpoint_epoch_{_iter + 1}.pt"
+
+            checkpoint_name = f"checkpoint_epoch_{_iter + 1}.pt" if (_iter + 1) // 10 != (epochs // 10) else f"final_checkpoint.pt"
             checkpoint_path = os.path.join(checkpoint_dir, checkpoint_name)
-            
+            os.makedirs(checkpoint_dir, exist_ok=True) # ensure directory exists
             # Create the state dictionary
             checkpoint = {
                 'epoch': _iter + 1,
@@ -205,10 +206,10 @@ def train(gen_data, train_loader, test_loader, model, optimizer, disen_loss, epo
             
             # Save locally
             torch.save(checkpoint, checkpoint_path)
-            
+            print(f"Model checkpoint saved at {checkpoint_path}")
             # --- THE PRO STEP: W&B ARTIFACTS ---
             artifact = wandb.Artifact(
-                name=f"repercent-model-{wandb.run.id}", 
+                name=f"repercent-model-{wandb.run.name}", 
                 type="model",
                 description=f"Model at epoch {_iter + 1}"
             )
