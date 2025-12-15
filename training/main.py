@@ -59,8 +59,8 @@ def make_model(model_config, data_config, modality: Literal['m1', 'm2']):
 
 def main():
     parser = argparse.ArgumentParser(description="Train RePercENT model on synthetic data")
-    parser.add_argument('--save_data', type=bool, default=False, help='Whether to save the created dataset')
-    parser.add_argument('--save_data_split', type=bool, default=False, help='Whether to save the train-test data split')
+    parser.add_argument('--save_data', type=bool, default=True, help='Whether to save the created dataset')
+    parser.add_argument('--save_data_split', type=bool, default=True, help='Whether to save the train-test data split')
     args = parser.parse_args()
 
     # device configuration
@@ -89,7 +89,7 @@ def main():
 
     if args.save_data:
         # create directory if it doesn't exist
-        save_path = os.path.join(script_dir, "..", "data", "repercent_synthetic", "dataset1")
+        save_path = os.path.join(script_dir, "..", "data", "repercent_synthetic", "dataset5")
         save_dataset(dataset, save_path, data_config)
         
     # Define the disentangled encoders
@@ -109,7 +109,7 @@ def main():
         # save the train and test splits
         train_data = train_loader.dataset
         test_data = test_loader.dataset
-        save_path = os.path.join(script_dir, "..", "data", "repercent_synthetic", "dataset1")
+        save_path = os.path.join(script_dir, "..", "data", "repercent_synthetic", "dataset5")
         save_data_split(train_data, test_data, save_path)
         
 

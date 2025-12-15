@@ -14,7 +14,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 def save_dataset(dataset, save_path: str, data_config: Dict[str, Any]= None):
      # create directory if it doesn't exist
     
-    os.makedirs(os.path.dirname(save_path), exist_ok=True)
+    os.makedirs(os.path.dirname(save_path + "/dataset.pt"), exist_ok=True)
     torch.save(dataset, os.path.join(save_path, "dataset.pt"))
     print(f"Dataset saved at {save_path}")
     # create a README file with the data configuration
@@ -77,10 +77,11 @@ class GenerateData():
         self.latent_dims = latent_dims
         
 
-    def rbf_mod(self, t: int, d: int, gamma: float = 10.0):
+    def rbf_mod(self, t: int, d: int, gamma: float = 10.0, seed: int = 0):
+        rng = np.random.default_rng(seed)
         time_points = np.linspace(0, 1, t)
         centers = np.linspace(0, 1, d)
-        
+        rng.shuffle(centers)
         rbf_mat = np.exp(- gamma * (time_points[:, None] - centers[None, :])**2)
         return rbf_mat / rbf_mat.sum(axis=1, keepdims=True)
 
@@ -95,8 +96,8 @@ class GenerateData():
         self.t2 = t2
         match self.mod_type:
             case "rbf":
-                self.W1 = self.rbf_mod(t1, self.d1, gamma1)
-                self.W2 = self.rbf_mod(t2, self.d2, gamma2)
+                self.W1 = self.rbf_mod(t1, self.d1, gamma1, seed= 1)
+                self.W2 = self.rbf_mod(t2, self.d2, gamma2, seed= 2)
             case "random":
                 self.W1 = self.random_mod(t1, self.d1)
                 self.W2 = self.random_mod(t2, self.d2)
@@ -118,22 +119,14 @@ class GenerateData():
         d = latent_factor_t.shape[1]
         
         # Create a simple fixed linear projector (50D -> 1D)
-        projector = nn.Linear(d, 1)
+        projector = nn.Linear(d, 1, bias= False)
         
         # Freeze the weights (essential for fixed, ground-truth label)
         for param in projector.parameters():
             param.requires_grad = False
         
         # Apply projection and non-linearity (ReLU makes it non-trivially related)
-        score_vector = projector(torch.relu(torch.Tensor(latent_factor_t))).numpy().flatten() 
-        
-        # Normalize the score vector
-        # score_vector = score_vector / np.linalg.norm(score_vector)
-        
-        # add some noise for robustness
-        # np.random.seed(seed)
-        # noise = np.random.normal(0, 0.005, size= score_vector.shape)
-        # score_vector += noise
+        score_vector = projector(torch.Tensor(latent_factor_t)).numpy().flatten() 
             
         # Thresholding based on the median (ensures a balanced 50/50 split of classes)
         midprob = np.median(score_vector)
@@ -154,7 +147,7 @@ class GenerateData():
         for i, (k, d) in enumerate(self.latent_dims.items()):
             # sample a random latent factor from a standard normal distribution
             
-            data[k] = np.random.multivariate_normal(np.zeros((d,)), np.eye(d) * sigma * (i + 1), size= self.N_data)
+            data[k] = np.random.multivariate_normal(np.zeros((d,)), np.eye(d) * sigma, size= self.N_data)
         
         t_Z1 = data['Z1']
         t_Zs = data['Zs']
