@@ -88,9 +88,6 @@ def main():
 
     # Define the RePercENT model
     model= RePercENT(M=2, disenEncoder= [disen_m1, disen_m2]).to(device)
-
-    dataloader = DataLoader(dataset, batch_size= 16, shuffle= True)
-
     
     # 2. Initialize W&B
     run = wandb.init(project= data_config["wandb"]["project"])
