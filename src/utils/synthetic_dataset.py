@@ -7,6 +7,7 @@ import sys
 import torch
 from typing import Dict, Any, Callable, Optional, Sequence, Tuple, List, Union, Literal
 import torch.nn as nn
+from scipy.stats import vonmises_fisher, multivariate_normal
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
@@ -78,32 +79,40 @@ class GenerateData():
         
 
     def rbf_mod(self, t: int, d: int, gamma: float = 10.0, seed: int = 0):
-        rng = np.random.default_rng(seed)
+        
         time_points = np.linspace(0, 1, t)
         centers = np.linspace(0, 1, d)
-        rng.shuffle(centers)
+        
         rbf_mat = np.exp(- gamma * (time_points[:, None] - centers[None, :])**2)
         return rbf_mat / rbf_mat.sum(axis=1, keepdims=True)
 
     def random_mod(self, t: int, d: int):
-        random_mat = np.random.randn(t, d)
-        return random_mat / np.linalg.norm(random_mat, axis=1, keepdims=True)
+        random_mat = torch.normal(mean=0.0, std=1.0, size=(t, d)).numpy()
+        return random_mat 
 
     def create_modulation_mats(self, t1: int = 5, t2: int = 5, gamma1: float = 10.0, gamma2: float = 10.0):
-        self.d1 = self.latent_dims['Z1'] + self.latent_dims['Zs'] # dimensionality for modality 1
-        self.d2 = self.latent_dims['Z2'] + self.latent_dims['Zs'] # dimensionality for modality 2
+        self.d1 = self.latent_dims['Z1'] # modality 1 specific latent dim
+        self.d2 = self.latent_dims['Z2'] # modality 2 specific latent dim
+        self.ds = self.latent_dims['Zs'] # shared latent dim
         self.t1 = t1
         self.t2 = t2
+        self.ts = max(t1, t2)  # shared modality time dimension is the max of both
         match self.mod_type:
             case "rbf":
-                self.W1 = self.rbf_mod(t1, self.d1, gamma1, seed= 1)
-                self.W2 = self.rbf_mod(t2, self.d2, gamma2, seed= 2)
+                self.W1 = self.rbf_mod(t1, self.d1, gamma1)
+                self.W2 = self.rbf_mod(t2, self.d2, gamma2)
+                self.Ws = self.rbf_mod(self.ts, self.ds, (gamma1 + gamma2) / 2)  # shared modality projection for shared modality
+                self.W1 = np.concatenate((self.W1, self.Ws[:t1, :]), axis=-1)  # concatenate shared modality projection
+                self.W2 = np.concatenate((self.W2, self.Ws[:t2, :]), axis=-1)  # concatenate shared modality projection
             case "random":
                 self.W1 = self.random_mod(t1, self.d1)
                 self.W2 = self.random_mod(t2, self.d2)
+                self.Ws = self.random_mod(self.ts, self.ds)  # shared modality projection for shared modality
+                self.W1 = np.concatenate((self.W1, self.Ws[:t1, :]), axis=-1)  # concatenate shared modality projection
+                self.W2 = np.concatenate((self.W2, self.Ws[:t2, :]), axis=-1)  # concatenate shared modality projection
             case "identity":
-                self.W1 = np.ones((t1, self.d1))
-                self.W2 = np.ones((t2, self.d2))
+                self.W1 = np.ones((t1, self.d1 + self.ds))
+                self.W2 = np.ones((t2, self.d2 + self.ds))
             case _:
                 raise ValueError("Unsupported modulation type")
         
@@ -139,15 +148,36 @@ class GenerateData():
         norm_data = data / np.linalg.norm(data, axis=-1, keepdims=True)
         return norm_data
 
-    def create_dataset(self, sigma: float = 1, t1: int = 5, t2: int = 5, gamma1: float = 10.0, gamma2: float = 10.0, normalize: bool = True):
+    def sample_latent_factors(self, dist: Literal["normal", "vmf"] = "normal", **kwargs):
+        """
+        Generates latent factors based on the specified distribution.
+        Args:
+            dist (str): Distribution type ('normal' -> Normal Distribution or 'vmf' -> Von Mises-Fisher Distribution). Defaults to 'normal'.
+            **kwargs: Additional parameters for each distribution.
+        Returns:
+            data (Dict[str, np.ndarray]): Dictionary containing generated latent factors for 'Z1', 'Zs', and 'Z2'.
+        """
+        data = {}
+        match dist:
+            case "normal":
+                sigmas = kwargs.get('sigmas', [1.0, 1.0, 1.0])
+                for i, (k, d) in enumerate(self.latent_dims.items()):
+                    data[k] = multivariate_normal(np.zeros((d,)), np.eye(d) * sigmas[i]).rvs(self.N_data)
+            case "vmf":
+                locs = kwargs.get('locs', np.array([torch.nn.functional.normalize(torch.randn(d), dim=0) for d in self.latent_dims.values()]))
+                kappas = kwargs.get('kappas', [100.0, 100.0, 100.0])
+                for i, (k, d) in enumerate(self.latent_dims.items()):
+                    loc = locs[i]
+                    kappa = kappas[i]
+                    data[k] = vonmises_fisher(loc, kappa).rvs(self.N_data)
+            case _:
+                raise ValueError("Unsupported distribution type")
+        return data
+
+    def create_dataset(self, dist: Literal["normal", "vmf"] = "normal", t1: int = 5, t2: int = 5, gamma1: float = 10.0, gamma2: float = 10.0, normalize: bool = True, **kwargs):
         
         # Generate latent factors
-        data = {}
-        
-        for i, (k, d) in enumerate(self.latent_dims.items()):
-            # sample a random latent factor from a standard normal distribution
-            
-            data[k] = np.random.multivariate_normal(np.zeros((d,)), np.eye(d) * sigma, size= self.N_data)
+        data = self.sample_latent_factors(dist= dist, **kwargs)
         
         t_Z1 = data['Z1']
         t_Zs = data['Zs']
@@ -155,7 +185,7 @@ class GenerateData():
 
         if not hasattr(self, 'W1') or not hasattr(self, 'W2'):
             print("Modulation matrices not found, creating with default parameters for each modality.")
-            self.create_modulation_mats(t1=t1, t2=t2, gamma1=gamma1, gamma2=gamma2)
+            self.create_modulation_mats(t1= t1, t2= t2, gamma1=gamma1, gamma2=gamma2)
 
         # generate modulation matrices
         Z1 = np.concatenate((t_Z1, t_Zs), axis=-1)  # Latent representation for modality 1
@@ -164,10 +194,11 @@ class GenerateData():
 
         X1 = Z1[:, None, :] * self.W1[None, :, :] # Modulated data for modality 1
         X2 = Z2[:, None, :] * self.W2[None, :, :] # Modulated data for modality 2
-        print(f"before normalization sample: {X1[0, :, :]}")
+        
+        print(f"Generated X1 sample: {X1[0, :2, :]}, X2 sample: {X2[0, :2, :]}")
         X1 = self.normalize_data(X1) if normalize else X1
         X2 = self.normalize_data(X2) if normalize else X2
-        print(f"after normalization sample: {X1[0, :, :]}")
+        
         # --- D. Generate Disentanglement Labels (Y1, Y2, Ys) ---
     
         # Y1: Derived ONLY from t_Z1 (Specific 1)
@@ -217,11 +248,11 @@ class GenerateData():
         """
         epsilon = 0.01  # fraction of vector norm
 
-        # generate random directions
-        noise = torch.randn_like(x)
+        # generate random Gaussian noise
+        noise = torch.normal(mean=0.0, std=1.0, size=x.shape)
 
-        # scale noise to be a small fraction of each vector's norm
-        noise = noise / noise.norm(dim=1, keepdim=True) * (x.norm(dim=-1, keepdim=True) * epsilon)
+        # scale noise accordingly so that it scales proportionally to each direction's magnitude
+        noise = noise * x * epsilon
 
         noisy_x = x + noise
         return noisy_x
@@ -270,7 +301,7 @@ class GenerateData():
         aug = aug_type if aug_type != 'random' else np.random.choice(['swap', 'random_drop'])
         match aug:
             case 'noise':
-                X_aug = self.noise(X, kwargs.get("scale", 0.1e-5))
+                X_aug = self.noise(X, kwargs.get("scale", 1e-3))
             case 'swap':
                 X_aug = self.swap(X)    
             case 'random_drop':

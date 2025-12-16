@@ -6,6 +6,9 @@ import torch.nn as nn
 from typing import Literal, List
 from torch.utils.data import random_split
 import wandb
+from src.models.perceiver import Perceiver
+from src.models.repercent import DisenEncoder, RePercENT, DisenLoss
+import math
 
 
 def make_dataloaders(dataset, config):
@@ -17,7 +20,41 @@ def make_dataloaders(dataset, config):
     test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=batch_size, shuffle= False)
     return train_loader, test_loader
 
+def make_model(model_config, data_config, modality: Literal['m1', 'm2']):
+    enc_m = nn.Identity()
 
+    DEPTH = model_config["perceiver"]["depth"]
+    if modality == 'm2':
+        MAX_FREQ = math.ceil(data_config["create_data"]["t2"]/ 2) if model_config["perceiver"]["max_freq"] is None else model_config["perceiver"]["max_freq"]
+    else:
+        MAX_FREQ = math.ceil(data_config["create_data"]["t1"]/ 2) if model_config["perceiver"]["max_freq"] is None else model_config["perceiver"]["max_freq"]
+    NUM_FREQ_BANDS= math.floor(math.log2(MAX_FREQ)) + 1 if model_config["perceiver"]["num_freq_bands"] is None else model_config["perceiver"]["num_freq_bands"]
+    if modality == 'm2':
+        INPUT_CHANNELS= data_config["create_data"]["latent_dims"]["Z2"] + data_config["create_data"]["latent_dims"]["Zs"] if model_config["perceiver"]["input_channels"] is None else model_config["perceiver"]["input_channels"]
+    else:
+        INPUT_CHANNELS= data_config["create_data"]["latent_dims"]["Z1"] + data_config["create_data"]["latent_dims"]["Zs"] if model_config["perceiver"]["input_channels"] is None else model_config["perceiver"]["input_channels"]
+    INPUT_AXIS= model_config["perceiver"]["input_axis"]
+    LATENT_DIM= model_config["perceiver"]["latent_dim"]
+    NUM_LATENTS= model_config["perceiver"]["num_latents"]
+    CROSS_HEADS= model_config["perceiver"]["cross_heads"]
+    LATENT_HEADS= model_config["perceiver"]["latent_heads"]
+    POS_ENCODING= model_config["perceiver"]["pos_encoding"]
+
+    
+    per_m = Perceiver(num_freq_bands= NUM_FREQ_BANDS,
+                        latent_dim= LATENT_DIM,
+                        num_latents= NUM_LATENTS,
+                        depth= DEPTH,
+                        max_freq= MAX_FREQ,
+                        latent_heads= LATENT_HEADS,
+                        cross_heads= CROSS_HEADS,
+                        input_channels= INPUT_CHANNELS,
+                        input_axis= INPUT_AXIS,
+                        fourier_encode_data= POS_ENCODING)
+
+    disen_m = DisenEncoder(encoder_model= enc_m, perceiver_model= per_m)
+
+    return disen_m
 
 def train_loop(data_m1, data_m2, data_m1_aug, data_m2_aug, model, optimizer, disen_loss):
     """

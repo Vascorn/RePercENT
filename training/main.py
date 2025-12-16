@@ -7,7 +7,7 @@ from torch.utils.data import DataLoader
 from src.utils.synthetic_dataset import GenerateData, MultimodalDataset, save_dataset, save_data_split
 from src.models.perceiver import Perceiver
 from src.models.repercent import DisenEncoder, RePercENT, DisenLoss
-from training.train_repercent import make_dataloaders, train
+from training.train_repercent import make_dataloaders, train, make_model
 import math
 from tqdm.notebook import tqdm
 from torch.utils.data import random_split
@@ -21,41 +21,7 @@ import time
 import wandb
 
 
-def make_model(model_config, data_config, modality: Literal['m1', 'm2']):
-    enc_m = nn.Identity()
 
-    DEPTH = model_config["perceiver"]["depth"]
-    if modality == 'm2':
-        MAX_FREQ = math.ceil(data_config["create_data"]["t2"]/ 2) if model_config["perceiver"]["max_freq"] is None else model_config["perceiver"]["max_freq"]
-    else:
-        MAX_FREQ = math.ceil(data_config["create_data"]["t1"]/ 2) if model_config["perceiver"]["max_freq"] is None else model_config["perceiver"]["max_freq"]
-    NUM_FREQ_BANDS= math.floor(math.log2(MAX_FREQ)) + 1 if model_config["perceiver"]["num_freq_bands"] is None else model_config["perceiver"]["num_freq_bands"]
-    if modality == 'm2':
-        INPUT_CHANNELS= data_config["create_data"]["latent_dims"]["Z2"] + data_config["create_data"]["latent_dims"]["Zs"] if model_config["perceiver"]["input_channels"] is None else model_config["perceiver"]["input_channels"]
-    else:
-        INPUT_CHANNELS= data_config["create_data"]["latent_dims"]["Z1"] + data_config["create_data"]["latent_dims"]["Zs"] if model_config["perceiver"]["input_channels"] is None else model_config["perceiver"]["input_channels"]
-    INPUT_AXIS= model_config["perceiver"]["input_axis"]
-    LATENT_DIM= model_config["perceiver"]["latent_dim"]
-    NUM_LATENTS= model_config["perceiver"]["num_latents"]
-    CROSS_HEADS= model_config["perceiver"]["cross_heads"]
-    LATENT_HEADS= model_config["perceiver"]["latent_heads"]
-    POS_ENCODING= model_config["perceiver"]["pos_encoding"]
-
-    
-    per_m = Perceiver(num_freq_bands= NUM_FREQ_BANDS,
-                        latent_dim= LATENT_DIM,
-                        num_latents= NUM_LATENTS,
-                        depth= DEPTH,
-                        max_freq= MAX_FREQ,
-                        latent_heads= LATENT_HEADS,
-                        cross_heads= CROSS_HEADS,
-                        input_channels= INPUT_CHANNELS,
-                        input_axis= INPUT_AXIS,
-                        fourier_encode_data= POS_ENCODING)
-
-    disen_m = DisenEncoder(encoder_model= enc_m, perceiver_model= per_m)
-
-    return disen_m
 
 def main():
     parser = argparse.ArgumentParser(description="Train RePercENT model on synthetic data")
@@ -84,12 +50,12 @@ def main():
     
     # Create the dataset based on the data configuration
     gen_data = GenerateData(N_data= data_config["create_data"]["N_data"], mod_type= data_config["create_data"]["mod_type"], latent_dims= data_config["create_data"]["latent_dims"])
-    gen_data.create_dataset(t1= data_config["create_data"]["t1"], t2= data_config["create_data"]["t2"], gamma1= data_config["create_data"]["gamma1"], gamma2= data_config["create_data"]["gamma2"], normalize= data_config["create_data"]["normalize"])
+    gen_data.create_dataset(dist= data_config["create_data"]["dist"], t1= data_config["create_data"]["t1"], t2= data_config["create_data"]["t2"], gamma1= data_config["create_data"]["gamma1"], gamma2= data_config["create_data"]["gamma2"], normalize= data_config["create_data"]["normalize"], sigmas= data_config["create_data"]["sigmas"])
     dataset = MultimodalDataset(total_data= gen_data.dataset_dict['total_data'], labels_1= gen_data.dataset_dict['labels_1'], labels_2= gen_data.dataset_dict['labels_2'], labels_s= gen_data.dataset_dict['labels_s'])
 
     if args.save_data:
         # create directory if it doesn't exist
-        save_path = os.path.join(script_dir, "..", "data", "repercent_synthetic", "dataset5")
+        save_path = os.path.join(script_dir, "..", "data", "repercent_synthetic", "dataset10")
         save_dataset(dataset, save_path, data_config)
         
     # Define the disentangled encoders
@@ -109,7 +75,7 @@ def main():
         # save the train and test splits
         train_data = train_loader.dataset
         test_data = test_loader.dataset
-        save_path = os.path.join(script_dir, "..", "data", "repercent_synthetic", "dataset5")
+        save_path = os.path.join(script_dir, "..", "data", "repercent_synthetic", "dataset10")
         save_data_split(train_data, test_data, save_path)
         
 
