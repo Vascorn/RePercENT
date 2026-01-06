@@ -35,7 +35,9 @@ class simpleEncoder(nn.Module):
         )
 
     def forward(self, x):
-        return self.mlp(x)
+        out = self.mlp(x)
+        out = nn.functional.reshape(out, (-1, 1, self.latent_dim))
+        return out
 
 # Initial version for RePercENT model that handles two modalities
 class DisenEncoder(nn.Module):
@@ -197,7 +199,6 @@ class DisenLoss(nn.Module):
         # Calculate orthogonality loss
         loss_ortho = 0.5 * (self.ortho_loss(u_12, s_12) + self.ortho_loss(u_21, s_21)) + \
                      0.5 * (self.ortho_loss(u_12_aug, s_12_aug) + self.ortho_loss(u_21_aug, s_21_aug))
-
         # Total loss
         if self.lmd_scheduler is not None:
             self.lmd = self.lmd_scheduler(self.iterations)

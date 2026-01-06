@@ -1,0 +1,53 @@
+_wandb:
+    value:
+        cli_version: 0.23.0
+        e:
+            8ia298uznsgfr1d2b5l0nya673kq8456:
+                codePath: main.py
+                codePathLocal: main.py
+                cpu_count: 64
+                cpu_count_logical: 128
+                cudaVersion: "12.6"
+                disk:
+                    /:
+                        total: "7679361679360"
+                        used: "5968735436800"
+                email: vasiliki.rizou@epfl.ch
+                executable: /usr/bin/python
+                git:
+                    remote: https://github.com/Vascorn/lts4-FaP.git
+                gpu: NVIDIA A100-SXM4-80GB
+                gpu_count: 1
+                gpu_nvidia:
+                    - architecture: Ampere
+                      cudaCores: 6912
+                      memoryTotal: "85899345920"
+                      name: NVIDIA A100-SXM4-80GB
+                      uuid: GPU-86407263-6cb4-e4f2-b393-67cfa30c7a20
+                host: runai-job-1767617696-0-0
+                memory:
+                    total: "1081885040640"
+                os: Linux-6.8.0-59-generic-x86_64-with-glibc2.35
+                program: /mnt/lts4-dislearn/scratch/home/rizou/lts4-FaP/training/main.py
+                python: CPython 3.10.12
+                root: /mnt/lts4-dislearn/scratch/home/rizou/lts4-FaP/training
+                startedAt: "2026-01-05T19:19:46.079516Z"
+                writerId: 8ia298uznsgfr1d2b5l0nya673kq8456
+        m: []
+        python_version: 3.10.12
+        t:
+            "1":
+                - 1
+                - 5
+                - 53
+            "2":
+                - 1
+                - 5
+                - 53
+            "3":
+                - 1
+                - 13
+            "4": 3.10.12
+            "5": 0.23.0
+            "12": 0.23.0
+            "13": linux-x86_64

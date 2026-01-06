@@ -49,6 +49,7 @@ def generate_data(n_samples, hidden_dim, dim_info, weight_info, label_weight_inf
     Z = np.concatenate((t_Z1, t_Zs), axis=-1)
     T1 = np.random.uniform(-1.0,1.0,(Z.shape[-1], dim_info['X']))
     X = Z @ T1
+    print(f"T1: {T1} with determinant {np.linalg.det(T1)}")
     print(f"Generated X with shape: {X.shape}")
     # Generate Y by transforming Z2 and Zs
     t_Z2 = data['Z2'][:, :weight_info['Z2']]
@@ -56,6 +57,8 @@ def generate_data(n_samples, hidden_dim, dim_info, weight_info, label_weight_inf
     T2 = np.random.uniform(-1.0,1.0,(Z.shape[-1], dim_info['Y']))
     Y = Z @ T2
     total_data = np.array([X, Y])
+    print(f"T2: {T2} with determinant {np.linalg.det(T2)}")
+    
     print(f"Generated Y with shape: {Y.shape}")
     def get_label(label_weight_info, seed):
       p_Z1 = t_Z1[:, :label_weight_info['Z1']]

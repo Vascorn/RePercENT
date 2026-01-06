@@ -66,53 +66,49 @@ class MultimodalDataset(Dataset):
 
 # This class handles the generation of synthetic dataset for the two-modality case
 class GenerateData():
-    def __init__(self, N_data: int, mod_type: str= "rbf", latent_dims: Dict[str, int]= {'Zs': 50, 'Z1': 50, 'Z2': 50}):
+    def __init__(self, N_data: int, trans_type: str= "uniform", latent_dims: Dict[str, int]= {'Zs': 50, 'Z1': 50, 'Z2': 50}):
         """
         Args:
             N_data (int): Number of data samples to generate.
-            mod_type (str): Type of modulation ('rbf', 'random', 'identity'). This defines how each modality vectors with be projected across time.
+            trans_type (str): Type of transformation ('rbf', 'random', 'identity'). This defines how each modality vectors with be projected across time.
             latent_dims (Dict[str, int]): Dictionary specifying the dimensions of shared and modality-specific latent factors.
         """
         self.N_data = N_data
-        self.mod_type = mod_type
+        self.trans_type = trans_type
         self.latent_dims = latent_dims
         
 
-    def rbf_mod(self, t: int, d: int, gamma: float = 10.0, seed: int = 0):
-        
-        time_points = np.linspace(0, 1, t)
-        centers = np.linspace(0, 1, d)
-        
-        rbf_mat = np.exp(- gamma * (time_points[:, None] - centers[None, :])**2)
-        return rbf_mat / rbf_mat.sum(axis=1, keepdims=True)
-
-    def random_mod(self, t: int, d: int):
-        random_mat = torch.normal(mean=0.0, std=1.0, size=(t, d)).numpy()
-        return random_mat 
-
-    def create_modulation_mats(self, t1: int = 5, t2: int = 5, gamma1: float = 10.0, gamma2: float = 10.0):
-        self.d1 = self.latent_dims['Z1'] # modality 1 specific latent dim
-        self.d2 = self.latent_dims['Z2'] # modality 2 specific latent dim
+    def create_transformation_mats(self, t1: int = 5, t2: int = 5, gamma1: float = 10.0, gamma2: float = 10.0):
+        self.d1 = self.latent_dims['Z1'] + self.latent_dims['Zs'] # modality 1 specific + shared latent dim
+        self.d2 = self.latent_dims['Z2'] + self.latent_dims['Zs'] # modality 2 specific + sharedlatent dim
         self.ds = self.latent_dims['Zs'] # shared latent dim
         self.t1 = t1
         self.t2 = t2
-        self.ts = max(t1, t2)  # shared modality time dimension is the max of both
-        match self.mod_type:
-            case "rbf":
-                self.W1 = self.rbf_mod(t1, self.d1, gamma1)
-                self.W2 = self.rbf_mod(t2, self.d2, gamma2)
-                self.Ws = self.rbf_mod(self.ts, self.ds, (gamma1 + gamma2) / 2)  # shared modality projection for shared modality
-                self.W1 = np.concatenate((self.W1, self.Ws[:t1, :]), axis=-1)  # concatenate shared modality projection
-                self.W2 = np.concatenate((self.W2, self.Ws[:t2, :]), axis=-1)  # concatenate shared modality projection
+
+        match self.trans_type:
+            case "uniform":
+                self.W1 = np.random.uniform(-1.0, 1.0, (t1, self.d1))
+                self.W2 = np.random.uniform(-1.0, 1.0, (t2, self.d2))
+                # Uncomment for the block diagonal variant and ajdust the multiplication accordingly in the create_dataset method
+                # self.W1 = np.random.uniform(-1, 1, (t1, self.d1, self.d1))
+                # self.W1[:, self.latent_dims['Z1']:, :self.latent_dims['Z1']] = 0.0  # Zero out cross terms for shared latents
+                # self.W1[:, :self.latent_dims['Z1'], self.latent_dims['Z1']:] = 0.0  # Zero out cross terms for shared latents
+                # self.W2 = np.random.uniform(-1, 1, (t2, self.d2, self.d2))
+                # self.W2[:, self.latent_dims['Z2']:, :self.latent_dims['Z2']] = 0.0  # Zero out cross terms for shared latents
+                # self.W2[:, :self.latent_dims['Z2'], self.latent_dims['Z2']:] = 0.0  # Zero out cross terms for shared latents
             case "random":
-                self.W1 = self.random_mod(t1, self.d1)
-                self.W2 = self.random_mod(t2, self.d2)
-                self.Ws = self.random_mod(self.ts, self.ds)  # shared modality projection for shared modality
-                self.W1 = np.concatenate((self.W1, self.Ws[:t1, :]), axis=-1)  # concatenate shared modality projection
-                self.W2 = np.concatenate((self.W2, self.Ws[:t2, :]), axis=-1)  # concatenate shared modality projection
+                self.W1 = np.random.normal(0, 1, (t1, self.d1))
+                self.W2 = np.random.normal(0, 1, (t2, self.d2))
+                # Uncomment for the block diagonal variant and adjust the multiplication accordingly in the create_dataset method
+                # self.W1 = np.random.normal(0, 1, (t1, self.d1, self.d1))
+                # self.W1[:, self.latent_dims['Z1']:, :self.latent_dims['Z1']] = 0.0  # Zero out cross terms for shared latents
+                # self.W1[:, :self.latent_dims['Z1'], self.latent_dims['Z1']:] = 0.0  # Zero out cross terms for shared latents
+                # self.W2 = np.random.normal(0, 1, (t2, self.d2, self.d2))#np.random.normal(0, 1, (t2, self.d2, self.d2))
+                # self.W2[:, self.latent_dims['Z2']:, :self.latent_dims['Z2']] = 0.0  # Zero out cross terms for shared latents
+                # self.W2[:, :self.latent_dims['Z2'], self.latent_dims['Z2']:] = 0.0  # Zero out cross terms for shared latents
             case "identity":
-                self.W1 = np.ones((t1, self.d1 + self.ds))
-                self.W2 = np.ones((t2, self.d2 + self.ds))
+                self.W1 = np.ones((t1, self.d1, self.d1))
+                self.W2 = np.ones((t2, self.d2, self.d2))
             case _:
                 raise ValueError("Unsupported modulation type")
         
@@ -184,18 +180,18 @@ class GenerateData():
         t_Z2 = data['Z2']
 
         if not hasattr(self, 'W1') or not hasattr(self, 'W2'):
-            print("Modulation matrices not found, creating with default parameters for each modality.")
-            self.create_modulation_mats(t1= t1, t2= t2, gamma1=gamma1, gamma2=gamma2)
+            print("Transformation matrices not found, creating with default parameters for each modality.")
+            self.create_transformation_mats(t1= t1, t2= t2, gamma1=gamma1, gamma2=gamma2)
 
-        # generate modulation matrices
+        # generate transformation matrices
         Z1 = np.concatenate((t_Z1, t_Zs), axis=-1)  # Latent representation for modality 1
         Z2 = np.concatenate((t_Z2, t_Zs), axis=-1)  # Latent representation for modality 2
-
-
-        X1 = Z1[:, None, :] * self.W1[None, :, :] # Modulated data for modality 1
-        X2 = Z2[:, None, :] * self.W2[None, :, :] # Modulated data for modality 2
         
-        print(f"Generated X1 sample: {X1[0, :2, :]}, X2 sample: {X2[0, :2, :]}")
+        X1 = Z1[:, None, :] * self.W1[None, :, :]  # Modality 1 data across time
+        X2 = Z2[:, None, :] * self.W2[None, :, :]  # Modality 2 data across time
+        # X1 = np.einsum('t k d, n d -> n t k', self.W1, Z1)  # Modality 1 data across time
+        # X2 = np.einsum('t k d, n d -> n t k', self.W2, Z2)  # Modality 2 data across time
+
         X1 = self.normalize_data(X1) if normalize else X1
         X2 = self.normalize_data(X2) if normalize else X2
         
@@ -237,7 +233,8 @@ class GenerateData():
         print(f"Labels s shape: {self.dataset_dict['labels_s'].shape}, Unique classes: {np.unique(self.dataset_dict['labels_s'])}")
 
     # Defining simple aumentations
-    def noise(self, x, scale= 0.01):
+    @staticmethod
+    def noise(x, scale= 0.01):
         """
         Adds Gaussian noise to the input tensor.
         Args:
@@ -257,7 +254,8 @@ class GenerateData():
         noisy_x = x + noise
         return noisy_x
 
-    def swap(self, x):
+    @staticmethod
+    def swap(x):
         """
         Swaps the first and second halves of the input tensor along the last dimension, i.e., each input array is swapped along the columns.
         Args:
@@ -268,8 +266,8 @@ class GenerateData():
         mid = x.shape[-1] // 2
         swapped = torch.cat([x[..., mid:], x[..., :mid]], dim=-1)
         return swapped
-
-    def random_drop(self, x, drop_scale=10):
+    @staticmethod
+    def random_drop(x, drop_scale=10):
         """
         Randomly drops a fraction of the input tensor's elements by setting them to zero.
         Args:
@@ -287,8 +285,8 @@ class GenerateData():
         x_aug[..., drop_idxs_x, drop_idxs_y] = 0.0
         return x_aug
 
-
-    def augment_data(self, X, aug_type: Literal['noise', 'swap', 'random_drop', 'random']='noise', **kwargs):
+    @staticmethod
+    def augment_data(X, aug_type: Literal['noise', 'swap', 'random_drop', 'random']='noise', **kwargs):
         """
         Simple data augmentation by adding Gaussian noise.
         Args:
@@ -301,11 +299,11 @@ class GenerateData():
         aug = aug_type if aug_type != 'random' else np.random.choice(['swap', 'random_drop'])
         match aug:
             case 'noise':
-                X_aug = self.noise(X, kwargs.get("scale", 1e-3))
+                X_aug = GenerateData.noise(X, kwargs.get("scale", 1e-3))
             case 'swap':
-                X_aug = self.swap(X)    
+                X_aug = GenerateData.swap(X)    
             case 'random_drop':
-                X_aug = self.random_drop(X, kwargs.get("drop_scale", 10))
+                X_aug = GenerateData.random_drop(X, kwargs.get("drop_scale", 10))
             case _:
                 raise ValueError(f"Unsupported augmentation type: {aug_type}")
         return X_aug

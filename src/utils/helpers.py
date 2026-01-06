@@ -32,6 +32,7 @@ def plot_confusion_matrix(linear_probe_acc, labels: List= ['labels_1', 'labels_2
 
     plt.tight_layout()
     plt.show()
+    return fig
 
 
 def linear_probe(train_data, train_labels, test_data, test_labels):

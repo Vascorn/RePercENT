@@ -1,0 +1,39 @@
+{
+  "os": "Linux-6.8.0-59-generic-x86_64-with-glibc2.35",
+  "python": "CPython 3.10.12",
+  "startedAt": "2026-01-05T20:11:03.158495Z",
+  "program": "/mnt/lts4-dislearn/scratch/home/rizou/lts4-FaP/training/main.py",
+  "codePath": "main.py",
+  "codePathLocal": "main.py",
+  "git": {
+    "remote": "https://github.com/Vascorn/lts4-FaP.git"
+  },
+  "email": "vasiliki.rizou@epfl.ch",
+  "root": "/mnt/lts4-dislearn/scratch/home/rizou/lts4-FaP/training",
+  "host": "runai-job-1767617696-0-0",
+  "executable": "/usr/bin/python",
+  "cpu_count": 64,
+  "cpu_count_logical": 128,
+  "gpu": "NVIDIA A100-SXM4-80GB",
+  "gpu_count": 1,
+  "disk": {
+    "/": {
+      "total": "7679361679360",
+      "used": "5968766672896"
+    }
+  },
+  "memory": {
+    "total": "1081885040640"
+  },
+  "gpu_nvidia": [
+    {
+      "name": "NVIDIA A100-SXM4-80GB",
+      "memoryTotal": "85899345920",
+      "cudaCores": 6912,
+      "architecture": "Ampere",
+      "uuid": "GPU-86407263-6cb4-e4f2-b393-67cfa30c7a20"
+    }
+  ],
+  "cudaVersion": "12.6",
+  "writerId": "6x292owawq5kg9aogjirl6vdso27y59e"
+}

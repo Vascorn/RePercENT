@@ -159,7 +159,7 @@ class Perceiver(nn.Module):
               fine the data is.
           freq_base: Base for the frequency
           input_channels: Number of channels for each token of the input.
-          input_axis: Number of axes for input data (2 for images, 3 for video)
+          input_axis: Number of axes for input data (e.g. 2 for images, 3 for video)
           num_latents: Number of latents, or induced set points, or centroids.
               Different papers giving it different names.
           latent_dim: Latent dimension.

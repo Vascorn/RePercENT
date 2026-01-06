@@ -5,7 +5,7 @@ wandb:
 
 disen_loss:
   alpha: 0.5
-  lmd: 0.005
+  lmd: 0.001
   lmd_start_value: 0.001
   lmd_end_value: 0
   lmd_n_iterations: 10000
@@ -15,14 +15,14 @@ disen_loss:
 
 optimizer:
   name: "adam"
-  lr: 0.005
+  lr: 0.0008
   weight_decay: 0.00001
 
 
 
 training:
   test_size: 0.2
-  n_epochs: 50
+  n_epochs: 30
   batch_size: 1024
   log_interval: 10
   augmentation: "random" # This includes all three augmentation types: noise, swap, random_drop
