@@ -22,7 +22,23 @@ import argparse
 import time
 
 import wandb
+import random
 
+def set_seed(seed: int):
+    # Python & NumPy
+    random.seed(seed)
+    np.random.seed(seed)
+
+    # PyTorch (CPU & GPU)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+
+    # Ensure deterministic behavior (may reduce performance)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+
+    # For CUDA >= 10.2 (optional but recommended)
+    os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"
 
 def create_dataset_synth(data_config):
     '''
@@ -38,6 +54,8 @@ def create_dataset_synth(data_config):
 
 
 def main():
+    set_seed(42)
+    
     parser = argparse.ArgumentParser(description="Train RePercENT model on synthetic data")
     parser.add_argument('--save_data', type=bool, default=True, help='Whether to save the created dataset')
     parser.add_argument('--save_data_split', type=bool, default=True, help='Whether to save the train-test data split')

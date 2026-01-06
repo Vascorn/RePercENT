@@ -130,8 +130,6 @@ def train(train_loader, val_loader, model, optimizer, disen_loss, epochs, device
         device: Device to run the training on (CPU/GPU)
         checkpoint_dir: Directory to save model checkpoints
     """
-    # set seed for torch
-    torch.manual_seed(0)
     # clear memory
     torch.cuda.empty_cache()
     # Create checkpoint directory
