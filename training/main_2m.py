@@ -4,15 +4,14 @@ import torch
 import torch.nn as nn
 from typing import Literal, List
 from torch.utils.data import DataLoader
-from src.utils.synthetic_dataset import GenerateData, MultimodalDataset, save_dataset, save_data_split
+from src.utils.synthetic_dataset_2m import GenerateData, MultimodalDataset, save_dataset, save_data_split
 from src.models.perceiver import Perceiver
-from src.models.repercent import DisenEncoder, RePercENT, DisenLoss
-from training.train_repercent import split_dataset, make_dataloaders, train, make_model
+from src.models.repercent_2m import DisenEncoder, RePercENT, DisenLoss
+from training.train_repercent_2m import split_dataset, make_dataloaders, train, make_model
 from training.log_data import log_model_details, log_model_checkpoint, log_dataset
-from training.train_jointopt import make_model_jointopt
-from src.models.jointopt import JointOpt
+from training.train_jointopt_2m import make_model_jointopt
+from src.models.jointopt_2m import JointOpt
 import math
-from tqdm.notebook import tqdm
 from torch.utils.data import random_split
 from sklearn.metrics import accuracy_score
 from sklearn.linear_model import LogisticRegression
@@ -33,11 +32,11 @@ def set_seed(seed: int):
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
 
-    # Ensure deterministic behavior (may reduce performance)
+    # Ensure deterministic behavior
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
 
-    # For CUDA >= 10.2 (optional but recommended)
+    # For CUDA >= 10.2
     os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"
 
 def create_dataset_synth(data_config):
@@ -54,12 +53,12 @@ def create_dataset_synth(data_config):
 
 
 def main():
-    set_seed(42)
+    set_seed(0)
     
     parser = argparse.ArgumentParser(description="Train RePercENT model on synthetic data")
     parser.add_argument('--save_data', type=bool, default=True, help='Whether to save the created dataset')
     parser.add_argument('--save_data_split', type=bool, default=True, help='Whether to save the train-test data split')
-    parser.add_argument('--load_data', type=bool, default=True, help='Whether to load an existing dataset')
+    parser.add_argument('--load_data', type=bool, default=False, help='Whether to load an existing dataset')
     parser.add_argument('--log_dataset_artifact', type=bool, default=True, help='Whether to log the dataset as a W&B artifact')
     parser.add_argument('--model_type', type= str, choices=['jointopt', 'repercent'], default='repercent', help='Type of model to train: jointopt or repercent')
     args = parser.parse_args()
@@ -89,7 +88,7 @@ def main():
         
         if args.save_data:
             # create directory if it doesn't exist
-            save_path = os.path.join(script_dir, "..", "data", "repercent_synthetic", "dataset13")
+            save_path = os.path.join(script_dir, "..", "data", "repercent_synthetic", "dataset14")
             save_dataset(dataset, save_path, data_config)
         
         # split dataset into train and test
@@ -98,12 +97,12 @@ def main():
 
         if args.save_data_split:
             # save the train and test splits
-            save_path = os.path.join(script_dir, "..", "data", "repercent_synthetic", "dataset13")
+            save_path = os.path.join(script_dir, "..", "data", "repercent_synthetic", "dataset14")
             save_data_split(train_dataset, test_dataset, save_path)
 
     else:
         # load train and test datasets from artifact
-        load_path = os.path.join(script_dir, "..", "data", "repercent_synthetic", "dataset13")
+        load_path = os.path.join(script_dir, "..", "data", "repercent_synthetic", "dataset14")
         split_data = torch.load(os.path.join(load_path, "data_split.pt"), weights_only=False)
         train_dataset = split_data['train_dataset']
         test_dataset = split_data['test_dataset']
@@ -119,7 +118,6 @@ def main():
 
         # Define the RePercENT model
         model= RePercENT(M=2, disenEncoder= [disen_m1, disen_m2]).to(device)
-    print(f"Number of model parameters: {sum(p.numel() for p in model.parameters() if p.requires_grad)}")
 
 
     # 2. Initialize W&B
@@ -141,6 +139,7 @@ def main():
         model_config= model_config_path,
         training_config= training_config_path
     )
+    
 
     # 3. Training model
     disen_loss = DisenLoss(alpha= training_config["disen_loss"]["alpha"], lmd=training_config["disen_loss"]["lmd"], lmd_end_value= training_config["disen_loss"]["lmd_end_value"])

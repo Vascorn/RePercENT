@@ -13,6 +13,7 @@ perceiver:
   pos_encoding: true
   latent_dim: 16 # The dimension of each latent vector
   latent_heads: 3
+  weight_tie_layers: false
 
 repercent:
   M: 2 # Number of modalities

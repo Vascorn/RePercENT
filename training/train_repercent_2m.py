@@ -7,8 +7,8 @@ from typing import Literal, List
 from torch.utils.data import random_split
 import wandb
 from src.models.perceiver import Perceiver
-from src.models.repercent import DisenEncoder, RePercENT, DisenLoss
-from src.utils.synthetic_dataset import GenerateData
+from src.models.repercent_2m import DisenEncoder, RePercENT, DisenLoss
+from src.utils.synthetic_dataset_2m import GenerateData
 from src.utils.helpers import extract_latents_and_labels, linear_probe, plot_confusion_matrix
 from training.log_data import log_model_checkpoint
 import matplotlib.pyplot as plt
@@ -45,6 +45,7 @@ def make_model(model_config, data_config, modality: Literal['m1', 'm2']):
     CROSS_HEADS= model_config["perceiver"]["cross_heads"]
     LATENT_HEADS= model_config["perceiver"]["latent_heads"]
     POS_ENCODING= model_config["perceiver"]["pos_encoding"]
+    WEIGHT_TIE_LAYERS= model_config["perceiver"]["weight_tie_layers"]
 
     
     per_m = Perceiver(num_freq_bands= NUM_FREQ_BANDS,
@@ -56,7 +57,8 @@ def make_model(model_config, data_config, modality: Literal['m1', 'm2']):
                         cross_heads= CROSS_HEADS,
                         input_channels= INPUT_CHANNELS,
                         input_axis= INPUT_AXIS,
-                        fourier_encode_data= POS_ENCODING)
+                        fourier_encode_data= POS_ENCODING,
+                        weight_tie_layers= WEIGHT_TIE_LAYERS)
 
     disen_m = DisenEncoder(encoder_model= enc_m, perceiver_model= per_m)
 
@@ -137,7 +139,7 @@ def train(train_loader, val_loader, model, optimizer, disen_loss, epochs, device
     
     # Watch model with WandB
     wandb.watch(model, log="gradients")
-    
+    print(f'Number of model parameters: {sum(p.numel() for p in model.parameters() if p.requires_grad)}')
     # Training loop
     for _iter in range(epochs):
         epoch_loss = 0.0

@@ -6,10 +6,9 @@ import torch.nn as nn
 from typing import Literal, List
 from torch.utils.data import random_split
 import wandb
-from src.utils.synthetic_dataset import GenerateData
 from src.utils.helpers import extract_latents_and_labels, linear_probe, plot_confusion_matrix
-from src.models.jointopt import JointOpt, simpleEncoder
-from training.train_repercent import train_loop, test_loop
+from src.models.jointopt_2m import JointOpt, simpleEncoder
+from training.train_repercent_2m import train_loop, test_loop
 import numpy as np
 import math
 
