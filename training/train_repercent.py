@@ -7,13 +7,14 @@ from typing import Literal, List
 from torch.utils.data import random_split
 import wandb
 from src.models.perceiver import Perceiver
-from src.models.repercent_2m import DisenEncoder, RePercENT, DisenLoss
-from src.utils.synthetic_dataset_2m import GenerateData
-from src.utils.helpers import extract_latents_and_labels_2m, linear_probe, plot_confusion_matrix
+from src.models.repercent import DisenEncoder, RePercENT, DisenLoss
+from src.utils.synthetic_dataset import GenerateData
+from src.utils.helpers import extract_latents_and_labels, linear_probe, plot_confusion_matrix, plot_pairwise_confusion_matrices
 from training.log_data import log_model_checkpoint
 import matplotlib.pyplot as plt
 import numpy as np
 import math
+from itertools import combinations
 
 def split_dataset(dataset, test_size: float):
     train_size = int((1 - test_size) * len(dataset))
@@ -26,19 +27,24 @@ def make_dataloaders(train_dataset, test_dataset, batch_size: int= 16):
     test_loader = torch.utils.data.DataLoader(test_dataset, batch_size= batch_size, shuffle= False)
     return train_loader, test_loader
 
-def make_model(model_config, data_config, modality: Literal['m1', 'm2']):
+def make_model(model_config, data_config, modality: int= 2, M: int=2):
+    """
+    Create a single DisenEncoder model for a given modality based on the model and data configurations.
+    Args:
+        model_config: Configuration dictionary for the model.
+        data_config: Configuration dictionary for the data.
+        modality: Modality number (1, 2, ..., M) for which the DisenEncoder is to be created. NOTE: use 1-based indexing.
+        M: Total number of modalities.
+    Returns:
+        disen_m: DisenEncoder model for the specified modality.
+    """
     enc_m = nn.Identity()
 
     DEPTH = model_config["perceiver"]["depth"]
-    if modality == 'm2':
-        MAX_FREQ = math.ceil(data_config["create_data"]["t2"]/ 2) if model_config["perceiver"]["max_freq"] is None else model_config["perceiver"]["max_freq"]
-    else:
-        MAX_FREQ = math.ceil(data_config["create_data"]["t1"]/ 2) if model_config["perceiver"]["max_freq"] is None else model_config["perceiver"]["max_freq"]
+
+    MAX_FREQ = math.ceil(data_config["create_data"]["ts"][modality - 1]/ 2) if model_config["perceiver"]["max_freq"] is None else model_config["perceiver"]["max_freq"]
     NUM_FREQ_BANDS= math.floor(math.log2(MAX_FREQ)) + 1 if model_config["perceiver"]["num_freq_bands"] is None else model_config["perceiver"]["num_freq_bands"]
-    if modality == 'm2':
-        INPUT_CHANNELS= data_config["create_data"]["latent_dims"]["Z2"] + data_config["create_data"]["latent_dims"]["Zs"] if model_config["perceiver"]["input_channels"] is None else model_config["perceiver"]["input_channels"]
-    else:
-        INPUT_CHANNELS= data_config["create_data"]["latent_dims"]["Z1"] + data_config["create_data"]["latent_dims"]["Zs"] if model_config["perceiver"]["input_channels"] is None else model_config["perceiver"]["input_channels"]
+    INPUT_CHANNELS= 2**(M - 1) *data_config["create_data"]["latent_dim"] if model_config["perceiver"]["input_channels"] is None else model_config["perceiver"]["input_channels"]
     INPUT_AXIS= model_config["perceiver"]["input_axis"]
     LATENT_DIM= model_config["perceiver"]["latent_dim"]
     NUM_LATENTS= model_config["perceiver"]["num_latents"]
@@ -59,19 +65,60 @@ def make_model(model_config, data_config, modality: Literal['m1', 'm2']):
                         input_axis= INPUT_AXIS,
                         fourier_encode_data= POS_ENCODING,
                         weight_tie_layers= WEIGHT_TIE_LAYERS)
-
+    print(f"input channels: {INPUT_CHANNELS}, latent dim: {LATENT_DIM}, num latents: {NUM_LATENTS}")
     disen_m = DisenEncoder(encoder_model= enc_m, perceiver_model= per_m)
 
     return disen_m
 
-def train_loop(data_m1, data_m2, data_m1_aug, data_m2_aug, model, optimizer, disen_loss):
+
+def parse_pair(key):
+    # expects keys like "u_12" or "s_23"
+    i = int(key[2]) - 1
+    j = int(key[3]) - 1
+    return i, j
+
+def get_features(data_dict, comp_key):
+    i, j = parse_pair(comp_key)
+    if comp_key.startswith("u"):
+        return data_dict["U"][i][j]                      # (N, D)
+    elif comp_key.startswith("s"):
+        return np.concatenate([data_dict["S"][i][j],     # (N, D)
+                               data_dict["S"][j][i]], axis=-1)  # (N, 2D)
+    else:
+        raise ValueError(f"Unknown component key: {comp_key}")
+
+def get_labels(data_dict, label_key):
+    if label_key in data_dict["Labels_U"]:
+        return data_dict["Labels_U"][label_key]
+    if label_key in data_dict["Labels_S"]:
+        return data_dict["Labels_S"][label_key]
+    raise KeyError(f"Label key {label_key} not found in Labels_U or Labels_S")
+
+def calculate_linear_probe_acc(train_data_dict, val_data_dict):
+    comp_keys = list(train_data_dict["Labels_U"].keys()) + list(train_data_dict["Labels_S"].keys())
+    label_keys = list(train_data_dict["Labels_U"].keys()) + list(train_data_dict["Labels_S"].keys())
+
+    acc = {lab: np.zeros(len(comp_keys), dtype=float) for lab in label_keys}
+
+    for c_idx, comp in enumerate(comp_keys):
+        Xtr = get_features(train_data_dict, comp)
+        Xva = get_features(val_data_dict, comp)
+
+        for lab in label_keys:
+            ytr = get_labels(train_data_dict, lab)
+            yva = get_labels(val_data_dict, lab)
+
+            acc[lab][c_idx] = linear_probe(Xtr, ytr, Xva, yva)
+
+    return acc
+
+
+def train_loop(X, X_aug, model, optimizer, disen_loss):
     """
     Single Epoch training step for RePercENT model
     Args:
-        data_m1: Batch data from modality 1
-        data_m2: Batch data from modality 2
-        data_m1_aug: Augmented batch data from modality 1
-        data_m2_aug: Augmented batch data from modality 2
+        X: Batch data from all modalities
+        X_aug: Augmented batch data from all modalities
         model: RePercENT model in training mode
         optimizer: Optimizer for RePercENT model
         disen_loss: Disentanglement loss function
@@ -80,8 +127,8 @@ def train_loop(data_m1, data_m2, data_m1_aug, data_m2_aug, model, optimizer, dis
         logs: Dictionary containing loss components for monitoring
     """
     # Forward pass through RePercENT
-    outputs = model(data_m1, data_m2)
-    outputs_aug = model(data_m1_aug, data_m2_aug)
+    outputs = model(X)
+    outputs_aug = model(X_aug)
     
     # Compute disentanglement loss
     loss, logs = disen_loss(outputs, outputs_aug)
@@ -94,14 +141,12 @@ def train_loop(data_m1, data_m2, data_m1_aug, data_m2_aug, model, optimizer, dis
     return loss, logs
     
 
-def test_loop(data_m1, data_m2, data_m1_aug, data_m2_aug, model, disen_loss):
+def test_loop(X, X_aug, model, disen_loss):
     """
     Single Epoch testing step for RePercENT model
     Args:
-        data_m1: Batch data from modality 1
-        data_m2: Batch data from modality 2
-        data_m1_aug: Augmented batch data from modality 1
-        data_m2_aug: Augmented batch data from modality 2
+        X: Batch data from all modalities
+        X_aug: Augmented batch data from all modalities
         model: RePercENT model in evaluation mode
         disen_loss: Disentanglement loss function
     Returns:
@@ -109,8 +154,8 @@ def test_loop(data_m1, data_m2, data_m1_aug, data_m2_aug, model, disen_loss):
         logs: Dictionary containing loss components for monitoring
     """
     # Forward pass through RePercENT
-    outputs = model(data_m1, data_m2)
-    outputs_aug = model(data_m1_aug, data_m2_aug)
+    outputs = model(X)
+    outputs_aug = model(X_aug)
     
     # Compute disentanglement loss
     loss, logs = disen_loss(outputs, outputs_aug)
@@ -140,37 +185,36 @@ def train(train_loader, val_loader, model, optimizer, disen_loss, epochs, device
     # Watch model with WandB
     wandb.watch(model, log="gradients")
     print(f'Number of model parameters: {sum(p.numel() for p in model.parameters() if p.requires_grad)}')
-    # Training loop
+    components = None
+    M = disen_loss.M # number of modalities
+    pairs = list(combinations(range(M), 2))
+    
+    M = disen_loss.M # number of modalities
     for _iter in range(epochs):
+        # Initialize epoch loss trackers
         epoch_loss = 0.0
         epoch_ortho_loss = 0.0
         epoch_unique_loss = 0.0
         epoch_shared_loss = 0.0
         
         model.train()
-        
         print(f"----- Epoch: {_iter + 1} / {epochs} -----")
-        
         # Training phase
-        for batch_idx, (data_m1, data_m2, _, _, _) in enumerate(train_loader):
-            temp_b = data_m1.shape[0]
-            data_m1 = data_m1.to(device)
-            data_m2 = data_m2.to(device)
+        for batch_idx, (X, labels_u, labels_s) in enumerate(train_loader):
+            temp_b = X[0].shape[0]
+            X = [X[m].to(device) for m in range(M)]
+
+            # Augment data
+            X_aug = [GenerateData.augment_data(X[m], aug_type="random") for m in range(M)]
             
-            # print(f"M1: {data_m1[0, 0, -3:]}, M2: {data_m2[0, 0, -3:]}")
-            # Augment data 
-            data_m1_aug = GenerateData.augment_data(data_m1, aug_type="random")
-            data_m2_aug = GenerateData.augment_data(data_m2, aug_type="random")
-            
-            # Forward pass through RePercENT
-            loss_train, logs_train = train_loop(data_m1, data_m2, data_m1_aug, data_m2_aug, model, optimizer, disen_loss)
-            
+            loss, loss_logs = train_loop(X, X_aug, model, optimizer, disen_loss)
+
             # Track losses
-            epoch_loss += loss_train.item()/ temp_b
-            epoch_ortho_loss += logs_train["ortho"]/ temp_b
-            epoch_unique_loss += logs_train["unique"]/ temp_b
-            epoch_shared_loss += logs_train["shared"]/ temp_b
-        
+            epoch_loss += loss.item() / temp_b
+            epoch_ortho_loss += loss_logs['ortho'] / temp_b
+            epoch_unique_loss += loss_logs['unique'] / temp_b
+            epoch_shared_loss += loss_logs['shared'] / temp_b
+            
         # Epoch statistics
         avg_epoch_loss = epoch_loss / len(train_loader)
         avg_ortho_loss = epoch_ortho_loss / len(train_loader)
@@ -184,55 +228,41 @@ def train(train_loader, val_loader, model, optimizer, disen_loss, epochs, device
             val_epoch_ortho_loss = 0.0
             val_epoch_unique_loss = 0.0
             val_epoch_shared_loss = 0.0
-            
-            for batch_idx, (data_m1, data_m2, _, _, _) in enumerate(val_loader):
-                temp_b = data_m1.shape[0]
-                data_m1 = data_m1.to(device)
-                data_m2 = data_m2.to(device)
+        
+            for batch_idx, (X, labels_u, labels_s) in enumerate(val_loader):
+                temp_b = X[0].shape[0]
+                X = [X[m].to(device) for m in range(M)]
                 
                 # Augment data 
-                data_m1_aug = GenerateData.augment_data(data_m1, aug_type="random")
-                data_m2_aug = GenerateData.augment_data(data_m2, aug_type="random")
+                X_aug = [GenerateData.augment_data(X[m], aug_type="random") for m in range(M)]
                 
                 # Forward pass through RePercENT
-                loss_val, logs_val = test_loop(data_m1, data_m2, data_m1_aug, data_m2_aug, model, disen_loss)
+                loss_val, logs_val = test_loop(X, X_aug, model, disen_loss)
                 
                 # Track losses
                 val_epoch_loss += loss_val.item()/ temp_b
                 val_epoch_ortho_loss += logs_val["ortho"]/ temp_b
                 val_epoch_unique_loss += logs_val["unique"]/ temp_b
                 val_epoch_shared_loss += logs_val["shared"]/ temp_b
-            
-            # Epoch statistics
-            avg_epoch_loss_val = val_epoch_loss / len(val_loader)
-            avg_ortho_loss_val = val_epoch_ortho_loss / len(val_loader)
-            avg_unique_loss_val = val_epoch_unique_loss / len(val_loader)
-            avg_shared_loss_val = val_epoch_shared_loss / len(val_loader)
+        
+        # Epoch statistics
+        avg_epoch_loss_val = val_epoch_loss / len(val_loader)
+        avg_ortho_loss_val = val_epoch_ortho_loss / len(val_loader)
+        avg_unique_loss_val = val_epoch_unique_loss / len(val_loader)
+        avg_shared_loss_val = val_epoch_shared_loss / len(val_loader)
         
 
         print(f"Training  Loss(x 100): {avg_epoch_loss* 100:.5f} | Ortho (x 100): {avg_ortho_loss* 100:.5f} | Unique (x 100): {avg_unique_loss* 100:.5f} | Shared (x 100): {avg_shared_loss* 100:.5f} | Lmd: {disen_loss.lmd:.6f}, alpha: {disen_loss.alpha:.6f}")
         print(f"Testing  Loss(x 100): {avg_epoch_loss_val* 100:.5f} | Ortho (x 100): {avg_ortho_loss_val* 100:.5f} | Unique (x 100): {avg_unique_loss_val* 100:.5f} | Shared (x 100): {avg_shared_loss_val* 100:.5f} ")
-        train_data_dict = extract_latents_and_labels_2m(model, train_loader, device)
-        val_data_dict = extract_latents_and_labels_2m(model, val_loader, device)
+        
+        # Evaluate linear probe accuracy of the model's learned representations after each epoch
+        train_data_dict = extract_latents_and_labels(model, train_loader, device)
+        val_data_dict = extract_latents_and_labels(model, val_loader, device)
 
-        # Calculate Linear Probe accuracies
-        linear_probe_acc = {"u_12": np.zeros(3), "u_21": np.zeros(3), "s": np.zeros(3)}
-        for i, label in enumerate(['labels_1', 'labels_2', 'labels_s']):
-            # Unique component of modality 1
-            linear_probe_acc["u_12"][i] = linear_probe(
-                train_data_dict['u_12'], train_data_dict[label],
-                val_data_dict['u_12'], val_data_dict[label]
-            )
-            # Unique component of modality 2
-            linear_probe_acc["u_21"][i] = linear_probe(
-                train_data_dict['u_21'], train_data_dict[label],
-                val_data_dict['u_21'], val_data_dict[label]
-            )
-            # Shared component from modality 2
-            linear_probe_acc["s"][i] = linear_probe(
-                np.concatenate((train_data_dict['s_21'], train_data_dict['s_12']), axis= -1), train_data_dict[label],
-                np.concatenate((val_data_dict['s_21'], val_data_dict['s_12']), axis= -1), val_data_dict[label]
-            )
+        if components is None: # set components only once - same for all epochs
+            components = list(train_data_dict['Labels_U'].keys()) + list(train_data_dict['Labels_S'].keys())
+
+        linear_probe_acc = calculate_linear_probe_acc(train_data_dict, val_data_dict)
 
         # Log metrics to WandB
         wandb.log({
@@ -244,19 +274,22 @@ def train(train_loader, val_loader, model, optimizer, disen_loss, epochs, device
             "val/loss/ortho": avg_ortho_loss_val,
             "val/loss/unique": avg_unique_loss_val,
             "val/loss/shared": avg_shared_loss_val,
-            "probe/u_12/labels_1/acc": linear_probe_acc["u_12"][0],
-            "probe/u_12/labels_2/acc": linear_probe_acc["u_12"][1],
-            "probe/u_12/labels_s/acc": linear_probe_acc["u_12"][2],
-            "probe/u_21/labels_2/acc": linear_probe_acc["u_21"][1],
-            "probe/u_21/labels_1/acc": linear_probe_acc["u_21"][0],
-            "probe/u_21/labels_s/acc": linear_probe_acc["u_21"][2],
-            "probe/shared/labels_1/acc": linear_probe_acc["s"][0],
-            "probe/shared/labels_2/acc": linear_probe_acc["s"][1],
-            "probe/shared/labels_s/acc": linear_probe_acc["s"][2],
-            "confusion_matrix": wandb.Image(plot_confusion_matrix(linear_probe_acc))
+            # Log the complete confusion matrix for each epoch
+            "confusion_matrix": wandb.Image(plot_confusion_matrix(linear_probe_acc, components= components, labels= components)),
+            # Log the pairwise confusion matrices, i.e. M* (M -1)/ 2 matrices for M modalities
+            "pairwise_confusion_matrices": wandb.Image(plot_pairwise_confusion_matrices(linear_probe_acc= linear_probe_acc, \
+                                                                                        M= M, \
+                                                                                        components= components, \
+                                                                                        pairs= pairs))
         }, step= _iter + 1)
-       
         plt.close("all")
+
+
+        # Log additionally all the accuracies for each component and label
+        for label_key, acc_array in linear_probe_acc.items():
+            for c_idx, comp in enumerate(components):
+                wandb.log({f"probe/{label_key}/label_{comp}/acc": acc_array[c_idx]}, step= _iter + 1)
+
         # Save model checkpoint every 10 epochs and at the end
         if (_iter + 1) % 10 == 0 or (_iter + 1) == epochs:
 

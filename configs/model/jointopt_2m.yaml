@@ -1,0 +1,21 @@
+wandb:
+  project: "synthetic-data-2-modalities-jointopt"
+
+M: 2  # number of modalities
+
+# Use the same model configuration for each modality, except for the positional encoding parameters and input channels which are modality-specific
+shared_encoder:
+  input_dims: [160, 160] # 5 * (16 + 16)), because each modality has 5 time points and latent dimension 32 (16 for unique + 16 for shared)
+  hidden_dims: [[512], [512]]
+  latent_dims: [16, 16]
+  activation: "relu"
+
+
+unique_encoder:
+  input_dims: [160, 160]
+  hidden_dims: [[512], [512]]
+  latent_dims: [16, 16]
+  activation: "relu"
+
+vmfkappa: 1e3
+add_shared: false

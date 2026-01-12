@@ -7,7 +7,8 @@ from typing import Literal, List
 from torch.utils.data import random_split
 import wandb
 from src.utils.helpers import extract_latents_and_labels, linear_probe, plot_confusion_matrix
-from src.models.jointopt_2m import JointOpt, simpleEncoder
+from src.models.jointopt_2m import simpleEncoder
+
 from training.train_repercent_2m import train_loop, test_loop
 import numpy as np
 import math
@@ -21,6 +22,10 @@ def make_model_jointopt(model_config_jointopt: dict, device: torch.device) -> nn
     Returns:
         JointOpt: Instantiated JointOpt model.
     '''
+    if model_config_jointopt["M"] > 2:
+        from src.models.jointopt import JointOpt
+    else:
+        from src.models.jointopt_2m import JointOpt
     # Shared Encoders
     input_dims_shared = model_config_jointopt["shared_encoder"]["input_dims"]
     hidden_dims_shared = model_config_jointopt["shared_encoder"]["hidden_dims"]
@@ -44,7 +49,7 @@ def make_model_jointopt(model_config_jointopt: dict, device: torch.device) -> nn
         uniqueEncoders.append(encoder)
 
 
-    model = JointOpt(M= len(sharedEncoders), 
+    model = JointOpt(M= model_config_jointopt["M"], 
                     sharedEncoders= sharedEncoders, 
                     uniqueEncoders= uniqueEncoders, 
                     vmfkappa= model_config_jointopt["vmfkappa"], 

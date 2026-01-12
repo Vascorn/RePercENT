@@ -187,7 +187,7 @@ class ProbabilisticEncoder(nn.Module):
         super().__init__()
         self.net = net
         self.distribution = distribution
-        self.vmfkappa = vmfkappa
+        self.vmfkappa = float(vmfkappa) if isinstance(vmfkappa, (int, float, torch.Tensor)) else vmfkappa
 
     def forward(self, x):
         params = self.net(x)

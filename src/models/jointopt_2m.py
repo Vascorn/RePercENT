@@ -12,7 +12,7 @@ from src.DisentangledSSL.utils import ExponentialScheduler
 ActivationName = typing.Literal['relu', 'gelu', 'sigmoid']
 
 class simpleEncoder(nn.Module):
-    def __init__(self, input_dim: int = 64, hidden_dims: int = 64, latent_dim: int = 32, activation: ActivationName = 'relu', dropout: float = 0.3) -> None:
+    def __init__(self, input_dim: int = 64, hidden_dims: List[int] = [64], latent_dim: int = 32, activation: ActivationName = 'relu', dropout: float = 0.3) -> None:
         
         super(simpleEncoder, self).__init__()
         self.input_dim = input_dim # initial input dimension
@@ -78,10 +78,10 @@ class JointOpt(nn.Module):
         
         self.M = M  # Number of modalities
 
-        self.sharedEncoders = nn.ModuleList(sharedEncoders)  # List of M - MLP encoders for the shared components of each modality
+        self.sharedEncoders = nn.ModuleList(sharedEncoders)  # List of 2 - MLP encoders for the shared components of each modality
         self.prob_heads = nn.ModuleList([ProbabilisticEncoder(nn.Identity(), distribution= "vmf", vmfkappa= 1e3) for _ in range(self.M)])  # Probabilistic heads for each of S_12 and S_21 - assuming only two modalities
 
-        self.uniqueEncoders = nn.ModuleList(uniqueEncoders) # List of M - MLP encoders for the unique component of each modality
+        self.uniqueEncoders = nn.ModuleList(uniqueEncoders) # List of 2 - MLP encoders for the unique component of each modality
         self.norm = lambda x: nn.functional.normalize(x, dim=-1)
         self.add_shared = add_shared
         

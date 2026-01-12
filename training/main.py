@@ -4,13 +4,12 @@ import torch
 import torch.nn as nn
 from typing import Literal, List
 from torch.utils.data import DataLoader
-from src.utils.synthetic_dataset_2m import GenerateData, MultimodalDataset, save_dataset, save_data_split
+from src.utils.synthetic_dataset import GenerateData, MultimodalDataset, save_dataset, save_data_split
 from src.models.perceiver import Perceiver
-from src.models.repercent_2m import DisenEncoder, RePercENT, DisenLoss
-from training.train_repercent_2m import split_dataset, make_dataloaders, train, make_model
+from src.models.repercent import DisenEncoder, RePercENT, DisenLoss
+from training.train_repercent import split_dataset, make_dataloaders, train, make_model
 from training.log_data import log_model_details, log_model_checkpoint, log_dataset
 from training.train_jointopt_2m import make_model_jointopt
-from src.models.jointopt_2m import JointOpt
 import math
 from torch.utils.data import random_split
 from sklearn.metrics import accuracy_score
@@ -39,15 +38,15 @@ def set_seed(seed: int):
     # For CUDA >= 10.2
     os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"
 
-def create_dataset_synth(data_config):
+def create_dataset_synth(data_config: dict= None)-> MultimodalDataset:
     '''
     Create synthetic dataset based on the data configuration and save it to the specified path.
     Args:
         data_config: Configuration dictionary for the data.
     '''
-    gen_data = GenerateData(N_data= data_config["create_data"]["N_data"], trans_type= data_config["create_data"]["trans_type"], latent_dims= data_config["create_data"]["latent_dims"])
-    gen_data.create_dataset(dist= data_config["create_data"]["dist"], t1= data_config["create_data"]["t1"], t2= data_config["create_data"]["t2"], gamma1= data_config["create_data"]["gamma1"], gamma2= data_config["create_data"]["gamma2"], normalize= data_config["create_data"]["normalize"], sigmas= data_config["create_data"]["sigmas"])
-    dataset = MultimodalDataset(total_data= gen_data.dataset_dict['total_data'], labels_1= gen_data.dataset_dict['labels_1'], labels_2= gen_data.dataset_dict['labels_2'], labels_s= gen_data.dataset_dict['labels_s'])
+    gen_data = GenerateData(N_data= data_config["create_data"]["N_data"], trans_type= data_config["create_data"]["trans_type"], latent_dim= data_config["create_data"]["latent_dim"], M = data_config["create_data"]["M"])
+    gen_data.create_dataset(dist= data_config["create_data"]["dist"], ts= data_config["create_data"]["ts"], gammas= data_config["create_data"]["gammas"], normalize= data_config["create_data"]["normalize"], sigma= data_config["create_data"]["sigma"])
+    dataset = MultimodalDataset(total_data= gen_data.dataset_dict['total_data'], labels_u= gen_data.dataset_dict['labels_u'], labels_s= gen_data.dataset_dict['labels_s'])
 
     return dataset
 
@@ -58,9 +57,9 @@ def main():
     parser = argparse.ArgumentParser(description="Train RePercENT model on synthetic data")
     parser.add_argument('--save_data', type=bool, default=True, help='Whether to save the created dataset')
     parser.add_argument('--save_data_split', type=bool, default=True, help='Whether to save the train-test data split')
-    parser.add_argument('--load_data', type=bool, default=False, help='Whether to load an existing dataset')
+    parser.add_argument('--load_data', type=bool, default=True, help='Whether to load an existing dataset')
     parser.add_argument('--log_dataset_artifact', type=bool, default=True, help='Whether to log the dataset as a W&B artifact')
-    parser.add_argument('--model_type', type= str, choices=['jointopt', 'repercent'], default='repercent', help='Type of model to train: jointopt or repercent')
+    parser.add_argument('--model_type', type= str, choices=['jointopt', 'repercent'], default='jointopt', help='Type of model to train: jointopt or repercent')
     args = parser.parse_args()
 
     # device configuration
@@ -69,15 +68,15 @@ def main():
     script_dir = os.path.dirname(os.path.abspath(__file__))
 
     # Read the configuration files for data
-    data_config_path = os.path.join(script_dir, "..", "configs", "data", "synthetic_data_2m.yaml")
+    data_config_path = os.path.join(script_dir, "..", "configs", "data", "synthetic_data.yaml")
     with open(data_config_path, 'r') as f:
         data_config = yaml.safe_load(f)
     # Read the configuration files for the model
-    model_config_path = os.path.join(script_dir, "..", "configs", "model", f"{args.model_type}_2m.yaml")
+    model_config_path = os.path.join(script_dir, "..", "configs", "model", f"{args.model_type}.yaml")
     with open(model_config_path, 'r') as f:
         model_config = yaml.safe_load(f)
     # Read the configuration files for training
-    training_config_path = os.path.join(script_dir, "..", "configs", "training", "train_synthetic_2m.yaml")
+    training_config_path = os.path.join(script_dir, "..", "configs", "training", "train_synthetic.yaml")
     with open(training_config_path, 'r') as f:
         training_config = yaml.safe_load(f)
 
@@ -113,12 +112,10 @@ def main():
         model = make_model_jointopt(model_config, data_config).to(device)
     elif args.model_type == 'repercent':
         # Define the disentangled encoders
-        disen_m1 = make_model(model_config, data_config, modality='m1')
-        disen_m2 = make_model(model_config, data_config, modality='m2')
+        disenEncoders = [make_model(model_config, data_config, modality= m + 1, M= data_config["create_data"]["M"]) for m in range(data_config["create_data"]["M"])]
 
         # Define the RePercENT model
-        model= RePercENT(M=2, disenEncoder= [disen_m1, disen_m2]).to(device)
-
+        model= RePercENT(M=data_config["create_data"]["M"], disenEncoder= disenEncoders, disen_mapping= model_config["repercent"]["disen_mapping"]).to(device)
 
     # 2. Initialize W&B
     run = wandb.init(project= data_config["wandb"]["project"], name= time.strftime("%Y-%m-%d_%H-%M-%S") + f"_{args.model_type}")
@@ -142,7 +139,7 @@ def main():
     
 
     # 3. Training model
-    disen_loss = DisenLoss(alpha= training_config["disen_loss"]["alpha"], lmd=training_config["disen_loss"]["lmd"], lmd_end_value= training_config["disen_loss"]["lmd_end_value"])
+    disen_loss = DisenLoss(alpha= training_config["disen_loss"]["alpha"], lmd=training_config["disen_loss"]["lmd"], lmd_end_value= training_config["disen_loss"]["lmd_end_value"], M= data_config["create_data"]["M"])
     optimizer = torch.optim.Adam(model.parameters(), lr=training_config["optimizer"]["lr"], weight_decay= training_config["optimizer"]["weight_decay"])
     train(train_loader, test_loader, model, optimizer, disen_loss, training_config["training"]["n_epochs"], device, checkpoint_dir= os.path.join(script_dir, '..', 'checkpoints', 'repercent_synthetic', run.name))
 

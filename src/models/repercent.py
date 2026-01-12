@@ -8,7 +8,7 @@ from typing import Literal, List
 from src.DisentangledSSL.models import ProbabilisticEncoder 
 from src.DisentangledSSL.losses import SupConLoss, ortho_loss
 from src.DisentangledSSL.utils import ExponentialScheduler
-from intertools import permutations
+from itertools import permutations
 
 
 class simpleEncoder(nn.Module):
@@ -53,10 +53,7 @@ class DisenEncoder(nn.Module):
         out = self.perceiver(Z)  # Pass latent representation through Perceiver to extract the disentangled features
         return out
 
-    def __repr__(self):
-        print(f"DisenEncoder with encoder: {self.encoder} and perceiver: {self.perceiver}")
-        return
-
+    
 class RePercENT(nn.Module):
     def __init__(self, M: int = 2, disenEncoder: List[DisenEncoder] = None, \
         disen_mapping: dict[int, dict] = {'M_1': {'U_12': 0, 'S_12': 1}, 'M_2': {'U_21': 0, 'S_21': 1}},
@@ -83,7 +80,18 @@ class RePercENT(nn.Module):
         #     assert de.perceiver.latents.shape[-1] == self.latent_dim, "All DisenEncoders must have the same latent dimension"
 
         self.disenEncoders = nn.ModuleList(disenEncoder)  # List of DisenEncoder instances for each modality
-        self.prob_heads = nn.ModuleList([ProbabilisticEncoder(nn.Identity(), distribution= "vmf", vmfkappa= 1e3) for _ in range(self.M)])  # Probabilistic heads for each of S_12 and S_21 - assuming only two modalities
+        # self.prob_heads = nn.ModuleList([ProbabilisticEncoder(nn.Identity(), distribution= "vmf", vmfkappa= 1e3) for _ in range(self.M)])  # Probabilistic heads for each of S_12 and S_21 - assuming only two modalities
+        # create probalitistic heads for each shared component S_ij
+
+        self.prob_heads = nn.ModuleList()
+        # save the order of (i,j) pairs for the probabilistic heads
+        perm = torch.tensor(list(permutations(range(self.M), 2)), dtype=torch.long)  # 0-based
+        self.register_buffer("perm_i", perm[:, 0], persistent=False)
+        self.register_buffer("perm_j", perm[:, 1], persistent=False)
+
+        for i, j in zip(self.perm_i, self.perm_j):
+            self.prob_heads.append(ProbabilisticEncoder(nn.Identity(), distribution= "vmf", vmfkappa= vmfkappa))
+            
 
         self.disen_mapping = disen_mapping
 
@@ -95,7 +103,7 @@ class RePercENT(nn.Module):
         self.register_buffer("pair_j", idx[1])  # (P,)
         self.P = idx.shape[1]
 
-    def _slot(self, Zi, i: int, comp: str):
+    def get_slot(self, Zi, i: int, comp: str):
         """Zi: output of the disenEncoder for modality modality i, representing component <comp>."""
         pos = self.disen_mapping[f"M_{i}"][comp]
         return Zi[:, pos, :] 
@@ -106,9 +114,10 @@ class RePercENT(nn.Module):
         Args:
             x: List of input data for each modality. Length of the list should be equal to M.
         """
+        
         assert len(x) == self.M, "Input data length must match number of modalities M"
         Z = [self.disenEncoders[m](x[m]) for m in range(self.M)]  # Encode each modality
-
+        
         # extract components:
         # Each of U[*, i, j, *] corresponds to unique component from modality i with respect to modality j, similar for S and S_prob
         U = torch.zeros((x[0].shape[0], self.M, self.M, Z[0].shape[-1]), device= Z[0].device)  # Initialize tensor to hold unique components
@@ -116,11 +125,16 @@ class RePercENT(nn.Module):
         S_prob = torch.zeros((x[0].shape[0], self.M, self.M, Z[0].shape[-1]), device= Z[0].device)  # Initialize tensor to hold probabilistic shared components
 
 
-        for i, j in permutations(range(1, self.M + 1), 2):
-            U[:, i-1, j-1, :] = self._slot(Z[i-1], i, f"U_{i}{j}")
-            S_view[:, i-1, j-1, :] = self._slot(Z[i-1], i, f"S_{i}{j}")
-            p_s_ij_given_xi, _ = self.prob_heads[i-1](S_view[:, i-1, j-1, :])
-            S_prob[:, i-1, j-1, :] = p_s_ij_given_xi.rsample()
+        for n, (i, j) in enumerate(zip(self.perm_i + 1, self.perm_j + 1)):  # convert to 1-based for mapping
+            u_ij = self.get_slot(Z[i-1], i, f"U_{i}{j}")
+            s_ij = self.get_slot(Z[i-1], i, f"S_{i}{j}")
+            
+            p_s_ij_given_xi, _ = self.prob_heads[n](s_ij)
+            s_prob_ij = p_s_ij_given_xi.rsample()
+
+            U[:, i-1, j-1, :] = u_ij
+            S_view[:, i-1, j-1, :] = s_ij
+            S_prob[:, i-1, j-1, :] = s_prob_ij
 
        
 
@@ -142,57 +156,7 @@ class RePercENT(nn.Module):
 
         out = {"U": U, "S_view": S_view, "S_prob": S_prob, "S_concat": S_concat, "Z_i_concat": Z_i_concat, "Z_j_concat": Z_j_concat}
         return out
-    # def forward(self, x1, x2):
-    #     """
-    #     Forward pass through the RePercENT model.
-    #     Args:
-    #     x1: Input data for modality 1.
-    #     x2: Input data for modality 2.
-    #     """
-        
-    #     Z1 = self.disenEncoders[0](x1)  # Encode modality 1
-    #     Z2 = self.disenEncoders[1](x2)  # Encode modality 2
-
-        
-    #     u_12_pos = self.disen_mapping['M_1']['U_12']
-    #     s_12_pos = self.disen_mapping['M_1']['S_12']
-    #     u_21_pos = self.disen_mapping['M_2']['U_21']
-    #     s_21_pos = self.disen_mapping['M_2']['S_21']
-
-    #     # extract each component
-    #     #unique
-    #     u_12 = Z1[:, u_12_pos, :]  # Unique component from modality 1
-    #     u_21 = Z2[:, u_21_pos, :]  # Unique component from modality 2
-    #     # shared
-    #     s_12 = Z1[:, s_12_pos, :]  # Shared component from modality 1
-    #     s_21 = Z2[:, s_21_pos, :]  # Shared component from modality 2
-
-    #     # add probabilistic heads for shared components
-    #     p_s_12_given_x1, mu1 = self.prob_heads[0](s_12)
-    #     p_s_21_given_x2, mu2 = self.prob_heads[1](s_21)
-
-    #     s_12_prob= p_s_12_given_x1.rsample()
-    #     s_21_prob= p_s_21_given_x2.rsample()
-
-    #     s_concat = torch.cat([s_12_prob.unsqueeze(dim=1), s_21_prob.unsqueeze(dim=1)], dim=1) # THIS IS THE ORIGINAL
-    #     # s_concat = torch.cat([s_12.unsqueeze(dim=1), s_21.unsqueeze(dim=1)], dim=1) # MODIFIED THAT USES NO PROBABILISTIC SAMPLING
-    #     # s_concat = self.norm(s_concat)
-    #     # now compute the losses for the specific components
-
-    #     z_1_concat = torch.cat([u_12, s_21], dim=1) # THIS IS THE ORIGINAL
-    #     z_2_concat = torch.cat([u_21, s_12], dim=1)
-    #     # z_1_concat = torch.cat([u_12, s_12], dim=1) # MODIFIED TO USE THE IDENTICAL SHARED COMPONENTS
-    #     # z_2_concat = torch.cat([u_21, s_21], dim=1)
-
-    #     # normalize the joint representations across last dimension
-    #     z_1_concat = self.norm(z_1_concat)
-    #     z_2_concat = self.norm(z_2_concat)
-
-    #     out = {"Z1": (u_12, s_21, s_12_prob), "Z2": (u_21, s_12, s_21_prob), \
-    #             "s_concat": s_concat, "z_1_concat": z_1_concat, "z_2_concat": z_2_concat}
-    #     return out
-
-
+    
 # This function with calculate the custom pairwise loss for the RePercENT model
 # It is based on the JointDisenModel from the DisentangledSSL package (https://github.com/uhlerlab/DisentangledSSL)
 class DisenLoss(nn.Module):
@@ -316,68 +280,11 @@ class DisenLoss(nn.Module):
                 total_logs[k] = total_logs.get(k, 0.0) + v
 
         # average over pairs (usually what you want)
-        total_loss = total_loss / self.P
-        for k in total_logs:
-            total_logs[k] /= self.P
+        # total_loss = total_loss / self.P
+        # for k in total_logs:
+        #     total_logs[k] /= self.P
 
         return total_loss, total_logs
 
-
-    # def forward(self, outputs, outputs_aug):
-    #     """
-    #     Compute the disentanglement loss for the RePercENT model.
-    #     Args:
-    #         outputs: Output dictionary from the forward pass of the RePercENT model.
-    #         outputs_aug: Output dictionary from the forward pass of the RePercENT model with augmented data.
-    #     Returns:
-    #         loss: Total loss as a scalar tensor.
-            
-    #     """
-    #     self.iterations += 1
-    #     u_12, s_21, s_12_prob = outputs["Z1"]
-    #     u_21, s_12, s_21_prob = outputs["Z2"]
-    #     s_concat = outputs["s_concat"]
-    #     z_1_concat = outputs["z_1_concat"]
-    #     z_2_concat = outputs["z_2_concat"]
-
-    #     u_12_aug, s_21_aug, s_12_prob_aug = outputs_aug["Z1"]
-    #     u_21_aug, s_12_aug, s_21_prob_aug = outputs_aug["Z2"]
-    #     s_concat_aug = outputs_aug["s_concat"]
-    #     z_1_concat_aug = outputs_aug["z_1_concat"]
-    #     z_2_concat_aug = outputs_aug["z_2_concat"]
-
-    #     # Calculate shared component losses
-    #     shared_loss, loss_x, loss_y = self.critic(s_concat)
-    #     shared_loss_aug, loss_x_aug, loss_y_aug = self.critic(s_concat_aug)
-    #     joint_loss = (shared_loss + shared_loss_aug) / 2
-    #     loss_x = (loss_x + loss_x_aug) / 2
-    #     loss_y = (loss_y + loss_y_aug) / 2
-
-    #     # Calculate losses for modality unique components
-    #     concat_embed_x1 = torch.cat([z_1_concat.unsqueeze(dim= 1), z_1_concat_aug.unsqueeze(dim= 1)], dim= 1)
-    #     concat_embed_x2 = torch.cat([z_2_concat.unsqueeze(dim= 1), z_2_concat_aug.unsqueeze(dim= 1)], dim= 1)
-
-    #     unique_loss_x1, loss_x1, loss_y1 = self.critic(concat_embed_x1)
-    #     unique_loss_x2, loss_x2, loss_y2 = self.critic(concat_embed_x2)
-    #     unique_loss = (unique_loss_x1 + unique_loss_x2) / 2
-
-    #     # Calculate orthogonality loss
-    #     loss_ortho = 0.5 * (self.ortho_loss(u_12, s_12) + self.ortho_loss(u_21, s_21)) + \
-    #                  0.5 * (self.ortho_loss(u_12_aug, s_12_aug) + self.ortho_loss(u_21_aug, s_21_aug))
-    #     # Total loss
-    #     if self.lmd_scheduler is not None:
-    #         self.lmd = self.lmd_scheduler(self.iterations)
-
-    #     loss = 2 * joint_loss / (1 + self.alpha) + self.alpha * unique_loss / (1 + self.alpha) + self.lmd * loss_ortho
-
-    #     loss_logs = {'loss': loss.item(),
-    #                  'shared': joint_loss.item(),
-    #                  'loss_x': loss_x.item(),
-    #                  'loss_y': loss_y.item(),
-    #                  'unique': unique_loss.item(),
-    #                  'ortho': loss_ortho.item(),
-    #                  'lmd': self.lmd
-    #                  }
-    #     return loss, loss_logs
 
         
