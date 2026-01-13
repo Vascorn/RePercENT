@@ -8,7 +8,7 @@ shared_encoder:
   # 5 * (16 + 16)), because each modality has 5 time points and latent dimension 32 (16 for pairwise unique + 16 for pariwise shared)
   # the number of shared encoders is M * (M - 1)  -> M -1 shared components per modality
   input_dims: [160, 160, 160, 160, 160, 160] 
-  hidden_dims: [[512], [512], [512], [512], [512], [512]]
+  hidden_dims: [[256], [256], [256], [256], [256], [256]]
   latent_dims: [16, 16, 16, 16, 16, 16]
   activation: "relu"
 
@@ -16,9 +16,9 @@ shared_encoder:
 unique_encoder:
   # the number of unique encoders is M * (M - 1) -> M -1 unique components per modality
   input_dims: [160, 160, 160, 160, 160, 160]
-  hidden_dims: [[512], [512], [512], [512], [512], [512]]
+  hidden_dims: [[256], [256], [256], [256], [256], [256]]
   latent_dims: [16, 16, 16, 16, 16, 16]
   activation: "relu"
 
-vmfkappa: 1e3
+vmfkappa: 1000
 add_shared: false

@@ -1,0 +1,24 @@
+wandb:
+  project: "synthetic-4M"
+
+M: 4  # number of modalities
+
+# Use the same model configuration for each modality, except for the positional encoding parameters and input channels which are modality-specific
+shared_encoder:
+  # 5 * (16 + 16)), because each modality has 5 time points and latent dimension 32 (16 for pairwise unique + 16 for pariwise shared)
+  # the number of shared encoders is M * (M - 1)  -> M -1 shared components per modality
+  input_dims: [160, 160, 160, 160, 160, 160, 160, 160, 160, 160, 160, 160]
+  hidden_dims: [[175], [175], [175], [175], [175], [175], [175], [175], [175], [175], [175], [175]]
+  latent_dims: [16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16]
+  activation: "relu"
+
+
+unique_encoder:
+  # the number of unique encoders is M * (M - 1) -> M -1 unique components per modality
+  input_dims: [160, 160, 160, 160, 160, 160, 160, 160, 160, 160, 160, 160]
+  hidden_dims: [[175], [175], [175], [175], [175], [175], [175], [175], [175], [175], [175], [175]]
+  latent_dims: [16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16]
+  activation: "relu"
+
+vmfkappa: 1000
+add_shared: false

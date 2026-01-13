@@ -191,12 +191,12 @@ class ProbabilisticEncoder(nn.Module):
 
     def forward(self, x):
         params = self.net(x)
-        
         if self.distribution == 'normal':  # Standard normal gaussians
             mu = params
             sigma = torch.ones(params.shape[-1]).unsqueeze(0).expand(mu.shape[0], -1).to(params.device)
             return Independent(Normal(mu, sigma), 1), mu  # Return a factorized Normal distribution
         elif self.distribution == 'vmf':
             loc = params / params.norm(dim=-1, keepdim=True)
+            
             scale = self.vmfkappa * torch.ones(params.shape[0], 1).to(params.device)
             return VonMisesFisher(loc, scale), params

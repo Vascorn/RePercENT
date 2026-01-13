@@ -34,20 +34,17 @@ class JointOpt(nn.Module):
 
         self.uniqueEncoders = nn.ModuleDict() # List of M * (M - 1) - MLP encoders for the unique component of each modality
         self.sharedEncoders = nn.ModuleDict()  # List of M * (M - 1) - MLP encoders for the shared components of each modality
-        self.prob_heads = nn.ModuleList()
+        self.prob_heads = nn.ModuleDict()
 
         # save the order of (i,j) pairs for the probabilistic heads
         perm = torch.tensor(list(permutations(range(self.M), 2)), dtype=torch.long)  # 0-based
         self.register_buffer("perm_i", perm[:, 0], persistent=False)
         self.register_buffer("perm_j", perm[:, 1], persistent=False)
 
-        for i, j in zip(self.perm_i, self.perm_j):
-            self.prob_heads.append(ProbabilisticEncoder(nn.Identity(), distribution= "vmf", vmfkappa= vmfkappa))
-
         for n, (i, j) in enumerate(zip(self.perm_i.tolist(), self.perm_j.tolist())):
             self.uniqueEncoders[f"U_{i+1}{j+1}"] = uniqueEncoders[n]
             self.sharedEncoders[f"S_{i+1}{j+1}"] = sharedEncoders[n]
-
+            self.prob_heads[f"S_{i+1}{j+1}"] = ProbabilisticEncoder(nn.Identity(), distribution= "vmf", vmfkappa= vmfkappa)
 
         self.latent_dim = uniqueEncoders[0].latent_dim  # assuming all encoders have the same latent dim
         self.norm = lambda x: nn.functional.normalize(x, dim=-1)
@@ -80,7 +77,7 @@ class JointOpt(nn.Module):
             s_ij = self.sharedEncoders[f"S_{i+1}{j+1}"](x[i])  # Shared component from modality i wrt modality j
             
             # add probabilistic heads for shared components
-            p_s_ij_given_xi, _ = self.prob_heads[n](s_ij)
+            p_s_ij_given_xi, _ = self.prob_heads[f"S_{i+1}{j+1}"](s_ij)
 
             s_ij_prob= p_s_ij_given_xi.rsample()
 

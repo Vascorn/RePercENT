@@ -68,15 +68,15 @@ def main():
     script_dir = os.path.dirname(os.path.abspath(__file__))
 
     # Read the configuration files for data
-    data_config_path = os.path.join(script_dir, "..", "configs", "data", "synthetic_data.yaml")
+    data_config_path = os.path.join(script_dir, "..", "configs", "data", "synthetic_data_4m.yaml")
     with open(data_config_path, 'r') as f:
         data_config = yaml.safe_load(f)
     # Read the configuration files for the model
-    model_config_path = os.path.join(script_dir, "..", "configs", "model", f"{args.model_type}.yaml")
+    model_config_path = os.path.join(script_dir, "..", "configs", "model", f"{args.model_type}_4m.yaml")
     with open(model_config_path, 'r') as f:
         model_config = yaml.safe_load(f)
     # Read the configuration files for training
-    training_config_path = os.path.join(script_dir, "..", "configs", "training", "train_synthetic.yaml")
+    training_config_path = os.path.join(script_dir, "..", "configs", "training", "train_synthetic_4m.yaml")
     with open(training_config_path, 'r') as f:
         training_config = yaml.safe_load(f)
 
@@ -87,7 +87,7 @@ def main():
         
         if args.save_data:
             # create directory if it doesn't exist
-            save_path = os.path.join(script_dir, "..", "data", "repercent_synthetic", "dataset14")
+            save_path = os.path.join(script_dir, "..", "data", "repercent_synthetic", "dataset15")
             save_dataset(dataset, save_path, data_config)
         
         # split dataset into train and test
@@ -96,12 +96,12 @@ def main():
 
         if args.save_data_split:
             # save the train and test splits
-            save_path = os.path.join(script_dir, "..", "data", "repercent_synthetic", "dataset14")
+            save_path = os.path.join(script_dir, "..", "data", "repercent_synthetic", "dataset15")
             save_data_split(train_dataset, test_dataset, save_path)
 
     else:
         # load train and test datasets from artifact
-        load_path = os.path.join(script_dir, "..", "data", "repercent_synthetic", "dataset14")
+        load_path = os.path.join(script_dir, "..", "data", "repercent_synthetic", "dataset15")
         split_data = torch.load(os.path.join(load_path, "data_split.pt"), weights_only=False)
         train_dataset = split_data['train_dataset']
         test_dataset = split_data['test_dataset']
@@ -123,7 +123,7 @@ def main():
     if args.log_dataset_artifact:
         # log dataset to wandb
         log_dataset(
-            dataset_name= "dataset13",
+            dataset_name= "dataset15",
             dataset_path= os.path.join(script_dir, "..", "data", "repercent_synthetic"),
             data_config_path= data_config_path
         )
