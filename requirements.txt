@@ -23,6 +23,7 @@ wandb
 
 # ---- Hugging Face / NLP stack ----
 transformers
+soxr
 datasets
 sentencepiece
 tokenizers
