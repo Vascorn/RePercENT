@@ -1,5 +1,5 @@
 wandb:
-  project: "synthetic-2M"
+  project: "synthetic-2M-gru-vs-repercent"
 
 # Use the same model configuration for each modality, except for the positional encoding parameters and input channels which are modality-specific
 perceiver: 

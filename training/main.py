@@ -46,105 +46,197 @@ def create_dataset_synth(data_config: dict= None)-> MultimodalDataset:
     '''
     gen_data = GenerateData(N_data= data_config["create_data"]["N_data"], trans_type= data_config["create_data"]["trans_type"], latent_dim= data_config["create_data"]["latent_dim"], M = data_config["create_data"]["M"])
     gen_data.create_dataset(dist= data_config["create_data"]["dist"], ts= data_config["create_data"]["ts"], gammas= data_config["create_data"]["gammas"], normalize= data_config["create_data"]["normalize"], sigma= data_config["create_data"]["sigma"])
-    dataset = MultimodalDataset(total_data= gen_data.dataset_dict['total_data'], labels_u= gen_data.dataset_dict['labels_u'], labels_s= gen_data.dataset_dict['labels_s'])
+    dataset = MultimodalDataset(total_data= gen_data.dataset_dict['total_data'], labels_u= gen_data.dataset_dict['labels_u'], labels_s= gen_data.dataset_dict['labels_s'], t_u= gen_data.dataset_dict['t_u'], t_s = gen_data.dataset_dict['t_s'])
 
     return dataset
 
 
+
+def split_dataset_seeded(dataset, test_size: float, seed: int):
+    n_total = len(dataset)
+    n_test = int(round(n_total * test_size))
+    n_train = n_total - n_test
+    g = torch.Generator().manual_seed(seed)
+    return random_split(dataset, [n_train, n_test], generator=g)
+
+
+def aggregate_and_log(all_final_metrics: list):
+    """
+    all_final_metrics: list of dicts with keys:
+      split_idx, seed_idx, split_seed, train_seed, metrics (dict)
+    """
+    # union of metric keys
+    metric_keys = sorted({k for r in all_final_metrics for k in r["metrics"].keys()})
+
+    columns = ["split_idx", "seed_idx", "split_seed", "train_seed"] + metric_keys
+    table = wandb.Table(columns=columns)
+
+    # fill table
+    for r in all_final_metrics:
+        row = [r["split_idx"], r["seed_idx"], r["split_seed"], r["train_seed"]]
+        row += [float(r["metrics"].get(k, np.nan)) for k in metric_keys]
+        table.add_data(*row)
+
+    wandb.log({"final_metrics/all_runs": table})
+
+    # mean/std summary
+    summary = {}
+    for k in metric_keys:
+        vals = np.array([r["metrics"].get(k, np.nan) for r in all_final_metrics], dtype=np.float32)
+        vals = vals[~np.isnan(vals)]
+        if len(vals) > 0:
+            summary[f"final/{k}_mean"] = float(vals.mean())
+            summary[f"final/{k}_std"] = float(vals.std())
+    wandb.log(summary)
+
+
 def main():
-    set_seed(0)
-    
-    parser = argparse.ArgumentParser(description="Train RePercENT model on synthetic data")
-    parser.add_argument('--save_data', type=bool, default=True, help='Whether to save the created dataset')
-    parser.add_argument('--save_data_split', type=bool, default=True, help='Whether to save the train-test data split')
-    parser.add_argument('--load_data', type=bool, default=True, help='Whether to load an existing dataset')
-    parser.add_argument('--log_dataset_artifact', type=bool, default=True, help='Whether to log the dataset as a W&B artifact')
-    parser.add_argument('--model_type', type= str, choices=['jointopt', 'repercent'], default='jointopt', help='Type of model to train: jointopt or repercent')
+    parser = argparse.ArgumentParser(description="Train RePercENT or Jointopt model on synthetic data")
+    parser.add_argument('--save_data', type=bool, default=False)
+    parser.add_argument('--save_data_split', type=bool, default=False)
+    parser.add_argument('--load_data', type=bool, default=True)
+    parser.add_argument('--log_dataset_artifact', type=bool, default=False)
+    parser.add_argument('--model_type', type=str, choices=['jointopt', 'repercent'], default='jointopt', help='Type of model to train')
+
+    # Define number of splits and seeds
+    parser.add_argument('--k1', type=int, default= 3, help='Number of different train/test splits')
+    parser.add_argument('--k2', type=int, default= 2, help='Number of training seeds per split')
+    parser.add_argument('--base_seed', type=int, default=2, help='Base seed for reproducibility')
+
     args = parser.parse_args()
 
-    # device configuration
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
     script_dir = os.path.dirname(os.path.abspath(__file__))
-
-    # Read the configuration files for data
-    data_config_path = os.path.join(script_dir, "..", "configs", "data", "synthetic_data_4m.yaml")
+    
+    # Loading configurations for data, model, and training
+    data_config_path = os.path.join(script_dir, "..", "configs", "data", "synthetic_data_3m.yaml")
     with open(data_config_path, 'r') as f:
         data_config = yaml.safe_load(f)
-    # Read the configuration files for the model
-    model_config_path = os.path.join(script_dir, "..", "configs", "model", f"{args.model_type}_4m.yaml")
+
+    model_config_path = os.path.join(script_dir, "..", "configs", "model", f"{args.model_type}_3m.yaml")
     with open(model_config_path, 'r') as f:
         model_config = yaml.safe_load(f)
-    # Read the configuration files for training
-    training_config_path = os.path.join(script_dir, "..", "configs", "training", "train_synthetic_4m.yaml")
+
+    training_config_path = os.path.join(script_dir, "..", "configs", "training", "train_synthetic_3m.yaml")
     with open(training_config_path, 'r') as f:
         training_config = yaml.safe_load(f)
 
     
-    # Create the dataset based on the data configuration
+    # Create or load the *full dataset once*
     if not args.load_data:
+        print(f"Load dataset not set. Creating new synthetic dataset...")
         dataset = create_dataset_synth(data_config)
-        
+        print(f"Synthetic dataset created with {len(dataset)} samples.")
         if args.save_data:
-            # create directory if it doesn't exist
-            save_path = os.path.join(script_dir, "..", "data", "repercent_synthetic", "dataset15")
+            save_path = os.path.join(script_dir, "..", "data", "repercent_synthetic", "dataset20")
             save_dataset(dataset, save_path, data_config)
-        
-        # split dataset into train and test
-        train_dataset, test_dataset = split_dataset(dataset, test_size= training_config["training"]["test_size"])
-        
-
-        if args.save_data_split:
-            # save the train and test splits
-            save_path = os.path.join(script_dir, "..", "data", "repercent_synthetic", "dataset15")
-            save_data_split(train_dataset, test_dataset, save_path)
 
     else:
-        # load train and test datasets from artifact
-        load_path = os.path.join(script_dir, "..", "data", "repercent_synthetic", "dataset15")
-        split_data = torch.load(os.path.join(load_path, "data_split.pt"), weights_only=False)
-        train_dataset = split_data['train_dataset']
-        test_dataset = split_data['test_dataset']
+        # Load the dataset
+        load_path = os.path.join(script_dir, "..", "data", "repercent_synthetic", "dataset20")
+        dataset = torch.load(os.path.join(load_path, "dataset.pt"), weights_only=False)
 
-    train_loader, test_loader = make_dataloaders(train_dataset, test_dataset, batch_size= training_config["training"]["batch_size"])
 
-    if args.model_type == 'jointopt':
-        model = make_model_jointopt(model_config, data_config).to(device)
-    elif args.model_type == 'repercent':
-        # Define the disentangled encoders
-        disenEncoders = [make_model(model_config, data_config, modality= m + 1, M= data_config["create_data"]["M"]) for m in range(data_config["create_data"]["M"])]
 
-        # Define the RePercENT model
-        model= RePercENT(M=data_config["create_data"]["M"], disenEncoder= disenEncoders, disen_mapping= model_config["repercent"]["disen_mapping"]).to(device)
+    group_name = time.strftime("%Y-%m-%d_%H-%M-%S") + f"_{args.model_type}_splits_{args.k1}_seeds_{args.k2}"
+    # Initialize list to store final metrics across all runs
+    all_final_metrics = []
 
-    # 2. Initialize W&B
-    run = wandb.init(project= data_config["wandb"]["project"], name= time.strftime("%Y-%m-%d_%H-%M-%S") + f"_{args.model_type}")
+    # Data splits
+    for split_idx in range(args.k1):
+        split_seed = args.base_seed + 10_000 + split_idx
+        
+        # deterministic split
+        train_dataset, test_dataset = split_dataset_seeded(dataset, test_size=training_config["training"]["test_size"], seed=split_seed)
 
-    if args.log_dataset_artifact:
-        # log dataset to wandb
-        log_dataset(
-            dataset_name= "dataset15",
-            dataset_path= os.path.join(script_dir, "..", "data", "repercent_synthetic"),
-            data_config_path= data_config_path
-        )
+        if args.save_data_split:
+            # save split per split_idx
+            print(f"Saving data split {split_idx}...")
+            save_path = os.path.join(script_dir, "..", "data", "repercent_synthetic", "dataset20")
+            save_data_split(train_dataset, test_dataset, save_path, split_id= str(split_idx))
+        
 
-    # Log the model, data, and training configurations to W&B
-    log_model_details(
-        run,
-        model_name= args.model_type,
-        data_config= data_config_path,
-        model_config= model_config_path,
-        training_config= training_config_path
-    )
+        # Seeds per split - model initialization and training
+        for seed_idx in range(args.k2):
+            train_seed = args.base_seed + 100 * split_idx + seed_idx
+            set_seed(train_seed)
+
+            # dataloaders
+            train_loader, test_loader = make_dataloaders(train_dataset, test_dataset,batch_size=training_config["training"]["batch_size"])
+
+            # Initialize wandb run and log hyperparameters
+            run = wandb.init(
+                project=data_config["wandb"]["project"],
+                group=group_name,
+                name=f"{group_name}_split_{split_idx}_seed_{seed_idx}",
+                config={
+                    "k1": args.k1, "k2": args.k2, "base_seed": args.base_seed,
+                    "model_type": args.model_type,
+                }
+            )
+            print("INIT RUN:", wandb.run.id, wandb.run.name)
+            print("EPOCH RUN:", wandb.run.id, wandb.run.name)
+
+            log_model_details(run, model_name=args.model_type, data_config=data_config_path, model_config=model_config_path, training_config=training_config_path)
+
+            # model creation based on model_type
+            if args.model_type == 'jointopt':
+                model = make_model_jointopt(model_config, data_config).to(device)
+            else:
+                disenEncoders = [make_model(model_config, data_config, modality=m + 1, M=data_config["create_data"]["M"]) for m in range(data_config["create_data"]["M"])]
+                model = RePercENT(M=data_config["create_data"]["M"],
+                                disenEncoder=disenEncoders,
+                                recon= training_config["disen_loss"]["recon"],
+                                disen_mapping=model_config["repercent"]["disen_mapping"]).to(device)
+
+            disen_loss = DisenLoss(alpha=training_config["disen_loss"]["alpha"],
+                                    lmd=training_config["disen_loss"]["lmd"],
+                                    lmd_end_value=training_config["disen_loss"]["lmd_end_value"],
+                                    M=data_config["create_data"]["M"],
+                                    recon= training_config["disen_loss"]["recon"])
+
+            optimizer = torch.optim.Adam(
+                model.parameters(),
+                lr=training_config["optimizer"]["lr"],
+                weight_decay=training_config["optimizer"]["weight_decay"]
+            )
+
+            # run key for logging
+            run_key = f"split{split_idx}_seed{seed_idx}"
+
+            # Logging identifiers
+            wandb.log({
+                "meta/split_idx": split_idx,
+                "meta/seed_idx": seed_idx,
+                "meta/split_seed": split_seed,
+                "meta/train_seed": train_seed,
+            })
+
+            # TRAIN
+            final_metrics = train(train_loader, test_loader, model, optimizer, disen_loss, training_config["training"]["n_epochs"], device, checkpoint_dir=os.path.join(script_dir, '..', 'checkpoints', 'repercent_synthetic', run.name, run_key))
+
+            # Store + log final snapshot table
+            all_final_metrics.append({
+                "split_idx": split_idx,
+                "seed_idx": seed_idx,
+                "split_seed": split_seed,
+                "train_seed": train_seed,
+                "metrics": final_metrics,
+            })
+            wandb.finish()
     
 
-    # 3. Training model
-    disen_loss = DisenLoss(alpha= training_config["disen_loss"]["alpha"], lmd=training_config["disen_loss"]["lmd"], lmd_end_value= training_config["disen_loss"]["lmd_end_value"], M= data_config["create_data"]["M"])
-    optimizer = torch.optim.Adam(model.parameters(), lr=training_config["optimizer"]["lr"], weight_decay= training_config["optimizer"]["weight_decay"])
-    train(train_loader, test_loader, model, optimizer, disen_loss, training_config["training"]["n_epochs"], device, checkpoint_dir= os.path.join(script_dir, '..', 'checkpoints', 'repercent_synthetic', run.name))
-
-
-    # 6. Finish W&B run
+    # global summary run
+    run = wandb.init(project= data_config["wandb"]["project"], 
+                    group=group_name, name= f"aggregate_{args.model_type}", 
+                    reinit=True, config={"k1": args.k1, "k2": args.k2, "base_seed": args.base_seed, "model_type": args.model_type})
+    if args.log_dataset_artifact:
+        log_dataset(
+            dataset_name="dataset20",
+            dataset_path=os.path.join(script_dir, "..", "data", "repercent_synthetic"),
+            data_config_path=data_config_path
+        )
+    aggregate_and_log(all_final_metrics)
     wandb.finish()
 
 if __name__ == "__main__":

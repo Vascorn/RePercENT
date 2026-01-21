@@ -7,8 +7,8 @@ from typing import Literal, List
 from torch.utils.data import random_split
 import wandb
 from src.utils.helpers import extract_latents_and_labels, linear_probe, plot_confusion_matrix
-from src.models.jointopt_2m import simpleEncoder
-
+from src.models.jointopt_2m import MLP
+from src.models.jointopt import GRUEncoder
 from training.train_repercent_2m import train_loop, test_loop
 import numpy as np
 import math
@@ -22,10 +22,11 @@ def make_model_jointopt(model_config_jointopt: dict, device: torch.device) -> nn
     Returns:
         JointOpt: Instantiated JointOpt model.
     '''
-    if model_config_jointopt["M"] > 2:
-        from src.models.jointopt import JointOpt
-    else:
-        from src.models.jointopt_2m import JointOpt
+    # if model_config_jointopt["M"] > 2:
+    #     from src.models.jointopt import JointOpt
+    # else:
+    #     from src.models.jointopt_2m import JointOpt
+    from src.models.jointopt import JointOpt
     # Shared Encoders
     input_dims_shared = model_config_jointopt["shared_encoder"]["input_dims"]
     hidden_dims_shared = model_config_jointopt["shared_encoder"]["hidden_dims"]
@@ -34,7 +35,13 @@ def make_model_jointopt(model_config_jointopt: dict, device: torch.device) -> nn
 
     sharedEncoders = []
     for (input_dim, hidden_dims, output_dim) in zip(input_dims_shared, hidden_dims_shared, output_dims_shared):
-        encoder = simpleEncoder(input_dim= input_dim, hidden_dims= hidden_dims, latent_dim= output_dim, activation= activation_shared)
+        match model_config_jointopt["shared_encoder"]["type"]:
+            case "mlp":
+                encoder = MLP(input_dim= input_dim, hidden_dims= hidden_dims, latent_dim= output_dim, activation= activation_shared)
+            case "gru":
+                encoder = GRUEncoder(input_dim= input_dim, hidden_dim= hidden_dims[0], latent_dim= output_dim, \
+                                    num_layers= model_config_jointopt["shared_encoder"].get("num_layers", 1), \
+                                    bidirectional= model_config_jointopt["shared_encoder"].get("bidirectional", False))
         sharedEncoders.append(encoder)
 
     # Unique Encoders
@@ -45,7 +52,13 @@ def make_model_jointopt(model_config_jointopt: dict, device: torch.device) -> nn
 
     uniqueEncoders = []
     for (input_dim, hidden_dims, output_dim) in zip(input_dims_unique, hidden_dims_unique, output_dims_unique):
-        encoder = simpleEncoder(input_dim= input_dim, hidden_dims= hidden_dims, latent_dim= output_dim, activation= activation_unique)
+        match model_config_jointopt["unique_encoder"]["type"]:
+            case "mlp":
+                encoder = MLP(input_dim= input_dim, hidden_dims= hidden_dims, latent_dim= output_dim, activation= activation_unique)
+            case "gru":
+                encoder = GRUEncoder(input_dim= input_dim, hidden_dim= hidden_dims[0], latent_dim= output_dim, \
+                                    num_layers= model_config_jointopt["unique_encoder"].get("num_layers", 1), \
+                                    bidirectional= model_config_jointopt["unique_encoder"].get("bidirectional", False))
         uniqueEncoders.append(encoder)
 
 

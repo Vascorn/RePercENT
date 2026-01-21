@@ -9,12 +9,14 @@ import wandb
 from src.models.perceiver import Perceiver
 from src.models.repercent import DisenEncoder, RePercENT, DisenLoss
 from src.utils.synthetic_dataset import GenerateData
-from src.utils.helpers import extract_latents_and_labels, linear_probe, plot_confusion_matrix, plot_pairwise_confusion_matrices
+from src.utils.helpers import ProbeEvaluator, extract_latents_and_labels, linear_probe, regression_probe, plot_confusion_matrix, plot_pairwise_confusion_matrices
 from training.log_data import log_model_checkpoint
 import matplotlib.pyplot as plt
 import numpy as np
 import math
 from itertools import combinations
+
+
 
 def split_dataset(dataset, test_size: float):
     train_size = int((1 - test_size) * len(dataset))
@@ -69,48 +71,6 @@ def make_model(model_config, data_config, modality: int= 2, M: int=2):
     disen_m = DisenEncoder(encoder_model= enc_m, perceiver_model= per_m)
 
     return disen_m
-
-
-def parse_pair(key):
-    # expects keys like "u_12" or "s_23"
-    i = int(key[2]) - 1
-    j = int(key[3]) - 1
-    return i, j
-
-def get_features(data_dict, comp_key):
-    i, j = parse_pair(comp_key)
-    if comp_key.startswith("u"):
-        return data_dict["U"][i][j]                      # (N, D)
-    elif comp_key.startswith("s"):
-        return np.concatenate([data_dict["S"][i][j],     # (N, D)
-                               data_dict["S"][j][i]], axis=-1)  # (N, 2D)
-    else:
-        raise ValueError(f"Unknown component key: {comp_key}")
-
-def get_labels(data_dict, label_key):
-    if label_key in data_dict["Labels_U"]:
-        return data_dict["Labels_U"][label_key]
-    if label_key in data_dict["Labels_S"]:
-        return data_dict["Labels_S"][label_key]
-    raise KeyError(f"Label key {label_key} not found in Labels_U or Labels_S")
-
-def calculate_linear_probe_acc(train_data_dict, val_data_dict):
-    comp_keys = list(train_data_dict["Labels_U"].keys()) + list(train_data_dict["Labels_S"].keys())
-    label_keys = list(train_data_dict["Labels_U"].keys()) + list(train_data_dict["Labels_S"].keys())
-
-    acc = {lab: np.zeros(len(comp_keys), dtype=float) for lab in label_keys}
-
-    for c_idx, comp in enumerate(comp_keys):
-        Xtr = get_features(train_data_dict, comp)
-        Xva = get_features(val_data_dict, comp)
-
-        for lab in label_keys:
-            ytr = get_labels(train_data_dict, lab)
-            yva = get_labels(val_data_dict, lab)
-
-            acc[lab][c_idx] = linear_probe(Xtr, ytr, Xva, yva)
-
-    return acc
 
 
 def train_loop(X, X_aug, model, optimizer, disen_loss):
@@ -189,7 +149,7 @@ def train(train_loader, val_loader, model, optimizer, disen_loss, epochs, device
     M = disen_loss.M # number of modalities
     pairs = list(combinations(range(M), 2))
     
-    M = disen_loss.M # number of modalities
+    evaluator = ProbeEvaluator(linear_probe= linear_probe, regression_probe= regression_probe)
     for _iter in range(epochs):
         # Initialize epoch loss trackers
         epoch_loss = 0.0
@@ -200,7 +160,7 @@ def train(train_loader, val_loader, model, optimizer, disen_loss, epochs, device
         model.train()
         print(f"----- Epoch: {_iter + 1} / {epochs} -----")
         # Training phase
-        for batch_idx, (X, labels_u, labels_s) in enumerate(train_loader):
+        for batch_idx, (X, labels_u, labels_s, _, _) in enumerate(train_loader):
             temp_b = X[0].shape[0]
             X = [X[m].to(device) for m in range(M)]
 
@@ -229,7 +189,7 @@ def train(train_loader, val_loader, model, optimizer, disen_loss, epochs, device
             val_epoch_unique_loss = 0.0
             val_epoch_shared_loss = 0.0
         
-            for batch_idx, (X, labels_u, labels_s) in enumerate(val_loader):
+            for batch_idx, (X, labels_u, labels_s, _, _) in enumerate(val_loader):
                 temp_b = X[0].shape[0]
                 X = [X[m].to(device) for m in range(M)]
                 
@@ -262,8 +222,7 @@ def train(train_loader, val_loader, model, optimizer, disen_loss, epochs, device
         if components is None: # set components only once - same for all epochs
             components = list(train_data_dict['Labels_U'].keys()) + list(train_data_dict['Labels_S'].keys())
 
-        linear_probe_acc = calculate_linear_probe_acc(train_data_dict, val_data_dict)
-
+        
         # Log metrics to WandB
         wandb.log({
             "train/loss": avg_epoch_loss,
@@ -274,25 +233,11 @@ def train(train_loader, val_loader, model, optimizer, disen_loss, epochs, device
             "val/loss/ortho": avg_ortho_loss_val,
             "val/loss/unique": avg_unique_loss_val,
             "val/loss/shared": avg_shared_loss_val,
-            # Log the complete confusion matrix for each epoch
-            "confusion_matrix": wandb.Image(plot_confusion_matrix(linear_probe_acc, components= components, labels= components)),
-            # Log the pairwise confusion matrices, i.e. M* (M -1)/ 2 matrices for M modalities
-            "pairwise_confusion_matrices": wandb.Image(plot_pairwise_confusion_matrices(linear_probe_acc= linear_probe_acc, \
-                                                                                        M= M, \
-                                                                                        components= components, \
-                                                                                        pairs= pairs))
         }, step= _iter + 1)
         plt.close("all")
 
-
-        # Log additionally all the accuracies for each component and label
-        for label_key, acc_array in linear_probe_acc.items():
-            for c_idx, comp in enumerate(components):
-                wandb.log({f"probe/{label_key}/label_{comp}/acc": acc_array[c_idx]}, step= _iter + 1)
-
         # Save model checkpoint every 10 epochs and at the end
         if (_iter + 1) % 10 == 0 or (_iter + 1) == epochs:
-
             checkpoint_name = f"checkpoint_epoch_{_iter + 1}.pt" if (_iter + 1) // 10 != (epochs // 10) else f"final_checkpoint.pt"
             checkpoint_path = os.path.join(checkpoint_dir, checkpoint_name)
             os.makedirs(checkpoint_dir, exist_ok=True) # ensure directory exists
@@ -308,5 +253,27 @@ def train(train_loader, val_loader, model, optimizer, disen_loss, epochs, device
             print(f"Model checkpoint saved at {checkpoint_path}")
             
             log_model_checkpoint(wandb.run, checkpoint_path, epoch= _iter + 1)
+        
+        # Save final metrics:
+        if (_iter + 1) == epochs:
+            evaluator.set_data(train_data_dict= train_data_dict, val_data_dict= val_data_dict, M= M)
+            linear_results = evaluator.calculate_linear_probe()
+            reg_results = evaluator.calculate_reg_probe()
+
+            metrics_summary = evaluator.mean_metrics(linear_results, reg_results, M= M)
+
+            # Log the complete confusion matrix for each epoch
+            wandb.log({"confusion_matrix": wandb.Image(plot_confusion_matrix(linear_results["acc"], components= components, labels= components))})
+            # Log the pairwise confusion matrices, i.e. M* (M -1)/ 2 matrices for M modalities
+            wandb.log({"pairwise_confusion_matrices": wandb.Image(plot_pairwise_confusion_matrices(linear_probe_acc= linear_results["acc"], \
+                                                                                        M= M, \
+                                                                                        components= components, \
+                                                                                        pairs= pairs))})    
+            # Log final metrics table
+            table = wandb.Table(columns=["metric", "value"])
+            for k, v in metrics_summary.items():
+                table.add_data(k, float(v))
+            wandb.log({"final_metrics": table})
     
     print("Training complete!")
+    return metrics_summary

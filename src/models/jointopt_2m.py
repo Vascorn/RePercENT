@@ -11,14 +11,20 @@ from src.DisentangledSSL.utils import ExponentialScheduler
 
 ActivationName = typing.Literal['relu', 'gelu', 'sigmoid']
 
-class simpleEncoder(nn.Module):
-    def __init__(self, input_dim: int = 64, hidden_dims: List[int] = [64], latent_dim: int = 32, activation: ActivationName = 'relu', dropout: float = 0.3) -> None:
+class MLP(nn.Module):
+    def __init__(self, input_dim: int = 64, 
+                hidden_dims: List[int] = [64], 
+                latent_dim: int = 32, 
+                activation: ActivationName = 'relu', 
+                dropout: float = 0.3,
+                flatten_input: bool = True) -> None:
         
-        super(simpleEncoder, self).__init__()
+        super(MLP, self).__init__()
         self.input_dim = input_dim # initial input dimension
         self.hidden_dims = hidden_dims # hidden layer dimension
         self.latent_dim = latent_dim # final output dimension
         self.dropout = dropout
+        self.flatten_input = flatten_input
 
         match activation:
             case 'relu':
@@ -48,26 +54,22 @@ class simpleEncoder(nn.Module):
 
     def forward(self, x):
         # flatten input except batch dimension
-        x = x.flatten(start_dim= -2)
+        if self.flatten_input:
+            x = x.flatten(start_dim= -2)
         out = self.mlp(x)
         return out
-
-    def forward(self, x):
-        # flatten input except batch dimension
-        x = x.flatten(start_dim= -2)
-        out = self.mlp(x)
-        return out
+        
 
 
 # Follows the JointDisenModel from the DisentangledSSL package (https://github.com/uhlerlab/DisentangledSSL) but modified to the structure of this code, i.e. the loss functions and training loop are defined outside the model class.
 class JointOpt(nn.Module):
-    def __init__(self, M: int = 2, sharedEncoders: List[simpleEncoder] = None, uniqueEncoders: List[simpleEncoder] = None, vmfkappa: float= 1e3, add_shared= False) -> None:
+    def __init__(self, M: int = 2, sharedEncoders: List[MLP] = None, uniqueEncoders: List[MLP] = None, vmfkappa: float= 1e3, add_shared= False) -> None:
         '''
         JointOpt model for multi-modal representation learning with disentangled factors.
         Args:
             M (int): Number of modalities. Default is 2.
-            sharedEncoders (List[simpleEncoder]): List of MLP encoders for each modality, responsible for extracting the shared representation.
-            uniqueEncoders (List[simpleEncoder]): List of MLP encoders for each modality, responsible for extracting the unique representation.
+            sharedEncoders (List[MLP]): List of MLP encoders for each modality, responsible for extracting the shared representation.
+            uniqueEncoders (List[MLP]): List of MLP encoders for each modality, responsible for extracting the unique representation.
             vmfkappa (float): Concentration parameter for the vMF distribution in the probabilistic encoder heads. Default is 1e3.
             add_shared (bool): Whether to add as input the extracted shared components to the unique encoders. Default is False.
         '''

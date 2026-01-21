@@ -99,7 +99,7 @@ class Attention(nn.Module):
         self.dropout = nn.Dropout(dropout)
         self.to_out = nn.Linear(inner_dim, query_dim)
 
-    def forward(self, x, context = None, mask = None, atten_mask = None):
+    def forward(self, x, context = None, mask = None): #, atten_mask = None):
         h = self.heads
 
         q = self.to_q(x)
@@ -116,15 +116,15 @@ class Attention(nn.Module):
             mask = repeat(mask, 'b j -> (b h) () j', h = h)
             sim.masked_fill_(~mask, max_neg_value)
 
-        # NEW pairwise attention mask: True=keep, False=block
-        if exists(atten_mask):
-            max_neg_value = -torch.finfo(sim.dtype).max
-            # allow (i, j), (b, i, j), or already (b*h, i, j)
-            if atten_mask.dim() == 2:
-                atten_mask = atten_mask.unsqueeze(0)                    # (1, i, j)
-            if atten_mask.shape[0] == q.shape[0] // h:
-                atten_mask = repeat(atten_mask, 'b i j -> (b h) i j', h=h)
-            sim.masked_fill_(~atten_mask, max_neg_value)
+        # pairwise attention mask: True=keep, False=block
+        # if exists(atten_mask):
+        #     max_neg_value = -torch.finfo(sim.dtype).max
+        #     # allow (i, j), (b, i, j), or already (b*h, i, j)
+        #     if atten_mask.dim() == 2:
+        #         atten_mask = atten_mask.unsqueeze(0)                    # (1, i, j)
+        #     if atten_mask.shape[0] == q.shape[0] // h:
+        #         atten_mask = repeat(atten_mask, 'b i j -> (b h) i j', h=h)
+        #     sim.masked_fill_(~atten_mask, max_neg_value)
 
         # attention, what we cannot get enough of
         attn = sim.softmax(dim = -1)
@@ -193,6 +193,8 @@ class Perceiver(nn.Module):
         self.num_freq_bands = num_freq_bands
 
         self.fourier_encode_data = fourier_encode_data
+        self.seq_dim = input_channels
+
         # If fourier encoding, you must provide num_freq_bands and max_freq
         if fourier_encode_data:
             assert exists(num_freq_bands) and exists(max_freq), 'must provide num_freq_bands and max_freq if you are fourier encoding the data'
@@ -201,11 +203,14 @@ class Perceiver(nn.Module):
         else:
             input_dim = input_channels
 
+        
         self.latents = nn.Parameter(torch.randn(num_latents, latent_dim))
+
         with torch.no_grad():
-            pairs = [(0,1), (2,3), (4,5)]
-            eps = 1e-8
-            for i, j in pairs:
+            eps = 1e-6
+            for n in range(num_latents // 2):
+                i = n * 2
+                j = n * 2 + 1
                 vi = self.latents[i]
                 vi = vi / (vi.norm() + eps)
 
@@ -285,22 +290,22 @@ class Perceiver(nn.Module):
         x = repeat(self.latents, 'n d -> b n d', b = b)
         
         b = x.shape[0]
-        atten_mask_keep = torch.tensor([
-            [1,0,1,1,1,1],
-            [0,1,1,1,1,1],
-            [1,1,1,0,1,1],
-            [1,1,0,1,1,1],
-            [1,1,1,1,1,0],
-            [1,1,1,1,0,1],
-        ], dtype=torch.bool).to(device)  # True where attention IS permitted
-        atten_mask_keep = atten_mask_keep.unsqueeze(0).expand(b, -1, -1)  # (b, 6, 6) 
+        # atten_mask_keep = torch.tensor([
+        #     [1,0,1,1,1,1],
+        #     [0,1,1,1,1,1],
+        #     [1,1,1,0,1,1],
+        #     [1,1,0,1,1,1],
+        #     [1,1,1,1,1,0],
+        #     [1,1,1,1,0,1],
+        # ], dtype=torch.bool).to(device)  # True where attention IS permitted
+        # atten_mask_keep = atten_mask_keep.unsqueeze(0).expand(b, -1, -1)  # (b, 6, 6) 
 
         # layers
         for cross_attn, cross_ff, self_attns in self.layers:
             x = cross_attn(x, context = data, mask = mask) + x
             x = cross_ff(x) + x
             for self_attn, self_ff in self_attns:
-                x = self_attn(x, atten_mask= atten_mask_keep) + x
+                x = self_attn(x) + x
                 x = self_ff(x) + x
         
         # allow for fetching embeddings

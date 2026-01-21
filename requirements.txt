@@ -20,3 +20,33 @@ tensorflow
 torchtext
 
 wandb
+
+# ---- Hugging Face / NLP stack ----
+transformers
+datasets
+sentencepiece
+tokenizers
+huggingface-hub
+accelerate
+safetensors
+
+# Sentence embeddings / similarity
+sentence-transformers
+
+# Classic NLP utils often used alongside MultiBench
+gensim
+nltk
+spacy
+regex
+ftfy
+
+# Download helpers (MultiBench datasets / GloVe / processed packs)
+gdown
+requests
+
+# Common serialization / performance helpers (datasets + large files)
+pyarrow
+dill
+multiprocess
+fsspec
+filelock

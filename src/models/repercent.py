@@ -9,7 +9,7 @@ from src.DisentangledSSL.models import ProbabilisticEncoder
 from src.DisentangledSSL.losses import SupConLoss, ortho_loss
 from src.DisentangledSSL.utils import ExponentialScheduler
 from itertools import permutations
-
+from src.models.jointopt_2m import MLP
 
 class simpleEncoder(nn.Module):
     def __init__(self, input_dim: int = 64, latent_dim: int = 32, activation: typing.Literal['relu', 'tanh', 'sigmoid'] = 'relu'):
@@ -56,6 +56,8 @@ class DisenEncoder(nn.Module):
     
 class RePercENT(nn.Module):
     def __init__(self, M: int = 2, disenEncoder: List[DisenEncoder] = None, \
+        recon: bool= True,
+        disenDecoder: List[nn.Module] = None, \
         disen_mapping: dict[int, dict] = {'M_1': {'U_12': 0, 'S_12': 1}, 'M_2': {'U_21': 0, 'S_21': 1}},
         vmfkappa: float= 1e3) -> None:
         '''
@@ -63,6 +65,8 @@ class RePercENT(nn.Module):
         Args:
             M (int): Number of modalities. Default is 2.
             disenEncoder (List[DisenEncoder]): List of DisenEncoder instances for each modality.
+            recon (bool): Whether to include reconstruction decoders for each modality. Default is False.
+            disenDecoder (List[nn.Module]): List of decoder modules for each modality if recon is True.
             disen_mapping (dict): Mapping the position of each disentangled factor to the corresponding position in the output of each Perceiver based encoder (disenEncoder). 
                                 The keys are the different modalities (e.g., 'M_1', 'M_2', ..., 'M_N'), and the values are dictionaries that map the names of the disentangled 
                                 factors (e.g., 'U_12' -> unique component of modality 1 with respect to modality 2, 'S_12' -> shared component between modality 1 and 2, etc.) 
@@ -80,7 +84,13 @@ class RePercENT(nn.Module):
         #     assert de.perceiver.latents.shape[-1] == self.latent_dim, "All DisenEncoders must have the same latent dimension"
 
         self.disenEncoders = nn.ModuleList(disenEncoder)  # List of DisenEncoder instances for each modality
+        
+
         # self.prob_heads = nn.ModuleList([ProbabilisticEncoder(nn.Identity(), distribution= "vmf", vmfkappa= 1e3) for _ in range(self.M)])  # Probabilistic heads for each of S_12 and S_21 - assuming only two modalities
+        
+        self.latent_dim = disenEncoder[0].perceiver.latents.shape[-1]  # Latent dimension of the representations
+        self.seq_dim = disenEncoder[0].perceiver.seq_dim # Sequence dimension of the representations
+        print(f"RePercENT model initialized with latent dimension: {self.latent_dim}, sequence dimension: {self.seq_dim}")
         # create probalitistic heads for each shared component S_ij
 
         self.prob_heads = nn.ModuleList()
@@ -92,7 +102,19 @@ class RePercENT(nn.Module):
         for i, j in zip(self.perm_i, self.perm_j):
             self.prob_heads.append(ProbabilisticEncoder(nn.Identity(), distribution= "vmf", vmfkappa= vmfkappa))
             
-
+        # Initialize the reconstruction decoders for each modality if recon is True
+        self.recon = recon
+        if self.recon:
+            if disenDecoder is not None:
+                assert disenDecoder is not None and len(disenDecoder) == M, "disenDecoder if provided must match the number of modalities M when recon is True"
+                self.disenDecoders = nn.ModuleList(disenDecoder)
+            else:
+                self.disenDecoders = nn.ModuleList([MLP(input_dim= self.latent_dim * 2, \
+                                                        hidden_dims= [self.latent_dim * 2], \
+                                                        latent_dim= self.latent_dim * self.seq_dim, \
+                                                        flatten_input= False) for _ in range(M)])
+                                                        
+            
         self.disen_mapping = disen_mapping
 
         self.norm = lambda x: nn.functional.normalize(x, dim=-1)
@@ -136,7 +158,17 @@ class RePercENT(nn.Module):
             S_view[:, i-1, j-1, :] = s_ij
             S_prob[:, i-1, j-1, :] = s_prob_ij
 
-       
+        # If reconstruction is enables, reconstruct each modality from its unique component and 
+        # the shared component from the same or another modality with a random choice
+        if self.recon:
+            X_rec = torch.zeros((x[0].shape[0], self.M, self.seq_dim * self.latent_dim), device= x[0].device)
+            for i in range(self.M):
+                # choose one of the modalities (m included) randomly to provide the shared component for reconstruction
+                j = torch.randint(0, self.M, (1,)).item()
+                u_ij = U[:, i, j, :]
+                s_ij = S_view[:, i, j, :] if torch.rand(1).item() < 0.5 else S_view[:, j, i, :] # randomly choose shared component from modality i or j
+                X_rec[:, i, :] = self.disenDecoders[i](torch.cat([u_ij, s_ij], dim= -1))
+
 
         # --- S_concat: (B, P, 2, D) = [s_ij, s_ji] ---
         i = self.pair_i
@@ -153,14 +185,22 @@ class RePercENT(nn.Module):
         Z_j_concat = torch.cat([U[:, j, i, :], S_prob[:, i, j, :]], dim=-1)  # (B,P,2D)
         Z_j_concat = self.norm(Z_j_concat)
 
-
+        
         out = {"U": U, "S_view": S_view, "S_prob": S_prob, "S_concat": S_concat, "Z_i_concat": Z_i_concat, "Z_j_concat": Z_j_concat}
+        if self.recon:
+            out["X_rec"] = X_rec
+            out["X_orig"] = torch.stack(x, dim=1).flatten(start_dim= 2)  # (B, M, seq_dim * latent_dim)
+            
         return out
     
 # This function with calculate the custom pairwise loss for the RePercENT model
 # It is based on the JointDisenModel from the DisentangledSSL package (https://github.com/uhlerlab/DisentangledSSL)
 class DisenLoss(nn.Module):
-    def __init__(self, alpha: float = 1.0, lmd: float= 0.5, lmd_start_value: float= 1e-3, lmd_end_value: float= 1, lmd_n_iterations: int=1e4, lmd_start_iteration: int=5e3, ortho_norm: bool= True, M: int= 2) -> None:
+    def __init__(self, alpha: float = 1.0, 
+                lmd: float= 0.5, lmd_start_value: float= 1e-3, 
+                lmd_end_value: float= 1, lmd_n_iterations: int=1e4, 
+                lmd_start_iteration: int=5e3, ortho_norm: bool= True, 
+                recon: bool = True, M: int= 2) -> None:
         super().__init__()
         self.critic = SupConLoss()
         self.norm = lambda x: nn.functional.normalize(x, dim=-1)
@@ -175,6 +215,9 @@ class DisenLoss(nn.Module):
         self.ortho_norm = ortho_norm
         self.M = M
         self.ortho_loss = lambda x, y: torch.norm(torch.matmul(self.norm(x).T, self.norm(y))) if self.ortho_norm else NotImplementedError('Please set norm=True')
+        self.recon_loss = nn.MSELoss() if recon else None
+
+        # indices for all unordered pairs i<j (0-based)
         self.idx = torch.triu_indices(self.M, self.M, offset=1)  # (2, P)
         self.register_buffer("pair_i", self.idx[0])  # (P,)
         self.register_buffer("pair_j", self.idx[1])  # (P,)
@@ -250,7 +293,7 @@ class DisenLoss(nn.Module):
         for p in range(self.P):
             i = int(self.pair_i[p].item())  # 0-based
             j = int(self.pair_j[p].item())  # 0-based
-
+            
             # build per-pair views (original)
             Zi = (outputs["U"][:, i, j, :], outputs["S_view"][:, j, i, :], outputs["S_prob"][:, j, i, :])
             Zj = (outputs["U"][:, j, i, :], outputs["S_view"][:, i, j, :], outputs["S_prob"][:, i, j, :])
@@ -259,7 +302,7 @@ class DisenLoss(nn.Module):
                 "Zj": Zj,
                 "s_concat": outputs["S_concat"][:, p, :, :],       # (B,2,D)
                 "z_i_concat": outputs["Z_i_concat"][:, p, :],      # (B,2D)
-                "z_j_concat": outputs["Z_j_concat"][:, p, :],      # (B,2D)
+                "z_j_concat": outputs["Z_j_concat"][:, p, :]      # (B,2D)
             }
 
             # build per-pair views (aug)
@@ -270,7 +313,7 @@ class DisenLoss(nn.Module):
                 "Zj": Zj,
                 "s_concat": outputs_aug["S_concat"][:, p, :, :],
                 "z_i_concat": outputs_aug["Z_i_concat"][:, p, :],
-                "z_j_concat": outputs_aug["Z_j_concat"][:, p, :],
+                "z_j_concat": outputs_aug["Z_j_concat"][:, p, :]
             }
 
             l, logs = self.pairwise_loss(outputs_pair, outputs_pair_aug)
@@ -280,9 +323,19 @@ class DisenLoss(nn.Module):
                 total_logs[k] = total_logs.get(k, 0.0) + v
 
         # average over pairs (usually what you want)
-        # total_loss = total_loss / self.P
-        # for k in total_logs:
-        #     total_logs[k] /= self.P
+        total_loss = total_loss / self.P
+
+        if self.recon_loss is not None:
+            # add reconstruction loss averaged over modalities
+            recon_loss = 0.0
+            for m in range(self.M):
+                recon_loss += self.recon_loss(outputs["X_rec"][:, m, :], outputs["X_orig"][:, m, :])
+            recon_loss = recon_loss / self.M
+            total_loss += recon_loss
+            total_logs['recon'] = recon_loss.item()
+        
+        for k in total_logs:
+            total_logs[k] /= self.P
 
         return total_loss, total_logs
 

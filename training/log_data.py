@@ -54,7 +54,6 @@ def log_dataset(dataset_name, dataset_path, data_config_path):
         name= dataset_name,
         type= "dataset"
     )
-    dataset_artifact.add_file(os.path.join(dataset_path, f"{dataset_name}", "data_split.pt"))
     dataset_artifact.add_file(os.path.join(dataset_path, f"{dataset_name}", "dataset.pt"))
     dataset_artifact.add_file(os.path.join(dataset_path, f"{dataset_name}", "README.md"))
     dataset_artifact.add_file(data_config_path)
