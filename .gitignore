@@ -213,3 +213,5 @@ Dockerfile
 .aliases
 entrypoint.sh
 wandb/
+data/
+checkpoints/
