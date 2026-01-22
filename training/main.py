@@ -96,7 +96,7 @@ def main():
     parser.add_argument('--save_data_split', type=bool, default=False)
     parser.add_argument('--load_data', type=bool, default=True)
     parser.add_argument('--log_dataset_artifact', type=bool, default=False)
-    parser.add_argument('--model_type', type=str, choices=['jointopt', 'repercent'], default='jointopt', help='Type of model to train')
+    parser.add_argument('--model_type', type=str, choices=['jointopt', 'repercent'], default='repercent', help='Type of model to train')
 
     # Define number of splits and seeds
     parser.add_argument('--k1', type=int, default= 3, help='Number of different train/test splits')
