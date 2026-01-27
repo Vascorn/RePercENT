@@ -72,7 +72,7 @@ class GEGLU(nn.Module):
         return x * F.gelu(gates)
 
 class FeedForward(nn.Module):
-    def __init__(self, dim, mult = 4, dropout = 0.):
+    def __init__(self, dim, mult = 2, dropout = 0.):
         super().__init__()
         self.net = nn.Sequential(
             nn.Linear(dim, dim * mult * 2),
@@ -83,6 +83,69 @@ class FeedForward(nn.Module):
 
     def forward(self, x):
         return self.net(x)
+
+class MoEFeedForward(nn.Module):
+    """
+    Token-level MoE FFN for x: (B, N, D)
+    - Routes each token (latent) to top-k experts
+    - Combines expert outputs with gate weights
+    """
+    def __init__(
+        self,
+        dim: int,
+        mult: int = 2,
+        num_experts: int = 8,
+        temperature: float = 1.0, 
+        hard: bool = False, 
+        top_k: int = 2,
+        dropout: float = 0.0,
+        gate_dropout: float = 0.0,
+        use_softmax_gating: bool = True,
+    ):
+        super().__init__()
+        assert top_k <= num_experts and top_k >= 1
+        self.dim = dim
+        self.num_experts = num_experts
+        self.temperature = temperature
+        self.hard = hard
+        self.top_k = top_k
+        self.use_softmax_gating = use_softmax_gating
+
+        # router: produces logits over experts for each token
+        self.router = nn.Linear(dim, num_experts, bias=False)
+        self.gate_dropout = nn.Dropout(gate_dropout)
+
+        # experts: same FFN architecture you used (GEGLU-based)
+        self.experts = nn.ModuleList([FeedForward(dim, mult=mult, dropout=dropout) for _ in range(num_experts)])
+
+    def forward(self, x):
+        B, N, D = x.shape
+        tokens = x.reshape(B*N, D)
+
+        logits = self.router(tokens)  # (T, E)
+        probs = (logits / self.temperature).softmax(dim=-1)  # (T, E)
+
+        if not self.hard:
+            # soft mixture of ALL experts (more compute, but simplest + stable)
+            out = 0
+            for e, expert in enumerate(self.experts):
+                out = out + expert(tokens) * probs[:, e:e+1]
+            return out.view(B, N, D)
+
+        topk_vals, topk_idx = torch.topk(probs, k=self.top_k, dim=-1)
+        topk_vals = topk_vals / (topk_vals.sum(dim=-1, keepdim=True) + 1e-9)
+
+        out = torch.zeros_like(tokens)
+        for e, expert in enumerate(self.experts):
+            chosen = (topk_idx == e)
+            if not chosen.any(): 
+                continue
+            token_ids, slot_ids = chosen.nonzero(as_tuple=True)
+            expert_out = expert(tokens[token_ids])
+            weights = topk_vals[token_ids, slot_ids].unsqueeze(-1)
+            out[token_ids] += expert_out * weights
+        return out.view(B, N, D)
+
 
 class Attention(nn.Module):
     def __init__(self, query_dim, context_dim = None, heads = 8, dim_head = 64, dropout = 0.):
@@ -157,7 +220,8 @@ class Perceiver(nn.Module):
         weight_tie_layers = False,
         fourier_encode_data = True,
         self_per_cross_attn = 1,
-        final_classifier_head = True
+        final_classifier_head = True,
+        use_moeffn = False,
     ):
         """The shape of the final attention mechanism will be:
         depth * (cross attention -> self_per_cross_attn * self attention)
@@ -186,7 +250,9 @@ class Perceiver(nn.Module):
               if you are fourier encoding the data yourself.
           self_per_cross_attn: Number of self attention blocks per cross attn.
           final_classifier_head: mean pool and project embeddings to number of classes (num_classes) at the end
+          use_moeffn: Whether to use Mixture of Experts FeedForward networks for latent blocks.
         """
+
         super().__init__()
         self.input_axis = input_axis
         self.max_freq = max_freq
@@ -194,7 +260,7 @@ class Perceiver(nn.Module):
 
         self.fourier_encode_data = fourier_encode_data
         self.seq_dim = input_channels
-
+        self.use_moeffn = use_moeffn
         # If fourier encoding, you must provide num_freq_bands and max_freq
         if fourier_encode_data:
             assert exists(num_freq_bands) and exists(max_freq), 'must provide num_freq_bands and max_freq if you are fourier encoding the data'
@@ -225,7 +291,22 @@ class Perceiver(nn.Module):
         get_cross_attn = lambda: PreNorm(latent_dim, Attention(latent_dim, input_dim, heads = cross_heads, dim_head = cross_dim_head, dropout = attn_dropout), context_dim = input_dim)
         get_cross_ff = lambda: PreNorm(latent_dim, FeedForward(latent_dim, dropout = ff_dropout))
         get_latent_attn = lambda: PreNorm(latent_dim, Attention(latent_dim, heads = latent_heads, dim_head = latent_dim_head, dropout = attn_dropout))
-        get_latent_ff = lambda: PreNorm(latent_dim, FeedForward(latent_dim, dropout = ff_dropout))
+        if not use_moeffn:
+            get_latent_ff = lambda: PreNorm(latent_dim, FeedForward(latent_dim, dropout = ff_dropout))
+        else:
+            print(f'Initializing Perceiver with Mixture of Experts FeedForward layers with {num_latents} experts.')
+            self.num_experts = num_latents
+            # We will set top_k greater in the first layers and lower in the later layers, same for gate_do, forcing specialization in the later layers
+            get_latent_ff = lambda top_k= 2, temp=1.0, gate_do=0.0: PreNorm(
+                            latent_dim, 
+                            MoEFeedForward(latent_dim,
+                                    num_experts= self.num_experts,
+                                    top_k=top_k,
+                                    temperature=temp,
+                                    dropout=ff_dropout,
+                                    gate_dropout=gate_do
+                                )
+                            )
 
         get_cross_attn, get_cross_ff, get_latent_attn, get_latent_ff = map(cache_fn, (get_cross_attn, get_cross_ff, get_latent_attn, get_latent_ff))
 
@@ -234,13 +315,23 @@ class Perceiver(nn.Module):
             should_cache = i > 0 and weight_tie_layers
             cache_args = {'_cache': should_cache}
 
+            # schedule: soft early -> hard late
+            frac = i / max(depth - 1, 1)
+            late = frac >= 0.6
+
+            ff_top_k = 1 #2 if not late else 1          # soft-ish -> hard
+            ff_temp  = 1.5 if not late else 0.6      # soft -> peaky
+            ff_gdo   = 0.1 if not late else 0.0      # explore -> deterministic
+
+
             self_attns = nn.ModuleList([])
 
             # append self attention blocks of latents
             for block_ind in range(self_per_cross_attn):
                 self_attns.append(nn.ModuleList([
                     get_latent_attn(**cache_args, key = block_ind),
-                    get_latent_ff(**cache_args, key = block_ind)
+                    get_latent_ff(top_k=ff_top_k, temp=ff_temp, 
+                    gate_do=ff_gdo, **cache_args, key = (block_ind, ff_top_k, ff_temp, ff_gdo),)
                 ]))
 
             # for each layer, append cross attention between latents and inputs, 

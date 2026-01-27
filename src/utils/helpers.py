@@ -78,8 +78,11 @@ def plot_pairwise_confusion_matrices(linear_probe_acc, M, components: List= ['u_
 
         axes_id_x = pair_id // y_shape
         axes_id_y = pair_id % y_shape
-
-        ax = axes[axes_id_x, axes_id_y] if x_shape > 1 and y_shape > 1 else axes[max(axes_id_x, axes_id_y)]
+        if x_shape > 1 and y_shape > 1:
+            ax = axes[axes_id_x, axes_id_y]
+        else:
+            ax = axes
+        
         sns.heatmap(
             submat,
             annot=True,

@@ -1,0 +1,3 @@
+[submodule "IRFL"]
+	path = IRFL
+	url = https://github.com/irfl-dataset/IRFL

@@ -14,6 +14,7 @@ perceiver:
   latent_dim: 16 # The dimension of each latent vector
   latent_heads: 3
   weight_tie_layers: false
+  use_moeffn: true # default is false, use this to enable Mixture of Experts Feedforward layers after the self-attention layers
 
 repercent:
   M: 2 # Number of modalities

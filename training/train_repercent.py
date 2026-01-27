@@ -66,7 +66,9 @@ def make_model(model_config, data_config, modality: int= 2, M: int=2):
                         input_channels= INPUT_CHANNELS,
                         input_axis= INPUT_AXIS,
                         fourier_encode_data= POS_ENCODING,
-                        weight_tie_layers= WEIGHT_TIE_LAYERS)
+                        weight_tie_layers= WEIGHT_TIE_LAYERS,
+                        use_moeffn= model_config["perceiver"].get("use_moeffn", False)
+                        )
     print(f"input channels: {INPUT_CHANNELS}, latent dim: {LATENT_DIM}, num latents: {NUM_LATENTS}")
     disen_m = DisenEncoder(encoder_model= enc_m, perceiver_model= per_m)
 
