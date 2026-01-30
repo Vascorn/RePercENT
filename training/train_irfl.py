@@ -18,113 +18,6 @@ from itertools import combinations
 
 
 
-def split_dataset(dataset, test_size: float):
-    train_size = int((1 - test_size) * len(dataset))
-    test_size = int(test_size * len(dataset))
-    train_dataset, test_dataset = random_split(dataset, [train_size, test_size])
-    return train_dataset, test_dataset
-
-def make_dataloaders(train_dataset, test_dataset, batch_size: int= 16):
-    train_loader = torch.utils.data.DataLoader(train_dataset, batch_size= batch_size, shuffle= True)
-    test_loader = torch.utils.data.DataLoader(test_dataset, batch_size= batch_size, shuffle= False)
-    return train_loader, test_loader
-
-def make_model(model_config, data_config, modality: int= 2, M: int=2):
-    """
-    Create a single DisenEncoder model for a given modality based on the model and data configurations.
-    Args:
-        model_config: Configuration dictionary for the model.
-        data_config: Configuration dictionary for the data.
-        modality: Modality number (1, 2, ..., M) for which the DisenEncoder is to be created. NOTE: use 1-based indexing.
-        M: Total number of modalities.
-    Returns:
-        disen_m: DisenEncoder model for the specified modality.
-    """
-    enc_m = nn.Identity()
-
-    DEPTH = model_config["perceiver"]["depth"]
-   
-    MAX_FREQ = math.ceil(data_config["create_data"]["ts"][modality - 1]/ 2) if model_config["perceiver"]["max_freq"] is None else model_config["perceiver"]["max_freq"]
-    NUM_FREQ_BANDS= math.floor(math.log2(MAX_FREQ)) + 1 if model_config["perceiver"]["num_freq_bands"] is None else model_config["perceiver"]["num_freq_bands"]
-    INPUT_CHANNELS= 2**(M - 1) *data_config["create_data"]["latent_dim"] if model_config["perceiver"]["input_channels"] is None else model_config["perceiver"]["input_channels"]
-    INPUT_AXIS= model_config["perceiver"]["input_axis"]
-    LATENT_DIM= model_config["perceiver"]["latent_dim"]
-    NUM_LATENTS= model_config["perceiver"]["num_latents"]
-    CROSS_HEADS= model_config["perceiver"]["cross_heads"]
-    LATENT_HEADS= model_config["perceiver"]["latent_heads"]
-    POS_ENCODING= model_config["perceiver"]["pos_encoding"]
-    WEIGHT_TIE_LAYERS= model_config["perceiver"]["weight_tie_layers"]
-
-    
-    per_m = Perceiver(num_freq_bands= NUM_FREQ_BANDS,
-                        latent_dim= LATENT_DIM,
-                        num_latents= NUM_LATENTS,
-                        depth= DEPTH,
-                        max_freq= MAX_FREQ,
-                        latent_heads= LATENT_HEADS,
-                        cross_heads= CROSS_HEADS,
-                        input_channels= INPUT_CHANNELS,
-                        input_axis= INPUT_AXIS,
-                        fourier_encode_data= POS_ENCODING,
-                        weight_tie_layers= WEIGHT_TIE_LAYERS,
-                        use_moeffn= model_config["perceiver"].get("use_moeffn", False)
-                        )
-    print(f"input channels: {INPUT_CHANNELS}, latent dim: {LATENT_DIM}, num latents: {NUM_LATENTS}")
-    disen_m = DisenEncoder(encoder_model= enc_m, perceiver_model= per_m)
-
-    return disen_m
-
-
-def train_loop(X, X_aug, model, optimizer, disen_loss):
-    """
-    Single Epoch training step for RePercENT model
-    Args:
-        X: Batch data from all modalities
-        X_aug: Augmented batch data from all modalities
-        model: RePercENT model in training mode
-        optimizer: Optimizer for RePercENT model
-        disen_loss: Disentanglement loss function
-    Returns:
-        loss: Computed loss value for the batch
-        logs: Dictionary containing loss components for monitoring
-    """
-    # Forward pass through RePercENT
-    outputs = model(X)
-    outputs_aug = model(X_aug)
-    
-    # Compute disentanglement loss
-    loss, logs = disen_loss(outputs, outputs_aug)
-    
-    # Backward pass for RePercENT
-    optimizer.zero_grad()
-    loss.backward()
-    optimizer.step()
-    
-    return loss, logs
-    
-
-def test_loop(X, X_aug, model, disen_loss):
-    """
-    Single Epoch testing step for RePercENT model
-    Args:
-        X: Batch data from all modalities
-        X_aug: Augmented batch data from all modalities
-        model: RePercENT model in evaluation mode
-        disen_loss: Disentanglement loss function
-    Returns:
-        loss: Computed loss value for the batch
-        logs: Dictionary containing loss components for monitoring
-    """
-    # Forward pass through RePercENT
-    outputs = model(X)
-    outputs_aug = model(X_aug)
-    
-    # Compute disentanglement loss
-    loss, logs = disen_loss(outputs, outputs_aug)
-    
-    return loss, logs
-
-
 
 def train(train_loader, val_loader, model, optimizer, disen_loss, epochs, device, checkpoint_dir="./checkpoints"):
     """
@@ -151,7 +44,7 @@ def train(train_loader, val_loader, model, optimizer, disen_loss, epochs, device
     M = disen_loss.M # number of modalities
     pairs = list(combinations(range(M), 2))
     
-    evaluator = ProbeEvaluator(linear_probe= linear_probe, regression_probe= regression_probe)
+    # evaluator = ProbeEvaluator(linear_probe= linear_probe, regression_probe= regression_probe)
     for _iter in range(epochs):
         # Initialize epoch loss trackers
         epoch_loss = 0.0
