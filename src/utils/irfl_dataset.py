@@ -12,37 +12,58 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 
-# def save_dataset(dataset, save_path: str, data_config: Dict[str, Any]= None):
-#     # create directory if it doesn't exist
-    
-#     os.makedirs(os.path.dirname(save_path + "/dataset.pt"), exist_ok=True)
-#     torch.save(dataset, os.path.join(save_path, "dataset.pt"))
-#     print(f"Dataset saved at {save_path}")
-#     # create a README file with the data configuration
-#     if data_config is not None:
-#         readme_path = os.path.join(save_path, "README.md")
-#         with open(readme_path, 'w') as f:
-#                 f.write("### Dataset Configuration\n\n")
-#                 for key, value in data_config["create_data"].items():
-#                     if isinstance(value, dict):
-#                         print(f"Writing config section: {key}")
-#                         f.write(f"* {key}: \n\n")
-#                         for sub_key, sub_value in value.items():
-#                             f.write(f"  - **{sub_key}**: {sub_value}\n")
-#                         f.write("\n")
-#                     else:
-#                         f.write(f"* **{key}**: {value}\n")
-#         print(f"README saved at {readme_path}")
-#     return
 
-# def save_data_split(train_dataset, test_dataset, save_path: str, split_id: str= "0"):
-#     os.makedirs(save_path, exist_ok=True)
-#     torch.save({'train_dataset': train_dataset, 'test_dataset': test_dataset}, os.path.join(save_path, f"data_split_{split_id}.pt"))
-#     print(f"Data split saved at {save_path}")
-#     return
+def make_dataset(total_data: Dict[str, Any]= None, data_type: Literal['train', 'test'] = 'train', include_original: bool = False, num_modalities: int = 3) -> Dataset:
+    """
+    Create a IRFLDataset instance from the provided dictionary data.
+
+    Args:
+        total_data: A dictionary containing all the data samples including images, texts, definitions embeddings and distractors (if test data).
+        data_type: 'train' or 'test' to indicate the type of data. The main difference is that the test data frame also contains distractors, which are not provided in the train data frame.
+        include_original: Whether to include the original inputs (images, phrases, definitions, distractors) in the dataset samples. Note that the distractors are only available for test data.
+        num_modalities: Number of modalities to use. The default is 3, corresponding to images, phrases, and definitions.
+    Returns:
+        An instance of IRFLDataset containing the provided data.
+    """
+
+    prefix = f"{data_type}_"
+    
+    # Base keys (always included)
+    data = {
+        "images": total_data.get(prefix + "images", None) if data_type == 'train' else total_data.get(prefix + "answers", None), # for test data, the "answers" key contains the original images, while the "images" key contains the images for the train.
+        "texts": total_data[prefix + "phrases"],
+        "pad_masks": total_data[prefix + "phrases_mask"],
+        "definitions": total_data.get(prefix + "definitions", None), # optional, only if num_modalities == 3
+        "definitions_mask": total_data.get(prefix + "definitions_mask", None),
+        "distractors": total_data.get(prefix + "distractors", None), # present only in test data
+
+        # Augmented data
+        "images_aug": total_data.get(prefix + "images_aug", None) if data_type == 'train' else total_data.get(prefix + "answers_aug", None), # for test data, the "answers_aug" key contains the augmented images, while the "images_aug" key contains the augmented images for the train.
+        "texts_aug": total_data[prefix + "phrases_aug"],
+        "pad_masks_aug": total_data[prefix + "phrases_mask_aug"],
+        "definitions_aug": total_data.get(prefix + "definitions_aug", None), # optional, only if num_modalities == 3
+        "definitions_mask_aug": total_data.get(prefix + "definitions_mask_aug", None),
+        "figurative_type": total_data.get(prefix + "figurative_type", None)
+    }
+
+
+    # Original (non-augmented) inputs
+    if include_original:
+        data.update({
+            "in_images": total_data[prefix + "images_in"],
+            "in_phrases": total_data[prefix + "phrases_in"],
+            "in_definitions": total_data[prefix + "definitions_in"],
+            "in_distractors": total_data.get(prefix + "images_distractors_in", None)
+        })
+
+
+
+    return IRFLDataset(total_data=data, data_type=data_type, num_modalities=num_modalities, include_original=include_original), data
+
+    
 
 class IRFLDataset(Dataset):
-    def __init__(self, total_data, data_type: Literal['train', 'test'] = 'train', num_modalities: int = 2):
+    def __init__(self, total_data, data_type: Literal['train', 'test'] = 'train', num_modalities: int = 3, include_original: bool = True, sample_one_aug: bool = True):
         """
         total_data: A dictionary containing all the data samples including images, texts, definitions embeddings and distractors (if test data).
         data_type: 'train' or 'test' to indicate the type of data. The main difference is that the test data frame also contains distractors, which are not provided in the train data frame.
@@ -51,6 +72,14 @@ class IRFLDataset(Dataset):
         self.total_data = total_data
         self.data_type = data_type
         self.num_modalities = num_modalities
+        self.include_original = include_original
+        self.sample_one_aug = sample_one_aug
+
+
+        self.in_images = total_data.get('in_images', None) # optional, just to keep track of the original images
+        self.in_phrases = total_data.get('in_phrases', None) # optional, just to keep track of the original phrases
+        self.in_definitions = total_data.get('in_definitions', None) # optional, just to keep track of the original definitions
+        self.in_distractors = total_data.get('in_distractors', None) # optional, just to keep track of the original distractors if the data_type is 'test'
 
         self.images = total_data['images']
         self.texts = total_data['texts']
@@ -78,38 +107,82 @@ class IRFLDataset(Dataset):
         self.text_shape_aug = self.texts_aug.shape[1:] if self.texts_aug is not None else None
         self.image_shape_aug = self.images_aug.shape[1:] if self.images_aug is not None else None
         
+        self.figurative_type = total_data.get('figurative_type', None) # only if data_type == 'test'
 
     def __len__(self):
         return len(self.images)
 
-    
-    def __getitem__(self, idx):
-        match self.data_type:
-            case 'train':
-                return self._get_train_item(idx)
-            case 'test':
-                return self._get_test_item(idx)
-            case _:
-                raise ValueError(f"Invalid data_type: {self.data_type}. Must be 'train' or 'test'.")
 
-    def _get_train_item(self, idx):
-        if self.num_modalities == 2:
-            return [self.images[idx].to(torch.float32), self.texts[idx].to(torch.float32), self.pad_masks[idx].to(torch.float32)], \
-                [self.images_aug[idx].to(torch.float32), self.texts_aug[idx].to(torch.float32), self.pad_masks_aug[idx].to(torch.float32)]  # Augmented part
-        elif self.num_modalities == 3:
-            return [self.images[idx].to(torch.float32), self.texts[idx].to(torch.float32), self.pad_masks[idx].to(torch.float32), self.definitions[idx].to(torch.float32), self.definitions_mask[idx].to(torch.float32)], \
-                [self.images_aug[idx].to(torch.float32), self.texts_aug[idx].to(torch.float32), self.pad_masks_aug[idx].to(torch.float32), self.definitions_aug[idx].to(torch.float32), self.definitions_mask_aug[idx].to(torch.float32)] # Augmented part
-        
-    def _get_test_item(self, idx):
-        if self.num_modalities == 2:
-            return [self.images[idx].to(torch.float32), self.texts[idx].to(torch.float32), self.pad_masks[idx].to(torch.float32), self.distractors[idx]],\
-                [self.images_aug[idx].to(torch.float32), self.texts_aug[idx].to(torch.float32), self.pad_masks_aug[idx].to(torch.float32)]  # Augmented part
-        elif self.num_modalities == 3:
-            return [self.images[idx].to(torch.float32), self.texts[idx].to(torch.float32), self.pad_masks[idx].to(torch.float32), self.definitions[idx].to(torch.float32), self.definitions_mask[idx].to(torch.float32), self.distractors[idx]], \
-                [self.images_aug[idx].to(torch.float32), self.texts_aug[idx].to(torch.float32), self.pad_masks_aug[idx].to(torch.float32), self.definitions_aug[idx].to(torch.float32), self.definitions_mask_aug[idx].to(torch.float32)] # Augmented part
+    def _to_f32(self, x):
+        return x.to(torch.float32) if torch.is_tensor(x) else x
 
+    def _pick_aug(self, aug_item):
+        """
+        If aug_item is:
+          - Tensor: return either itself or one slice if it has an aug dimension
+          - List[Tensor]: pick one tensor
+        """
+
+        if aug_item is None:
+            print(f"aug_item is None")
+            return None
+
+        # tensor of augmentations per sample (e.g., [n_aug, ...])
+        if torch.is_tensor(aug_item) and self.sample_one_aug and aug_item.ndim >= 1 and aug_item.shape[0] > 1:
+            j = torch.randint(0, aug_item.shape[0], (1,)).item()
+            return aug_item[j], j
+
+
+
+    def __getitem__(self, idx: int) -> Dict[str, Any]:
+        x = {
+            "images": self._to_f32(self.images[idx]),
+            "texts": self._to_f32(self.texts[idx]),
+            "pad_masks": self.pad_masks[idx],
+        }
         
-    def sample_batch(self, batch_size):
-        sample_idxs = np.random.choice(self.__len__(), batch_size, replace=False)
-        samples = self.__getitem__(sample_idxs)
-        return samples
+        if self.num_modalities == 3:
+            if self.definitions is None or self.definitions_mask is None:
+                raise ValueError("num_modalities=3 but definitions/definitions_mask are missing.")
+            x["definitions"] = self._to_f32(self.definitions[idx])
+            x["definitions_mask"] = self.definitions_mask[idx]
+
+        # Augmented sample (optional but consistent)
+        x_aug = None
+        if self.images_aug is not None and self.texts_aug is not None and self.pad_masks_aug is not None:
+            
+            picked_image_aug, image_aug_id = self._pick_aug(self.images_aug[idx])
+            picked_text_aug, text_aug_id = self._pick_aug(self.texts_aug[idx])
+            x_aug = {
+                "images": self._to_f32(picked_image_aug),
+                "texts": self._to_f32(picked_text_aug),
+                "pad_masks": self.pad_masks_aug[idx][text_aug_id],
+            }
+            if self.num_modalities == 3 and self.definitions_aug is not None and self.definitions_mask_aug is not None:
+                picked_def_aug, def_aug_id = self._pick_aug(self.definitions_aug[idx])
+                x_aug["definitions"] = self._to_f32(picked_def_aug)
+                x_aug["definitions_mask"] = self.definitions_mask_aug[idx][def_aug_id] 
+        
+        out: Dict[str, Any] = {"x": x, "x_aug": x_aug}
+
+        # Test-only extras
+        if self.data_type == "test":
+            out["distractors"] = self.distractors[idx]
+            out["figurative_type"] = self.figurative_type[idx]
+
+        # Originals only if requested AND available
+        if self.include_original:
+            out["orig"] = {
+                "images": None if self.in_images is None else self.in_images[idx],
+                "phrases": None if self.in_phrases is None else self.in_phrases[idx],
+                "definitions": None if self.in_definitions is None else self.in_definitions[idx]
+            }
+            if self.data_type == "test":
+                
+                out["orig"]["distractors"] = self.in_distractors[idx]
+        
+        return out
+
+    def sample_batch(self, batch_size: int):
+        idxs = np.random.choice(len(self), batch_size, replace=False)
+        return [self[i] for i in idxs]

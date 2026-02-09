@@ -20,7 +20,7 @@ class MLP(nn.Module):
                 flatten_input: bool = True) -> None:
         
         super(MLP, self).__init__()
-        self.input_dim = input_dim # initial input dimension
+        self.input_dim = input_dim # initial input dimension. If the input is flattened, this should be seq_len * feature_dim
         self.hidden_dims = hidden_dims # hidden layer dimension
         self.latent_dim = latent_dim # final output dimension
         self.dropout = dropout

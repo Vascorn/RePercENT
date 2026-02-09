@@ -10,6 +10,25 @@ from src.DisentangledSSL.losses import SupConLoss, ortho_loss
 from src.DisentangledSSL.utils import ExponentialScheduler
 from src.models.jointopt_2m import MLP
 from itertools import permutations
+ActivationName = typing.Literal['relu', 'gelu', 'sigmoid']
+
+class maskedMLPEncoder(MLP):
+    def __init__(self, sequence_dim: int, input_dim: int, hidden_dims: List[int], latent_dim: int, activation: ActivationName= 'relu', dropout: float = 0.2, flatten_input: bool= True) -> None:
+        '''
+        masked mlp encoder for processing sequential data with optional masking for handling variable length sequence data.
+        Args:
+            sequence_dim (int): The dimension of the sequence (e.g., seq_len) in the input data.
+            input_dim (int): Dimension of input features. This is assumed to be the flattened dimension of the input sequence, i.e. seq_len * feature_dim.
+            hidden_dims (List[int]): List of hidden layer dimensions.
+            latent_dim (int): Dimension of the output latent representation.
+            activation (ActivationName): Activation function to use in the MLP. Default is 'relu'.
+            dropout (float): Dropout rate for regularization. Default is 0.2.
+            flatten_input (bool): Whether to flatten the input before feeding it to the MLP. Default is False.
+        '''
+        super().__init__(input_dim, hidden_dims, latent_dim, activation, dropout, flatten_input)
+        self.sequence_dim = sequence_dim
+    
+    def forward(self, x: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
 
 
 class GRUEncoder(nn.Module):
@@ -85,8 +104,8 @@ class JointOpt(nn.Module):
         # self.prob_heads = nn.ModuleList([ProbabilisticEncoder(nn.Identity(), distribution= "vmf", vmfkappa= 1e3) for _ in range(self.M)])  # Probabilistic heads for each of S_12 and S_21 - assuming only two modalities
         
 
-        self.uniqueEncoders = nn.ModuleDict() # List of M * (M - 1) - MLP encoders for the unique component of each modality
-        self.sharedEncoders = nn.ModuleDict()  # List of M * (M - 1) - MLP encoders for the shared components of each modality
+        self.uniqueEncoders = nn.ModuleDict() # List of M * (M - 1) - encoders for the unique component of each modality
+        self.sharedEncoders = nn.ModuleDict()  # List of M * (M - 1) - encoders for the shared components of each modality
         self.prob_heads = nn.ModuleDict()
 
         # save the order of (i,j) pairs for the probabilistic heads

@@ -17,6 +17,24 @@ from sklearn.metrics import mean_squared_error, mean_absolute_error
 import re
 from typing import Any, Callable, Dict, Optional, Tuple
 from dataclasses import dataclass, field
+import random
+
+def set_seed(seed: int):
+    # Python & NumPy
+    random.seed(seed)
+    np.random.seed(seed)
+
+    # PyTorch (CPU & GPU)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+
+    # Ensure deterministic behavior
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+
+    # For CUDA >= 10.2
+    os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"
+
 
 def plot_confusion_matrix(linear_probe_acc, labels: List= ['labels_1', 'labels_2', 'labels_s'], components: List= ['u_12', 'u_21', 's']):
 

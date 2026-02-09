@@ -189,7 +189,7 @@ class Attention(nn.Module):
         #         atten_mask = repeat(atten_mask, 'b i j -> (b h) i j', h=h)
         #     sim.masked_fill_(~atten_mask, max_neg_value)
 
-        # attention, what we cannot get enough of
+        # attention
         attn = sim.softmax(dim = -1)
         attn = self.dropout(attn)
 
@@ -314,25 +314,34 @@ class Perceiver(nn.Module):
         for i in range(depth):
             should_cache = i > 0 and weight_tie_layers
             cache_args = {'_cache': should_cache}
-
-            # schedule: soft early -> hard late
-            frac = i / max(depth - 1, 1)
-            late = frac >= 0.6
-
-            ff_top_k = 1 #2 if not late else 1          # soft-ish -> hard
-            ff_temp  = 1.5 if not late else 0.6      # soft -> peaky
-            ff_gdo   = 0.1 if not late else 0.0      # explore -> deterministic
-
-
             self_attns = nn.ModuleList([])
 
-            # append self attention blocks of latents
-            for block_ind in range(self_per_cross_attn):
-                self_attns.append(nn.ModuleList([
-                    get_latent_attn(**cache_args, key = block_ind),
-                    get_latent_ff(top_k=ff_top_k, temp=ff_temp, 
-                    gate_do=ff_gdo, **cache_args, key = (block_ind, ff_top_k, ff_temp, ff_gdo),)
-                ]))
+            if self.use_moeffn:
+                # schedule: soft early -> hard late
+                frac = i / max(depth - 1, 1)
+                late = frac >= 0.6
+
+                ff_top_k = 1 #2 if not late else 1          # soft-ish -> hard
+                ff_temp  = 1.5 if not late else 0.6      # soft -> peaky
+                ff_gdo   = 0.1 if not late else 0.0      # explore -> deterministic
+
+
+                
+
+                # append self attention blocks of latents
+                for block_ind in range(self_per_cross_attn):
+                    self_attns.append(nn.ModuleList([
+                        get_latent_attn(**cache_args, key = block_ind),
+                        get_latent_ff(top_k=ff_top_k, temp=ff_temp, 
+                        gate_do=ff_gdo, **cache_args, key = (block_ind, ff_top_k, ff_temp, ff_gdo),)
+                    ]))
+            else:
+                # append self attention blocks of latents
+                for block_ind in range(self_per_cross_attn):
+                    self_attns.append(nn.ModuleList([
+                        get_latent_attn(**cache_args),
+                        get_latent_ff(**cache_args)
+                    ]))
 
             # for each layer, append cross attention between latents and inputs, 
             # followed by feedforward, then the self attention blocks of latents

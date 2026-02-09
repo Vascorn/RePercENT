@@ -18,15 +18,16 @@ from itertools import combinations
 
 
 
-def split_dataset(dataset, test_size: float):
+def split_dataset(dataset, test_size: float, generator: torch.Generator= None):
     train_size = int((1 - test_size) * len(dataset))
-    test_size = int(test_size * len(dataset))
-    train_dataset, test_dataset = random_split(dataset, [train_size, test_size])
+    test_size = len(dataset) - train_size
+
+    train_dataset, test_dataset = random_split(dataset, [train_size, test_size], generator= generator)
     return train_dataset, test_dataset
 
-def make_dataloaders(train_dataset, test_dataset, batch_size: int= 16):
-    train_loader = torch.utils.data.DataLoader(train_dataset, batch_size= batch_size, shuffle= True)
-    test_loader = torch.utils.data.DataLoader(test_dataset, batch_size= batch_size, shuffle= False)
+def make_dataloaders(train_dataset, test_dataset, batch_size: int= 16, generator: torch.Generator= None, shuffle_train: bool= True, shuffle_test: bool= False):
+    train_loader = torch.utils.data.DataLoader(train_dataset, batch_size= batch_size, shuffle= shuffle_train, generator=generator)
+    test_loader = torch.utils.data.DataLoader(test_dataset, batch_size= batch_size, shuffle= shuffle_test, generator=generator)
     return train_loader, test_loader
 
 def make_model(model_config, data_config, modality: int= 2, M: int=2):
@@ -46,7 +47,7 @@ def make_model(model_config, data_config, modality: int= 2, M: int=2):
    
     MAX_FREQ = math.ceil(data_config["create_data"]["ts"][modality - 1]/ 2) if model_config["perceiver"]["max_freq"] is None else model_config["perceiver"]["max_freq"]
     NUM_FREQ_BANDS= math.floor(math.log2(MAX_FREQ)) + 1 if model_config["perceiver"]["num_freq_bands"] is None else model_config["perceiver"]["num_freq_bands"]
-    INPUT_CHANNELS= 2**(M - 1) *data_config["create_data"]["latent_dim"] if model_config["perceiver"]["input_channels"] is None else model_config["perceiver"]["input_channels"]
+    INPUT_CHANNELS= 2**(M - 1) *data_config["create_data"]["latent_dim"] if model_config["perceiver"]["input_channels"] is None else model_config["perceiver"]["input_channels"][modality - 1]
     INPUT_AXIS= model_config["perceiver"]["input_axis"]
     LATENT_DIM= model_config["perceiver"]["latent_dim"]
     NUM_LATENTS= model_config["perceiver"]["num_latents"]

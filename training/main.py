@@ -7,6 +7,7 @@ from torch.utils.data import DataLoader
 from src.utils.synthetic_dataset import GenerateData, MultimodalDataset, save_dataset, save_data_split
 from src.models.perceiver import Perceiver
 from src.models.repercent import DisenEncoder, RePercENT, DisenLoss
+from src.utils.helpers import set_seed
 from training.train_repercent import split_dataset, make_dataloaders, train, make_model
 from training.log_data import log_model_details, log_model_checkpoint, log_dataset
 from training.train_jointopt_2m import make_model_jointopt
@@ -22,21 +23,6 @@ import time
 import wandb
 import random
 
-def set_seed(seed: int):
-    # Python & NumPy
-    random.seed(seed)
-    np.random.seed(seed)
-
-    # PyTorch (CPU & GPU)
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
-
-    # Ensure deterministic behavior
-    torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = False
-
-    # For CUDA >= 10.2
-    os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"
 
 def create_dataset_synth(data_config: dict= None)-> MultimodalDataset:
     '''

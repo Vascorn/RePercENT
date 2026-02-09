@@ -48,9 +48,9 @@ class DisenEncoder(nn.Module):
         self.perceiver = perceiver_model
 
 
-    def forward(self, x):
+    def forward(self, x, mask= None):
         Z = self.encoder(x)  # Encode input data Xi to get latent representation Z
-        out = self.perceiver(Z)  # Pass latent representation through Perceiver to extract the disentangled features
+        out = self.perceiver(Z, mask= mask)  # Pass latent representation through Perceiver to extract the disentangled features
         return out
 
     
@@ -130,15 +130,16 @@ class RePercENT(nn.Module):
         pos = self.disen_mapping[f"M_{i}"][comp]
         return Zi[:, pos, :] 
 
-    def forward(self, x):
+    def forward(self, x, mask= None):
         """
         Forward pass through the RePercENT model.
         Args:
             x: List of input data for each modality. Length of the list should be equal to M.
+            mask: Optional list of masks for cross-modal attention in the Perceiver encoders.
         """
         
         assert len(x) == self.M, "Input data length must match number of modalities M"
-        Z = [self.disenEncoders[m](x[m]) for m in range(self.M)]  # Encode each modality
+        Z = [self.disenEncoders[m](x[m], mask= mask[m]) for m in range(self.M)]  # Encode each modality
         
         # extract components:
         # Each of U[*, i, j, *] corresponds to unique component from modality i with respect to modality j, similar for S and S_prob

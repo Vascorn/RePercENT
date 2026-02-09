@@ -97,7 +97,7 @@ def make_image_augmentation_function(
 
     posterize = v2.RandomPosterize(bits=cfg.bits, p=cfg.post_p)
 
-    def augment_image(img: Image.Image) -> List[Image.Image]:
+    def augment_image(img: Image.Image, augment_types: int) -> List[Image.Image]:
         if img.mode != "RGB":
             img0 = img.convert("RGB")
         else:
@@ -105,30 +105,37 @@ def make_image_augmentation_function(
 
         outs: List[Image.Image] = []
 
-        # Horizontal flip and crop
-        for _ in range(cfg.samples_per_recipe):
-            v = geom_hflip(img0)
-            outs.append(v)
+        
+        chosen_types = rng.sample(range(5), k= augment_types)
+        if 0 in chosen_types:
+            # Horizontal flip and crop
+            for _ in range(cfg.samples_per_recipe):
+                v = geom_hflip(img0)
+                outs.append(v)
 
         # Vertical flip and crop
-        for _ in range(cfg.samples_per_recipe):
-            v = geom_vflip(img0)
-            outs.append(v)
+        if 1 in chosen_types:
+            for _ in range(cfg.samples_per_recipe):
+                v = geom_vflip(img0)
+                outs.append(v)
 
         # Gaussian Blur
-        for _ in range(cfg.samples_per_recipe):
-            v = gaussian_blur(img0)
-            outs.append(v)
+        if 2 in chosen_types:
+            for _ in range(cfg.samples_per_recipe):
+                v = gaussian_blur(img0)
+                outs.append(v)
 
         # Gaussian Noise
-        for _ in range(cfg.samples_per_recipe):
-            v = gaussian_noise(img0)
-            outs.append(v)
+        if 3 in chosen_types:
+            for _ in range(cfg.samples_per_recipe):
+                v = gaussian_noise(img0)
+                outs.append(v)
 
-        # Prosterize
-        for _ in range(cfg.samples_per_recipe):
-            v = posterize(img0)
-            outs.append(v)
+        # Posterize
+        if 4 in chosen_types:
+            for _ in range(cfg.samples_per_recipe):
+                v = posterize(img0)
+                outs.append(v)
 
         return outs
 
@@ -145,10 +152,7 @@ class IdiomTextAugConfig:
         "{t}",
         "text: {t}",
         "caption: {t}",
-        "description: {t}",
-        "phrase: {t}",
-        "query: {t}",
-        "label: {t}",
+        "phrase: {t}"
     )
     # formatting-only variants (still neutral)
     add_quotes: bool = False
