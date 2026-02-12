@@ -110,7 +110,7 @@ def main():
     train_loader, test_loader = make_dataloaders(train_dataset, test_dataset, batch_size= training_config["training"]["batch_size"])
 
     if args.model_type == 'jointopt':
-        model = make_model_jointopt(model_config, data_config).to(device)
+        model = make_model_jointopt(model_config).to(device)
     elif args.model_type == 'repercent':
         # Define the disentangled encoders
         disen_m1 = make_model(model_config, data_config, modality='m1')

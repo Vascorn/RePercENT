@@ -6,17 +6,17 @@ metric:
 parameters:
   lr:
     distribution: 'log_uniform_values'
-    min: 0.0001
-    max: 0.05
+    min: 0.00001
+    max: 0.0002
   batch_size: 
-    values: [16, 32, 64, 256, 512]
+    value: 512
   num_epochs: 
     value: 50
   cross_heads: 
-    values: [1, 2, 3]
+    values: [1, 2]
   latent_heads: 
-    values: [1, 2, 3]
+    values: [1, 2, 3, 4]
   depth: 
     values: [2, 4, 6]
   weight_tie_layers: 
-    values: [true, false]
+    value: true

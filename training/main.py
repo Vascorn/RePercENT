@@ -82,7 +82,7 @@ def main():
     parser.add_argument('--save_data_split', type=bool, default=False)
     parser.add_argument('--load_data', type=bool, default=True)
     parser.add_argument('--log_dataset_artifact', type=bool, default=False)
-    parser.add_argument('--model_type', type=str, choices=['jointopt', 'repercent'], default='repercent', help='Type of model to train')
+    parser.add_argument('--model_type', type=str, choices=['jointopt', 'repercent'], default='jointopt', help='Type of model to train')
 
     # Define number of splits and seeds
     parser.add_argument('--k1', type=int, default= 3, help='Number of different train/test splits')
@@ -167,7 +167,7 @@ def main():
 
             # model creation based on model_type
             if args.model_type == 'jointopt':
-                model = make_model_jointopt(model_config, data_config).to(device)
+                model = make_model_jointopt(model_config).to(device)
             else:
                 disenEncoders = [make_model(model_config, data_config, modality=m + 1, M=data_config["create_data"]["M"]) for m in range(data_config["create_data"]["M"])]
                 model = RePercENT(M=data_config["create_data"]["M"],

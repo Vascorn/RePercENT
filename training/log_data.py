@@ -34,7 +34,7 @@ def log_model_checkpoint(run, checkpoint_path, epoch, extra_meta= None):
     checkpoint_artifact = wandb.Artifact(
         name= f"{run.name}_checkpoint_epoch_{epoch}",
         type= "model_checkpoint",
-        metadata={"epoch": epoch, **(extra_meta or {})}
+        metadata={"epoch": epoch, **(extra_meta or {}), "best_overall": extra_meta.get("best_overall", False) if extra_meta else False}
     )
     checkpoint_artifact.add_file(checkpoint_path)
     run.log_artifact(checkpoint_artifact)

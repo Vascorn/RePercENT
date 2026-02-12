@@ -12,24 +12,6 @@ from src.models.jointopt_2m import MLP
 from itertools import permutations
 ActivationName = typing.Literal['relu', 'gelu', 'sigmoid']
 
-class maskedMLPEncoder(MLP):
-    def __init__(self, sequence_dim: int, input_dim: int, hidden_dims: List[int], latent_dim: int, activation: ActivationName= 'relu', dropout: float = 0.2, flatten_input: bool= True) -> None:
-        '''
-        masked mlp encoder for processing sequential data with optional masking for handling variable length sequence data.
-        Args:
-            sequence_dim (int): The dimension of the sequence (e.g., seq_len) in the input data.
-            input_dim (int): Dimension of input features. This is assumed to be the flattened dimension of the input sequence, i.e. seq_len * feature_dim.
-            hidden_dims (List[int]): List of hidden layer dimensions.
-            latent_dim (int): Dimension of the output latent representation.
-            activation (ActivationName): Activation function to use in the MLP. Default is 'relu'.
-            dropout (float): Dropout rate for regularization. Default is 0.2.
-            flatten_input (bool): Whether to flatten the input before feeding it to the MLP. Default is False.
-        '''
-        super().__init__(input_dim, hidden_dims, latent_dim, activation, dropout, flatten_input)
-        self.sequence_dim = sequence_dim
-    
-    def forward(self, x: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
-
 
 class GRUEncoder(nn.Module):
     def __init__(self, input_dim: int, hidden_dim: int, latent_dim: int, num_layers: int = 1, bidirectional: bool = False, dropout: float = 0.2) -> None:
@@ -82,19 +64,26 @@ class GRUEncoder(nn.Module):
 class JointOpt(nn.Module):
     def __init__(self, M: int = 2, sharedEncoders = None, 
                 uniqueEncoders = None, 
+                shared_projh= None,
+                unique_projh= None,
                 recon: bool= False,
                 recDecoders = None,
-                vmfkappa: float= 1e3, add_shared= False) -> None:
+                encoder_type: Literal["MLP", "GRU", "gMLP"] = "MLP",
+                vmfkappa: float= 1e3) -> None:
         '''
         JointOpt model for multi-modal representation learning with disentangled factors.
         Args:
             M (int): Number of modalities. Default is 2.
             sharedEncoders: List of encoders for each modality, responsible for extracting the shared representation.
             uniqueEncoders: List of encoders for each modality, responsible for extracting the unique representation.
+            shared_projh: List of projection heads for shared encoder to ensure the output dimensions are all the same size. Mostly relevant
+            for the gMLP case. In None, defaults to identity projections.
+            unique_projh: List of projection heads for unique encoder to ensure the output dimensions are all the same size. Mostly relevant
+            for the gMLP case. In None, defaults to identity projections.
             recon (bool): Whether to include decoders for reconstruction. Default is True.
             recDecoders: List of decoders for each modality, used if recon is True.
+            encoder_type (Literal["MLP", "GRU", "gMLP"]): Type of encoder to use ("MLP", "GRU", or "gMLP"). Default is "GRU".
             vmfkappa (float): Concentration parameter for the vMF distribution in the probabilistic encoder heads. Default is 1e3.
-            add_shared (bool): Whether to add as input the extracted shared components to the unique encoders. Default is False.
         '''
 
         super().__init__()
@@ -103,29 +92,40 @@ class JointOpt(nn.Module):
 
         # self.prob_heads = nn.ModuleList([ProbabilisticEncoder(nn.Identity(), distribution= "vmf", vmfkappa= 1e3) for _ in range(self.M)])  # Probabilistic heads for each of S_12 and S_21 - assuming only two modalities
         
-
+        self.encoder_type = encoder_type
         self.uniqueEncoders = nn.ModuleDict() # List of M * (M - 1) - encoders for the unique component of each modality
+        self.uniqueProjh = nn.ModuleDict()  # Projection heads for unique encoders to ensure output dimensions are the same, if needed (e.g. for gMLP case)
         self.sharedEncoders = nn.ModuleDict()  # List of M * (M - 1) - encoders for the shared components of each modality
+        self.sharedProjh = nn.ModuleDict()  # Projection heads for shared encoders to ensure output dimensions are the same, if needed (e.g. for gMLP case)
         self.prob_heads = nn.ModuleDict()
 
         # save the order of (i,j) pairs for the probabilistic heads
         perm = torch.tensor(list(permutations(range(self.M), 2)), dtype=torch.long)  # 0-based
+
         self.register_buffer("perm_i", perm[:, 0], persistent=False)
         self.register_buffer("perm_j", perm[:, 1], persistent=False)
 
         for n, (i, j) in enumerate(zip(self.perm_i.tolist(), self.perm_j.tolist())):
+            # define the encoders for the unique and shared components for modality i wrt modality j
             self.uniqueEncoders[f"U_{i+1}{j+1}"] = uniqueEncoders[n]
             self.sharedEncoders[f"S_{i+1}{j+1}"] = sharedEncoders[n]
+
+            # define the projection heads for the unique and shared encoders to ensure output dimensions are the same, if needed (e.g. for gMLP case)
+            self.uniqueProjh[f"U_{i+1}{j+1}"] = nn.Identity() if unique_projh is None else unique_projh[n]
+            self.sharedProjh[f"S_{i+1}{j+1}"] = nn.Identity() if shared_projh is None else shared_projh[n]
+
             self.prob_heads[f"S_{i+1}{j+1}"] = ProbabilisticEncoder(nn.Identity(), distribution= "vmf", vmfkappa= vmfkappa)
 
-        self.latent_dim = uniqueEncoders[0].latent_dim  # assuming all encoders have the same latent dim
+        self._set_latent_dim(sharedEncoders[0])
+        self._set_seq_len(sharedEncoders[0])
+
+        print(f"Model initialized with latent dimension: {self.latent_dim} and sequence dimension: {self.seq_dim}")
         self.norm = lambda x: nn.functional.normalize(x, dim=-1)
-        self.add_shared = add_shared
         
         # Initialize the reconstruction decoders for each modality if recon is True
         self.recon = recon
-        self.seq_dim = uniqueEncoders[0].input_dim // self.latent_dim  # assuming all encoders have the same input dim
-        if self.recon:
+        
+        if self.recon: #NOTE: reconstruction works only if the seq lengths are the same, extension should be made!!!!
             if recDecoders is not None:
                 assert recDecoders is not None and len(recDecoders) == M, "recDecoders if provided must match the number of modalities M when recon is True"
                 self.recDecoders = nn.ModuleList(recDecoders)
@@ -140,11 +140,55 @@ class JointOpt(nn.Module):
         self.register_buffer("pair_j", idx[1])  # (P,)
         self.P = idx.shape[1]
 
-    def forward(self, x):
+    def _set_latent_dim(self, encoder):
+        if hasattr(encoder, "latent_dim"): # MLP, GRU case
+            self.latent_dim = encoder.latent_dim
+
+        elif hasattr(encoder, "d_model"): # gMLP case
+            self.latent_dim = encoder.d_model
+        else:
+            raise ValueError("Cannot infer latent dimension from encoders. Please ensure that the encoders have a 'latent_dim' or 'd_model' attribute.")
+
+        # if there are projection heads the latent dimension is determined by the output dimension of the projection heads
+        if self.sharedProjh is not None:
+            self.latent_dim = list(self.sharedProjh.values())[0].out_features
+
+
+    def _set_seq_len(self, encoder):
+        if hasattr(encoder, "seq_len") and self.latent_dim is not None: # gMLP case
+            self.seq_dim = encoder.seq_len
+        elif hasattr(encoder, "input_dim") and self.latent_dim is not None: # MLP, GRU case
+            self.seq_dim = encoder.input_dim // self.latent_dim
+        else:
+            raise ValueError("Cannot infer sequence length from encoders. Please ensure that the encoders have an 'input_dim' attribute (for MLP) or 'seq_len' attribute (for gMLP).")
+
+
+    def encode_modality(self, encoder, projh, x_i, mask= None):
+        
+        match self.encoder_type:
+            case "gMLP":
+                if mask is None:
+                    mask = torch.ones(x_i.shape[0], x_i.shape[1], device= x_i.device)  # (B, seq_len)
+                eps = 1e-8
+                enc_out = encoder(x_i)
+                masked_enc_out = enc_out * mask.to(dtype= enc_out.dtype).unsqueeze(-1)  # (B, seq_len, latent_dim)
+                mean_pool = masked_enc_out.sum(dim=1) / mask.sum(dim= 1, keepdim= True).clamp(min= eps)
+                return projh(mean_pool)
+            case "GRU":
+                pass
+            
+            case "MLP":
+                return projh(encoder(x_i))
+            case _:
+                raise NotImplementedError(f"Masking for encoder type {self.encoder_type} not implemented yet")
+
+    def forward(self, x, mask= None):
         """
         Forward pass through the original JointOpt model that uses one decoder per disentangled component.
         Args:
         x: List of input data for each modality. Length of the list should be M.
+        mask: Optional list of masks for each modality, if applicable. Default is None. If the embeddings are variable length and 
+            require masking, this should be taken into account, depeding on the encoder type.
         """
 
         assert len(x) == self.M, "Input list length must match number of modalities M"
@@ -157,8 +201,8 @@ class JointOpt(nn.Module):
 
         for n, (i, j) in enumerate(zip(self.perm_i.tolist(), self.perm_j.tolist())):
             
-            u_ij = self.uniqueEncoders[f"U_{i+1}{j+1}"](x[i])  # Unique component from modality i wrt modality j
-            s_ij = self.sharedEncoders[f"S_{i+1}{j+1}"](x[i])  # Shared component from modality i wrt modality j
+            u_ij = self.encode_modality(self.uniqueEncoders[f"U_{i+1}{j+1}"], self.uniqueProjh[f"U_{i+1}{j+1}"], x[i], mask[i] if mask is not None else None)  # Unique component from modality i wrt modality j
+            s_ij = self.encode_modality(self.sharedEncoders[f"S_{i+1}{j+1}"], self.sharedProjh[f"S_{i+1}{j+1}"], x[i], mask[i] if mask is not None else None)  # Shared component from modality i wrt modality j
             
             # add probabilistic heads for shared components
             p_s_ij_given_xi, _ = self.prob_heads[f"S_{i+1}{j+1}"](s_ij)

@@ -90,7 +90,7 @@ class RePercENT(nn.Module):
         
         self.latent_dim = disenEncoder[0].perceiver.latents.shape[-1]  # Latent dimension of the representations
         self.seq_dim = disenEncoder[0].perceiver.seq_dim # Sequence dimension of the representations
-        print(f"RePercENT model initialized with latent dimension: {self.latent_dim}, sequence dimension: {self.seq_dim}")
+        print(f"RePercENT model initialized with latent dimension: {self.latent_dim}")
         # create probalitistic heads for each shared component S_ij
 
         self.prob_heads = nn.ModuleList()

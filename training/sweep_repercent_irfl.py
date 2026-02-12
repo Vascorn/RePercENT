@@ -46,7 +46,8 @@ def load_datasets_once(args, data_config, script_dir):
     
 
 def sweep_run(args, data_config, model_config, training_config, script_dir):
-    run = wandb.init(project=args.project)
+    run = wandb.init(project=args.project, group= args.group)
+    wandb.config.update({"group_name": args.group},allow_val_change=True)
     cfg = wandb.config
 
     seed = int(getattr(cfg, "seed", 0))
@@ -114,6 +115,7 @@ def main():
     parser.add_argument("--project", type=str, default="IRFL-RePercENT-Sweeps")
     parser.add_argument("--sweep_id", type=str, default= "irfl_sweep_1", help="The sweep config file name without .yaml extension")
     parser.add_argument("--count", type=int, default=50)
+    parser.add_argument("--group", type=str, default= "sweep_10/02/26", help="The group name for the sweep runs in WandB")
     args = parser.parse_args()
 
     script_dir = os.path.dirname(os.path.abspath(__file__))

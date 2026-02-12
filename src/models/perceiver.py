@@ -208,6 +208,7 @@ class Perceiver(nn.Module):
         max_freq= None,
         input_channels = 3,
         input_axis = 2,
+        seq_dim = 77,
         num_latents = 512,
         latent_dim = 512,
         cross_heads = 1,
@@ -234,6 +235,7 @@ class Perceiver(nn.Module):
           freq_base: Base for the frequency
           input_channels: Number of channels for each token of the input.
           input_axis: Number of axes for input data (e.g. 2 for images, 3 for video)
+          seq_dim: The length of the input sequence (number of tokens), for images this would be the number of patches etc.
           num_latents: Number of latents, or induced set points, or centroids.
               Different papers giving it different names.
           latent_dim: Latent dimension.
@@ -255,11 +257,12 @@ class Perceiver(nn.Module):
 
         super().__init__()
         self.input_axis = input_axis
+        self.seq_dim = seq_dim
         self.max_freq = max_freq
         self.num_freq_bands = num_freq_bands
 
         self.fourier_encode_data = fourier_encode_data
-        self.seq_dim = input_channels
+        
         self.use_moeffn = use_moeffn
         # If fourier encoding, you must provide num_freq_bands and max_freq
         if fourier_encode_data:

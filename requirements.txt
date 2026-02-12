@@ -41,7 +41,7 @@ multiprocess==0.70.16
 fsspec==2024.6.1
 filelock==3.15.4
 
-# ---- Your pinned stack (kept, but made compatible w/ TF by adjusting NumPy) ----
+# --- Other ML utils ---
 scikit-learn==1.5.1
 timm==1.0.9
 pandas==2.2.2
