@@ -12,11 +12,11 @@ parameters:
     value: 512
   num_epochs: 
     value: 50
-  cross_heads: 
-    values: [1, 2]
-  latent_heads: 
-    values: [1, 2, 3, 4]
+  # cross_heads: 
+  #   values: [1, 2]
+  # latent_heads: 
+  #   values: [1, 2]
   depth: 
-    values: [2, 4, 6]
+    values: [1, 2]
   weight_tie_layers: 
     value: true

@@ -6,7 +6,7 @@ import torch
 import typing
 from typing import Literal, List
 from src.DisentangledSSL.models import ProbabilisticEncoder 
-from src.DisentangledSSL.losses import SupConLoss, ortho_loss
+from src.DisentangledSSL.losses import SupConLoss, ortho_loss, kl_vmf
 from src.DisentangledSSL.utils import ExponentialScheduler
 from itertools import permutations
 from src.models.jointopt_2m import MLP
@@ -56,7 +56,6 @@ class DisenEncoder(nn.Module):
     
 class RePercENT(nn.Module):
     def __init__(self, M: int = 2, disenEncoder: List[DisenEncoder] = None, \
-        recon: bool= True,
         disenDecoder: List[nn.Module] = None, \
         disen_mapping: dict[int, dict] = {'M_1': {'U_12': 0, 'S_12': 1}, 'M_2': {'U_21': 0, 'S_21': 1}},
         vmfkappa: float= 1e3) -> None:
@@ -65,7 +64,6 @@ class RePercENT(nn.Module):
         Args:
             M (int): Number of modalities. Default is 2.
             disenEncoder (List[DisenEncoder]): List of DisenEncoder instances for each modality.
-            recon (bool): Whether to include reconstruction decoders for each modality. Default is False.
             disenDecoder (List[nn.Module]): List of decoder modules for each modality if recon is True.
             disen_mapping (dict): Mapping the position of each disentangled factor to the corresponding position in the output of each Perceiver based encoder (disenEncoder). 
                                 The keys are the different modalities (e.g., 'M_1', 'M_2', ..., 'M_N'), and the values are dictionaries that map the names of the disentangled 
@@ -101,18 +99,6 @@ class RePercENT(nn.Module):
 
         for i, j in zip(self.perm_i, self.perm_j):
             self.prob_heads.append(ProbabilisticEncoder(nn.Identity(), distribution= "vmf", vmfkappa= vmfkappa))
-            
-        # Initialize the reconstruction decoders for each modality if recon is True
-        self.recon = recon
-        if self.recon:
-            if disenDecoder is not None:
-                assert disenDecoder is not None and len(disenDecoder) == M, "disenDecoder if provided must match the number of modalities M when recon is True"
-                self.disenDecoders = nn.ModuleList(disenDecoder)
-            else:
-                self.disenDecoders = nn.ModuleList([MLP(input_dim= self.latent_dim * 2, \
-                                                        hidden_dims= [self.latent_dim * 2], \
-                                                        latent_dim= self.latent_dim * self.seq_dim, \
-                                                        flatten_input= False) for _ in range(M)])
                                                         
             
         self.disen_mapping = disen_mapping
@@ -159,17 +145,6 @@ class RePercENT(nn.Module):
             S_view[:, i-1, j-1, :] = s_ij
             S_prob[:, i-1, j-1, :] = s_prob_ij
 
-        # If reconstruction is enables, reconstruct each modality from its unique component and 
-        # the shared component from the same or another modality with a random choice
-        if self.recon:
-            X_rec = torch.zeros((x[0].shape[0], self.M, self.seq_dim * self.latent_dim), device= x[0].device)
-            for i in range(self.M):
-                # choose one of the modalities (m included) randomly to provide the shared component for reconstruction
-                j = torch.randint(0, self.M, (1,)).item()
-                u_ij = U[:, i, j, :]
-                s_ij = S_view[:, i, j, :] if torch.rand(1).item() < 0.5 else S_view[:, j, i, :] # randomly choose shared component from modality i or j
-                X_rec[:, i, :] = self.disenDecoders[i](torch.cat([u_ij, s_ij], dim= -1))
-
 
         # --- S_concat: (B, P, 2, D) = [s_ij, s_ji] ---
         i = self.pair_i
@@ -188,12 +163,12 @@ class RePercENT(nn.Module):
 
         
         out = {"U": U, "S_view": S_view, "S_prob": S_prob, "S_concat": S_concat, "Z_i_concat": Z_i_concat, "Z_j_concat": Z_j_concat}
-        if self.recon:
-            out["X_rec"] = X_rec
-            out["X_orig"] = torch.stack(x, dim=1).flatten(start_dim= 2)  # (B, M, seq_dim * latent_dim)
             
         return out
     
+
+
+
 # This function with calculate the custom pairwise loss for the RePercENT model
 # It is based on the JointDisenModel from the DisentangledSSL package (https://github.com/uhlerlab/DisentangledSSL)
 class DisenLoss(nn.Module):
@@ -201,7 +176,7 @@ class DisenLoss(nn.Module):
                 lmd: float= 0.5, lmd_start_value: float= 1e-3, 
                 lmd_end_value: float= 1, lmd_n_iterations: int=1e4, 
                 lmd_start_iteration: int=5e3, ortho_norm: bool= True, 
-                recon: bool = True, M: int= 2) -> None:
+                M: int= 2) -> None:
         super().__init__()
         self.critic = SupConLoss()
         self.norm = lambda x: nn.functional.normalize(x, dim=-1)
@@ -209,20 +184,33 @@ class DisenLoss(nn.Module):
         self.lmd = lmd
         self.lmd_scheduler = None if lmd_end_value <= 0 else ExponentialScheduler(start_value=lmd_start_value, end_value=lmd_end_value,
                                                              n_iterations=lmd_n_iterations, start_iteration=lmd_start_iteration)
-
+        if self.lmd_scheduler is not None:
+            print(f"Initialized lambda scheduler with start value {lmd_start_value}, end value {lmd_end_value}, n_iterations {lmd_n_iterations}, and start_iteration {lmd_start_iteration}")
         self.lmd_start_value = lmd_start_value
         self.lmd_end_value = lmd_end_value
         self.iterations = 0
         self.ortho_norm = ortho_norm
         self.M = M
-        self.ortho_loss = lambda x, y: torch.norm(torch.matmul(self.norm(x).T, self.norm(y))) if self.ortho_norm else NotImplementedError('Please set norm=True')
-        self.recon_loss = nn.MSELoss() if recon else None
 
         # indices for all unordered pairs i<j (0-based)
         self.idx = torch.triu_indices(self.M, self.M, offset=1)  # (2, P)
         self.register_buffer("pair_i", self.idx[0])  # (P,)
         self.register_buffer("pair_j", self.idx[1])  # (P,)
         self.P = self.idx.shape[1]
+
+    def ortho_loss(self,x, y, norm= True):
+        if norm:
+            x = self.norm(x)
+            y = self.norm(y)
+
+        B, D= x.shape
+        # COSINE SIMIILARITY VERSION
+        # res = torch.matmul(x, y.T)  # (B, B)
+        # res = torch.linalg.norm(res, ord="fro") / B 
+        # Wang VERSION
+        res = torch.matmul(x.T, y)  # (D, D)
+        res = torch.linalg.norm(res, ord="fro") / D  
+        return res
 
     def pairwise_loss(self, outputs, outputs_aug):
         """
@@ -252,6 +240,11 @@ class DisenLoss(nn.Module):
         loss_x = (loss_x + loss_x_aug) / 2
         loss_y = (loss_y + loss_y_aug) / 2
 
+        #Calculate kl divergence for the probabilistic shared components
+        # skl = kl_vmf(s_ij_prob, s_ji_prob)
+        # skl_aug = kl_vmf(s_ij_prob_aug, s_ji_prob_aug)
+        # skl = (skl + skl_aug) / 2
+
         # Calculate losses for modality unique components
         concat_embed_xi = torch.cat([z_i_concat.unsqueeze(dim= 1), z_i_concat_aug.unsqueeze(dim= 1)], dim= 1)
         concat_embed_xj = torch.cat([z_j_concat.unsqueeze(dim= 1), z_j_concat_aug.unsqueeze(dim= 1)], dim= 1)
@@ -261,13 +254,16 @@ class DisenLoss(nn.Module):
         unique_loss = (unique_loss_xi + unique_loss_xj) / 2
 
         # Calculate orthogonality loss
-        loss_ortho = 0.5 * (self.ortho_loss(u_ij, s_ij) + self.ortho_loss(u_ji, s_ji)) + \
-                     0.5 * (self.ortho_loss(u_ij_aug, s_ij_aug) + self.ortho_loss(u_ji_aug, s_ji_aug))
+        loss_ortho = 0.5 * (self.ortho_loss(u_ij, s_ij_prob) + self.ortho_loss(u_ji, s_ji_prob)) + \
+                     0.5 * (self.ortho_loss(u_ij_aug, s_ij_prob_aug) + self.ortho_loss(u_ji_aug, s_ji_prob_aug))
         # Total loss
         if self.lmd_scheduler is not None:
             self.lmd = self.lmd_scheduler(self.iterations)
 
-        loss = 2 * joint_loss / (1 + self.alpha) + self.alpha * unique_loss / (1 + self.alpha) + self.lmd * loss_ortho
+        loss = 2 * joint_loss / (1 + self.alpha) + self.alpha * unique_loss / (1 + self.alpha) + self.lmd * loss_ortho #+ 0.1 * skl
+
+        # We also log a fixed weight version of the loss for easier comparison across training when alpha, lambda are using schedulers
+        fixed_weight_loss = joint_loss + unique_loss + loss_ortho
 
         loss_logs = {'loss': loss.item(),
                      'shared': joint_loss.item(),
@@ -275,6 +271,7 @@ class DisenLoss(nn.Module):
                      'loss_y': loss_y.item(),
                      'unique': unique_loss.item(),
                      'ortho': loss_ortho.item(),
+                     'fw_loss': fixed_weight_loss.item(),
                      'lmd': self.lmd
                      }
 
@@ -326,15 +323,6 @@ class DisenLoss(nn.Module):
         # average over pairs (usually what you want)
         total_loss = total_loss / self.P
 
-        if self.recon_loss is not None:
-            # add reconstruction loss averaged over modalities
-            recon_loss = 0.0
-            for m in range(self.M):
-                recon_loss += self.recon_loss(outputs["X_rec"][:, m, :], outputs["X_orig"][:, m, :])
-            recon_loss = recon_loss / self.M
-            total_loss += recon_loss
-            total_logs['recon'] = recon_loss.item()
-        
         for k in total_logs:
             total_logs[k] /= self.P
 

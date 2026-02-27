@@ -3,10 +3,10 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..')))
 import torch
-import clip
+import open_clip as clip
 from PIL import Image
-
-image_path_folder = "../../../data/irfl/images/"
+import json
+image_path_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../../data/irfl/images/")
 
 # Loading images from the folder
 def get_image_path_from_folder(image_name, image_folder_path=image_path_folder):
@@ -19,16 +19,22 @@ def get_image(image_name):
 
 
 class CLIPHelper:
-    def __init__(self, device="cuda", clip_model_name="ViT-B/32"):
+    def __init__(self, device="cuda", clip_model_name="ViT-B-32", model= None, preprocess_func= None):
         self.device = device
         self.clip_model_name = clip_model_name
-        self.clip_model, self.preprocess_func = clip.load(clip_model_name, device=device)
+        if model is None or preprocess_func is None:
+            self.clip_model, _, self.preprocess_func = clip.create_model_and_transforms(clip_model_name, pretrained='openai', device=device)
+            self.tokenizer = clip.get_tokenizer(clip_model_name)
+        else:
+            self.clip_model = model
+            self.preprocess_func = preprocess_func
+            self.tokenizer = clip.get_tokenizer(clip_model_name)
 
 
     # Clip specific helper functions to get text and image embeddings, and compute similarity.
     @torch.no_grad()
     def get_text_token_embeddings(self, texts):
-        tokens = clip.tokenize(texts, truncate=True).to(self.device)          # [B, T]
+        tokens = self.tokenizer(texts).to(self.device)          # [B, T]
 
         x = self.clip_model.token_embedding(tokens).type(self.clip_model.dtype)              # [B, T, d_model]
         x = x + self.clip_model.positional_embedding.type(self.clip_model.dtype)             # [B, T, d_model]
@@ -41,16 +47,6 @@ class CLIPHelper:
 
         mask = tokens != 0 # [B, T]
         return x.float(), tokens, mask                                     # token-level features (pre-projection)
-
-    @torch.no_grad()
-    def get_clip_txt_vector(self, text, normalize=True):
-        cue_clip_txt = clip.tokenize([text]).to(self.device)
-        
-        cue_clip_txt_encoded = self.clip_model.encode_text(cue_clip_txt)
-        
-        if normalize:
-            cue_clip_txt_encoded /= cue_clip_txt_encoded.norm(dim=-1, keepdim=True)
-        return cue_clip_txt_encoded
 
 
     @torch.no_grad()
@@ -97,8 +93,24 @@ class CLIPHelper:
         return patch_feats, cls_feat
 
     @torch.no_grad()
-    def get_clip_img_vector(self, img, normalize=True):
-        cue_clip_img = self.preprocess_func(get_image(img)).unsqueeze(0).to(self.device)
+    def get_clip_txt_vector(self, text, normalize=True, preprocessed= False):
+        if not preprocessed:
+            cue_clip_txt = self.tokenizer([text]).to(self.device)
+        else:
+            cue_clip_txt = text.to(self.device)
+        
+        cue_clip_txt_encoded = self.clip_model.encode_text(cue_clip_txt)
+        
+        if normalize:
+            cue_clip_txt_encoded /= cue_clip_txt_encoded.norm(dim=-1, keepdim=True)
+        return cue_clip_txt_encoded
+
+    @torch.no_grad()
+    def get_clip_img_vector(self, img, normalize=True, preprocessed= False):
+        if not preprocessed:
+            cue_clip_img = self.preprocess_func(get_image(img)).unsqueeze(0).to(self.device)
+        else:
+            cue_clip_img = img.to(self.device)
         
         cue_clip_img_encoded = self.clip_model.encode_image(cue_clip_img)
         
@@ -135,3 +147,34 @@ class CLIPHelper:
         clip_cand_img_encoded = self.get_clip_img_vector(image, normalize=normalize)
         cand_txt_img_sim = self.get_vectors_similarity(phrase_clip_txt_encoded, clip_cand_img_encoded).item()
         return cand_txt_img_sim
+
+
+    def compute_accuracy(self, test_df, use_definitions=True, definitions_only=False):
+        correct = 0
+        total = 0
+
+        for row in test_df.itertuples():
+            distractors = json.loads(row.distractors)
+            answer = json.loads(row.answer)[0]
+            phrase = row.phrase
+            definition = json.loads(row.definition)
+
+            scores = []
+            for img_id in distractors + [answer]:
+                if definitions_only:
+                    score = self.get_phrase_image_similarity_score('.'.join(definition) + '.', img_id, "", normalize=True)
+                else:
+                    score = self.get_phrase_image_similarity_score(phrase, img_id, definition if use_definitions else "", normalize=True)
+                scores.append((img_id, score))
+            
+            # Get the image with the highest score
+            predicted_img_id, _ = max(scores, key=lambda x: x[1])
+            
+            if predicted_img_id == answer:
+                correct += 1
+            total += 1
+
+        accuracy = correct / total if total > 0 else 0
+        return accuracy, correct, total
+
+        

@@ -10,7 +10,6 @@ disen_loss:
   lmd_n_iterations: 10000
   lmd_start_iteration: 5000
   ortho_norm: true
-  recon: false
 
 
 optimizer:

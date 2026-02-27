@@ -1,5 +1,5 @@
 wandb:
-  project: "synthetic-4M"
+  project: "synthetic-new-4M"
 
 # Use the same model configuration for each modality, except for the positional encoding parameters and input channels which are modality-specific
 perceiver: 
@@ -11,8 +11,8 @@ perceiver:
   num_latents: 6 # Number of latent vectors, i.e. the number of disentangled factors to extract from each modality
   cross_heads: 3
   pos_encoding: true
-  latent_dim: 16 # The dimension of each latent vector
-  latent_heads: 3
+  latent_dim: 128 # The dimension of each latent vector
+  latent_heads: 2
   weight_tie_layers: false
 
 repercent:

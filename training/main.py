@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 from typing import Literal, List
 from torch.utils.data import DataLoader
-from src.utils.synthetic_dataset import GenerateData, MultimodalDataset, save_dataset, save_data_split
+from src.utils.synthetic_dataset import GenerateTokenizedData, MultimodalDataset, save_dataset, save_data_split, GeneratePermData, GenerateData
 from src.models.perceiver import Perceiver
 from src.models.repercent import DisenEncoder, RePercENT, DisenLoss
 from src.utils.helpers import set_seed
@@ -30,7 +30,7 @@ def create_dataset_synth(data_config: dict= None)-> MultimodalDataset:
     Args:
         data_config: Configuration dictionary for the data.
     '''
-    gen_data = GenerateData(N_data= data_config["create_data"]["N_data"], trans_type= data_config["create_data"]["trans_type"], latent_dim= data_config["create_data"]["latent_dim"], M = data_config["create_data"]["M"])
+    gen_data = GenerateTokenizedData(N_data= data_config["create_data"]["N_data"], trans_type= data_config["create_data"]["trans_type"], latent_dim= data_config["create_data"]["latent_dim"], M = data_config["create_data"]["M"])
     gen_data.create_dataset(dist= data_config["create_data"]["dist"], ts= data_config["create_data"]["ts"], gammas= data_config["create_data"]["gammas"], normalize= data_config["create_data"]["normalize"], sigma= data_config["create_data"]["sigma"])
     dataset = MultimodalDataset(total_data= gen_data.dataset_dict['total_data'], labels_u= gen_data.dataset_dict['labels_u'], labels_s= gen_data.dataset_dict['labels_s'], t_u= gen_data.dataset_dict['t_u'], t_s = gen_data.dataset_dict['t_s'])
 
@@ -82,7 +82,7 @@ def main():
     parser.add_argument('--save_data_split', type=bool, default=False)
     parser.add_argument('--load_data', type=bool, default=True)
     parser.add_argument('--log_dataset_artifact', type=bool, default=False)
-    parser.add_argument('--model_type', type=str, choices=['jointopt', 'repercent'], default='jointopt', help='Type of model to train')
+    parser.add_argument('--model_type', type=str, choices=['jointopt', 'repercent'], default='repercent', help='Type of model to train')
 
     # Define number of splits and seeds
     parser.add_argument('--k1', type=int, default= 3, help='Number of different train/test splits')
@@ -94,19 +94,22 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     script_dir = os.path.dirname(os.path.abspath(__file__))
     
+
+    M = 3  # number of modalities, used for model creation and dataset generation
     # Loading configurations for data, model, and training
-    data_config_path = os.path.join(script_dir, "..", "configs", "data", "synthetic_data_2m.yaml")
+    data_config_path = os.path.join(script_dir, "..", "configs", "data", f"synthetic_data_{M}m.yaml")
     with open(data_config_path, 'r') as f:
         data_config = yaml.safe_load(f)
 
-    model_config_path = os.path.join(script_dir, "..", "configs", "model", f"{args.model_type}_2m.yaml")
+    model_config_path = os.path.join(script_dir, "..", "configs", "model", f"{args.model_type}_{M}m.yaml")
     with open(model_config_path, 'r') as f:
         model_config = yaml.safe_load(f)
 
-    training_config_path = os.path.join(script_dir, "..", "configs", "training", "train_synthetic_2m.yaml")
+    training_config_path = os.path.join(script_dir, "..", "configs", "training", f"train_synthetic_{M}m.yaml")
     with open(training_config_path, 'r') as f:
         training_config = yaml.safe_load(f)
 
+    
     
     # Create or load the *full dataset once*
     if not args.load_data:
@@ -114,17 +117,16 @@ def main():
         dataset = create_dataset_synth(data_config)
         print(f"Synthetic dataset created with {len(dataset)} samples.")
         if args.save_data:
-            save_path = os.path.join(script_dir, "..", "data", "repercent_synthetic", "dataset19")
+            save_path = os.path.join(script_dir, "..", "data", "repercent_synthetic", "dataset21")
             save_dataset(dataset, save_path, data_config)
 
     else:
         # Load the dataset
-        load_path = os.path.join(script_dir, "..", "data", "repercent_synthetic", "dataset19")
+        load_path = os.path.join(script_dir, "..", "data", "repercent_synthetic", "dataset21")
         dataset = torch.load(os.path.join(load_path, "dataset.pt"), weights_only=False)
 
-
-
-    group_name = time.strftime("%Y-%m-%d_%H-%M-%S") + f"_{args.model_type}_splits_{args.k1}_seeds_{args.k2}"
+    group_name = time.strftime("%Y-%m-%d_%H-%M-%S")
+    group_name += f"_{args.model_type}_splits_{args.k1}_seeds_{args.k2}" if args.model_type == "repercent" else f"_{model_config['shared_encoder']['type']}_splits_{args.k1}_seeds_{args.k2}"
     # Initialize list to store final metrics across all runs
     all_final_metrics = []
 
@@ -138,7 +140,7 @@ def main():
         if args.save_data_split:
             # save split per split_idx
             print(f"Saving data split {split_idx}...")
-            save_path = os.path.join(script_dir, "..", "data", "repercent_synthetic", "dataset19")
+            save_path = os.path.join(script_dir, "..", "data", "repercent_synthetic", "dataset21")
             save_data_split(train_dataset, test_dataset, save_path, split_id= str(split_idx))
         
 
@@ -146,9 +148,9 @@ def main():
         for seed_idx in range(args.k2):
             train_seed = args.base_seed + 100 * split_idx + seed_idx
             set_seed(train_seed)
-
+            generator = torch.Generator().manual_seed(train_seed)
             # dataloaders
-            train_loader, test_loader = make_dataloaders(train_dataset, test_dataset,batch_size=training_config["training"]["batch_size"])
+            train_loader, test_loader = make_dataloaders(train_dataset, test_dataset,batch_size=training_config["training"]["batch_size"], generator=generator)
 
             # Initialize wandb run and log hyperparameters
             run = wandb.init(
@@ -172,14 +174,15 @@ def main():
                 disenEncoders = [make_model(model_config, data_config, modality=m + 1, M=data_config["create_data"]["M"]) for m in range(data_config["create_data"]["M"])]
                 model = RePercENT(M=data_config["create_data"]["M"],
                                 disenEncoder=disenEncoders,
-                                recon= training_config["disen_loss"]["recon"],
                                 disen_mapping=model_config["repercent"]["disen_mapping"]).to(device)
 
             disen_loss = DisenLoss(alpha=training_config["disen_loss"]["alpha"],
                                     lmd=training_config["disen_loss"]["lmd"],
+                                    lmd_start_value=training_config["disen_loss"]["lmd_start_value"],
                                     lmd_end_value=training_config["disen_loss"]["lmd_end_value"],
-                                    M=data_config["create_data"]["M"],
-                                    recon= training_config["disen_loss"]["recon"])
+                                    lmd_n_iterations=training_config["disen_loss"]["lmd_n_iterations"],
+                                    lmd_start_iteration=training_config["disen_loss"]["lmd_start_iteration"],
+                                    M=data_config["create_data"]["M"])
 
             optimizer = torch.optim.Adam(
                 model.parameters(),
@@ -199,7 +202,7 @@ def main():
             })
 
             # TRAIN
-            final_metrics = train(train_loader, test_loader, model, optimizer, disen_loss, training_config["training"]["n_epochs"], device, checkpoint_dir=os.path.join(script_dir, '..', 'checkpoints', 'repercent_synthetic', run.name, run_key))
+            final_metrics = train(train_loader, test_loader, model, optimizer, disen_loss, training_config["training"]["n_epochs"], device, checkpoint_dir=os.path.join(script_dir, '..', 'checkpoints', 'repercent_synthetic', run.name, run_key), generator= generator)
 
             # Store + log final snapshot table
             all_final_metrics.append({
@@ -218,7 +221,7 @@ def main():
                     reinit=True, config={"k1": args.k1, "k2": args.k2, "base_seed": args.base_seed, "model_type": args.model_type})
     if args.log_dataset_artifact:
         log_dataset(
-            dataset_name="dataset19",
+            dataset_name="dataset21",
             dataset_path=os.path.join(script_dir, "..", "data", "repercent_synthetic"),
             data_config_path=data_config_path
         )

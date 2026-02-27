@@ -24,7 +24,7 @@ def build_encoders(cfg: dict):
         lat_dims= cfg["latent_dims"]
         act= cfg.get("activation", "relu")
 
-        proj_h = cfg.get("proj_h", None)
+        proj_hds = None # not needed for MLP or GRU encoders
 
         for in_d, hds, lat_d in zip(in_dims, hid_dims, lat_dims):
             if t == "mlp":

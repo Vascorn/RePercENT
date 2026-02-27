@@ -1,5 +1,5 @@
 wandb:
-  project: "synthetic-3M-gru-vs-repercent"
+  project: "synthetic-new-3M"
 
 M: 3  # number of modalities
 
@@ -16,10 +16,10 @@ shared_encoder:
   # activation: "relu"
 
   # ---- MLP Encoder ----
-  type: "mlp" # mlp or gru
-  input_dims: [256, 256, 256, 256, 256, 256] # For the GRU is the feature dimension per time point, for the MLP is the total feature dimension as the input is flattened
+  type: "MLP" # mlp or gru
+  input_dims: [512, 512, 512, 512, 512, 512] # For the GRU is the feature dimension per time point, for the MLP is the total feature dimension as the input is flattened
   hidden_dims: [[128], [128], [128], [128], [128], [128]]
-  latent_dims: [16, 16, 16, 16, 16, 16]
+  latent_dims: [32, 32, 32, 32, 32, 32]
   activation: "relu"
 
 
@@ -35,10 +35,10 @@ unique_encoder:
   # activation: "relu"
 
   # ---- MLP Encoder ----
-  type: "mlp" # mlp or gru
-  input_dims: [256, 256, 256, 256, 256, 256]
+  type: "MLP" # mlp or gru
+  input_dims: [512, 512, 512, 512, 512, 512]
   hidden_dims: [[128], [128], [128], [128], [128], [128]]
-  latent_dims: [16, 16, 16, 16, 16, 16]
+  latent_dims: [32, 32, 32, 32, 32, 32]
   activation: "relu"
 
 vmfkappa: 1000

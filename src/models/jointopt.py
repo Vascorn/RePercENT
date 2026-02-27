@@ -109,7 +109,7 @@ class JointOpt(nn.Module):
             # define the encoders for the unique and shared components for modality i wrt modality j
             self.uniqueEncoders[f"U_{i+1}{j+1}"] = uniqueEncoders[n]
             self.sharedEncoders[f"S_{i+1}{j+1}"] = sharedEncoders[n]
-
+            
             # define the projection heads for the unique and shared encoders to ensure output dimensions are the same, if needed (e.g. for gMLP case)
             self.uniqueProjh[f"U_{i+1}{j+1}"] = nn.Identity() if unique_projh is None else unique_projh[n]
             self.sharedProjh[f"S_{i+1}{j+1}"] = nn.Identity() if shared_projh is None else shared_projh[n]
@@ -146,12 +146,13 @@ class JointOpt(nn.Module):
 
         elif hasattr(encoder, "d_model"): # gMLP case
             self.latent_dim = encoder.d_model
+            # if there are projection heads the latent dimension is determined by the output dimension of the projection heads
+            if list(self.sharedProjh.values())[0] is not nn.Identity():
+                self.latent_dim = list(self.sharedProjh.values())[0].out_features
         else:
             raise ValueError("Cannot infer latent dimension from encoders. Please ensure that the encoders have a 'latent_dim' or 'd_model' attribute.")
 
-        # if there are projection heads the latent dimension is determined by the output dimension of the projection heads
-        if self.sharedProjh is not None:
-            self.latent_dim = list(self.sharedProjh.values())[0].out_features
+        
 
 
     def _set_seq_len(self, encoder):
@@ -175,12 +176,12 @@ class JointOpt(nn.Module):
                 mean_pool = masked_enc_out.sum(dim=1) / mask.sum(dim= 1, keepdim= True).clamp(min= eps)
                 return projh(mean_pool)
             case "GRU":
-                pass
+                return projh(encoder(x_i))
             
             case "MLP":
                 return projh(encoder(x_i))
             case _:
-                raise NotImplementedError(f"Masking for encoder type {self.encoder_type} not implemented yet")
+                raise NotImplementedError(f"encoder type {self.encoder_type} not implemented yet")
 
     def forward(self, x, mask= None):
         """

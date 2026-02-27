@@ -27,16 +27,18 @@ def main():
     
     parser = argparse.ArgumentParser(description="Train RePercENT model on the IRFL dataset")
     parser.add_argument('--datasets_path', type=str, default="../../data/irfl/datasets/", help='Path to the directory containing the IRFL dataset tensors wrt to this script')
-    parser.add_argument('--model_type', type=str, choices=['repercent', 'repercent'], default='repercent', help='Type of model to train, for now only repercent is implemented')
-    parser.add_argument('--comp_mod', type=int, choices=[1, 2], default=2, help='Which modality to compute similarities for (1 for captions, 2 for definitions). Note that 2 is only relevant for the 3-modality setting')
+    parser.add_argument('--model_type', type=str, choices=['repercent', 'gmlp'], default='gmlp', help='Type of model to train, for now only repercent is implemented')
+    parser.add_argument('--comp_mod', type=int, choices=[1, 2, 3], default= 1, help='Which modality to compute similarities for (1 for captions, 2 for definitions, 3 for adding \
+                                                                                    the similarities between images- captions and images - definitions and then comparing the metrics). \
+                                                                                    Note that 2 and 3 is only relevant for the 3-modality setting')
     # Define number of splits and seeds
-    parser.add_argument('--base_seed', type=int, default= 2, help='Base seed for reproducibility')
+    parser.add_argument('--base_seed', type=int, default= 1, help='Base seed for reproducibility')
     args = parser.parse_args()
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     script_dir = os.path.dirname(os.path.abspath(__file__))
     
-    M = 3 # number of modalities, for the IRFL: M = 2 -> images + captions, M = 3 -> images + captions + definitions
+    M = 2 # number of modalities, for the IRFL: M = 2 -> images + captions, M = 3 -> images + captions + definitions
     
     # Loading configurations for data, model, and training
     print("Loading configurations...")
@@ -86,7 +88,6 @@ def main():
                 disenEncoders = [make_model(model_config, data_config, modality=m + 1, M=data_config["create_data"]["M"]) for m in range(data_config["create_data"]["M"])]
                 model = RePercENT(M=data_config["create_data"]["M"],
                                 disenEncoder= disenEncoders,
-                                recon= False,
                                 disen_mapping= model_config["repercent"]["disen_mapping"]).to(device)
             case "gmlp":
                 model = make_model_jointopt(model_config).to(device)
@@ -101,7 +102,7 @@ def main():
         model.to(device)
         
         # Evaluate on test set
-        test_loader = DataLoader(test_dataset, batch_size= len(test_dataset), shuffle=False, generator= torch.Generator().manual_seed(seed_idx))
+        test_loader = DataLoader(test_dataset, batch_size= 32, shuffle=False, generator= torch.Generator().manual_seed(seed_idx))
         
         temp_metrics = evaluate_model(model, test_loader, device, M= M, comp_mod= args.comp_mod)
         
@@ -132,10 +133,18 @@ def main():
                 "std": float(values.std(ddof=1)) if len(values) > 1 else 0.0
             }
 
+    match args.comp_mod:
+        case 1:
+            name = f"{args.model_type}_evaluation_images_vs_captions"
+        case 2:
+            name = f"{args.model_type}_evaluation_images_vs_definitions"
+        case 3:
+            name = f"{args.model_type}_evaluation_images_vs_both"
+            
     wandb.init(
-        project=data_config["wandb"]["project"],
-        name=f"{args.model_type}_evaluation_images_vs_captions" if args.comp_mod == 1 else f"{args.model_type}_evaluation_images_vs_definitions",
-        config=analysis_config[args.model_type]
+        project= data_config["wandb"]["project"],
+        name= name,
+        config= analysis_config[args.model_type]
     )
 
     summary_table = wandb.Table(columns=["Split", "Metric", "Mean ± Std"])

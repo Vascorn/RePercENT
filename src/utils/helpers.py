@@ -48,7 +48,7 @@ def plot_confusion_matrix(linear_probe_acc, labels: List= ['labels_1', 'labels_2
     result_matrix = np.vstack(arrays_to_stack)
     cm = result_matrix
     sns.heatmap(cm, annot=True, fmt=".2f", cmap="Blues", cbar=False,
-                xticklabels=labels, yticklabels=components, ax=axes)
+                xticklabels=labels, yticklabels=components, ax=axes, vmin=50, vmax=100)
     axes.set_title('Linear Probe Accuracy for Components')
     axes.set_xlabel('Labels')
     axes.set_ylabel('Components')
@@ -78,7 +78,8 @@ def plot_pairwise_confusion_matrices(linear_probe_acc, M, components: List= ['u_
     
     x_shape, y_shape = (y_shape, x_shape) if x_shape > y_shape else (x_shape, y_shape)
     fig, axes = plt.subplots(x_shape, y_shape, figsize=(5 * y_shape, 6 * x_shape))
-    
+    axes = np.atleast_1d(axes).ravel()
+
     for pair_id, (i, j) in enumerate(pairs):
         
         pair_name = f"{i+1} vs {j+1}"
@@ -94,12 +95,7 @@ def plot_pairwise_confusion_matrices(linear_probe_acc, M, components: List= ['u_
         submat = A[np.ix_(row_idx, col_idx)]
 
 
-        axes_id_x = pair_id // y_shape
-        axes_id_y = pair_id % y_shape
-        if x_shape > 1 and y_shape > 1:
-            ax = axes[axes_id_x, axes_id_y]
-        else:
-            ax = axes
+        ax = axes[pair_id]
         
         sns.heatmap(
             submat,
@@ -109,6 +105,8 @@ def plot_pairwise_confusion_matrices(linear_probe_acc, M, components: List= ['u_
             xticklabels=col_keys,
             yticklabels=row_keys,
             cbar=True,
+            vmin=50,
+            vmax=100,
             ax=ax
         )
         ax.set_title(f"Linear Probe – Pairwise Confusion ({pair_name})")
@@ -263,7 +261,7 @@ def extract_latents_and_labels(model, loader, device):
             dim_shape = X[0].shape[-1] # dimension of original Z1 or Z2 
             X = [X[m].to(device) for m in range(len(X))]
             
-            outputs = model(X)
+            outputs = model(X, mask = [None for _ in range(len(X))])
 
             for m in range(M):
                 X_in[m].append(X[m].cpu().numpy())

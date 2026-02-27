@@ -4,18 +4,18 @@ wandb:
 # The paths to the checkpoints are wrt the root of the repository
 repercent:
   checkpoints:
-    - "./checkpoints/irfl/2026-02-10_17-12-25_IRFL_repercent_seeds_5_seed_4/seed4/final_checkpoint.pt"
-    - "./checkpoints/irfl/2026-02-10_17-12-25_IRFL_repercent_seeds_5_seed_3/seed3/final_checkpoint.pt"
-    - "./checkpoints/irfl/2026-02-10_17-12-25_IRFL_repercent_seeds_5_seed_2/seed2/final_checkpoint.pt"
-    - "./checkpoints/irfl/2026-02-10_17-12-25_IRFL_repercent_seeds_5_seed_1/seed1/final_checkpoint.pt"
-    - "./checkpoints/irfl/2026-02-10_17-12-25_IRFL_repercent_seeds_5_seed_0/seed0/final_checkpoint.pt"
+    - "./checkpoints/irfl/2026-02-12_18-41-24_IRFL_repercent_seeds_5_seed_4/seed4/final_checkpoint.pt"
+    - "./checkpoints/irfl/2026-02-12_18-41-24_IRFL_repercent_seeds_5_seed_3/seed3/final_checkpoint.pt"
+    - "./checkpoints/irfl/2026-02-12_18-41-24_IRFL_repercent_seeds_5_seed_2/seed2/final_checkpoint.pt"
+    - "./checkpoints/irfl/2026-02-12_18-41-24_IRFL_repercent_seeds_5_seed_1/seed1/final_checkpoint.pt"
+    - "./checkpoints/irfl/2026-02-12_18-41-24_IRFL_repercent_seeds_5_seed_0/seed0/final_checkpoint.pt"
 gmlp:
   checkpoints:
-    - "./checkpoints/irfl/2026-02-10_17-12-25_IRFL_gmlp_seeds_5_seed_4/seed4/final_checkpoint.pt"
-    - "./checkpoints/irfl/2026-02-10_17-12-25_IRFL_gmlp_seeds_5_seed_3/seed3/final_checkpoint.pt"
-    - "./checkpoints/irfl/2026-02-10_17-12-25_IRFL_gmlp_seeds_5_seed_2/seed2/final_checkpoint.pt"
-    - "./checkpoints/irfl/2026-02-10_17-12-25_IRFL_gmlp_seeds_5_seed_1/seed1/final_checkpoint.pt"
-    - "./checkpoints/irfl/2026-02-10_17-12-25_IRFL_gmlp_seeds_5_seed_0/seed0/final_checkpoint.pt"
+    - "./checkpoints/irfl/2026-02-12_18-51-54_IRFL_gmlp_seeds_5_seed_4/seed4/final_checkpoint.pt"
+    - "./checkpoints/irfl/2026-02-12_18-51-54_IRFL_gmlp_seeds_5_seed_3/seed3/final_checkpoint.pt"
+    - "./checkpoints/irfl/2026-02-12_18-51-54_IRFL_gmlp_seeds_5_seed_2/seed2/final_checkpoint.pt"
+    - "./checkpoints/irfl/2026-02-12_18-51-54_IRFL_gmlp_seeds_5_seed_1/seed1/final_checkpoint.pt"
+    - "./checkpoints/irfl/2026-02-12_18-51-54_IRFL_gmlp_seeds_5_seed_0/seed0/final_checkpoint.pt"
 
 hyperparameters:
   max_distractors: 3 # Max number of distractors

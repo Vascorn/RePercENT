@@ -60,7 +60,7 @@ def main():
     parser.add_argument('--model_type', type=str, choices=['repercent', 'gmlp'], default='gmlp', help='Type of model to train, for now only repercent is implemented')
 
     # Define number of splits and seeds
-    parser.add_argument('--n_seeds', type=int, default= 1, help='Number of seeds per split for model initialization and training')
+    parser.add_argument('--n_seeds', type=int, default= 5, help='Number of seeds per split for model initialization and training')
     parser.add_argument('--base_seed', type=int, default= 2, help='Base seed for reproducibility')
     parser.add_argument('--add_val_set', type=bool, default=False, help= 'Whether to create a validation set from the training data for monitoring validation loss. If not set, the model will be trained and evaluated only on the test set.')
     parser.add_argument('--comp_mod', type=int, default= 1, help="Modality for the images to be compared with. Choices are 1 (for Captions) and 2 (Definitions). This is only used for the test set evaluation.")
@@ -69,7 +69,7 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     script_dir = os.path.dirname(os.path.abspath(__file__))
     
-    M = 3 # number of modalities, for the IRFL: M = 2 -> images + captions, M = 3 -> images + captions + definitions
+    M = 2 # number of modalities, for the IRFL: M = 2 -> images + captions, M = 3 -> images + captions + definitions
 
     # Loading configurations for data, model, and training
     print("Loading configurations...")
@@ -143,7 +143,6 @@ def main():
                 disenEncoders = [make_model(model_config, data_config, modality=m + 1, M=data_config["create_data"]["M"]) for m in range(data_config["create_data"]["M"])]
                 model = RePercENT(M=data_config["create_data"]["M"],
                                 disenEncoder=disenEncoders,
-                                recon= training_config["disen_loss"]["recon"],
                                 disen_mapping=model_config["repercent"]["disen_mapping"]).to(device)
             case "gmlp":
                 model = make_model_jointopt(model_config).to(device)
@@ -153,8 +152,7 @@ def main():
         disen_loss = DisenLoss(alpha=training_config["disen_loss"]["alpha"],
                                     lmd=training_config["disen_loss"]["lmd"],
                                     lmd_end_value=training_config["disen_loss"]["lmd_end_value"],
-                                    M=data_config["create_data"]["M"],
-                                    recon= training_config["disen_loss"]["recon"])
+                                    M=data_config["create_data"]["M"])
         optimizer = torch.optim.Adam(
             model.parameters(),
             lr=training_config["optimizer"]["lr"],

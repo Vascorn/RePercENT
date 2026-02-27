@@ -195,7 +195,7 @@ def train(train_loader, test_loader, model, optimizer, disen_loss, epochs, devic
         epoch_ortho_loss = 0.0
         epoch_unique_loss = 0.0
         epoch_shared_loss = 0.0
-        
+        epoch_fw_loss = 0.0 # fixed weight loss for logging, when no schedulers are used, this is just the total loss with equal weights for all components
         model.train()
         print(f"----- Epoch: {_iter + 1} / {epochs} -----")
         # Training phase
@@ -213,19 +213,21 @@ def train(train_loader, test_loader, model, optimizer, disen_loss, epochs, devic
             epoch_ortho_loss += logs['ortho']
             epoch_unique_loss += logs['unique']
             epoch_shared_loss += logs['shared']
-            
+            epoch_fw_loss += logs['fw_loss']
         # Epoch statistics
         avg_epoch_loss = epoch_loss / len(train_loader)
         avg_ortho_loss = epoch_ortho_loss / len(train_loader)
         avg_unique_loss = epoch_unique_loss / len(train_loader)
         avg_shared_loss = epoch_shared_loss / len(train_loader)
-        print(f"Training  Loss: {avg_epoch_loss:.5f} | Ortho: {avg_ortho_loss:.5f} | Unique: {avg_unique_loss:.5f} | Shared: {avg_shared_loss:.5f} | Lmd: {disen_loss.lmd:.6f}, alpha: {disen_loss.alpha:.6f}")
+        avg_fw_loss = epoch_fw_loss / len(train_loader)
+        print(f"Training  Loss: {avg_epoch_loss:.5f} | Ortho: {avg_ortho_loss:.5f} | Unique: {avg_unique_loss:.5f} | Shared: {avg_shared_loss:.5f} | fw: {avg_fw_loss:.5f} | Lmd: {disen_loss.lmd:.6f}, alpha: {disen_loss.alpha:.6f}")
         # Log metrics to WandB
         wandb.log({
             "train/loss": avg_epoch_loss,
             "train/loss/ortho": avg_ortho_loss,
             "train/loss/unique": avg_unique_loss,
-            "train/loss/shared": avg_shared_loss
+            "train/loss/shared": avg_shared_loss,
+            "train/loss/fw": avg_fw_loss
         }, step= _iter + 1)
 
         # Calculate loss & accuracy on test set
@@ -234,7 +236,8 @@ def train(train_loader, test_loader, model, optimizer, disen_loss, epochs, devic
             val_epoch_ortho_loss = 0.0
             val_epoch_unique_loss = 0.0
             val_epoch_shared_loss = 0.0
-
+            val_epoch_fw_loss = 0.0
+            
             model.eval()
             with torch.no_grad():
                 for batch_idx, out in enumerate(val_loader):
@@ -247,33 +250,35 @@ def train(train_loader, test_loader, model, optimizer, disen_loss, epochs, devic
                     val_epoch_ortho_loss += val_logs['ortho']
                     val_epoch_unique_loss += val_logs['unique']
                     val_epoch_shared_loss += val_logs['shared']
-            
+                    val_epoch_fw_loss += val_logs['fw_loss']
             # Epoch statistics
             avg_epoch_loss_val = val_epoch_loss / len(val_loader)
             avg_ortho_loss_val = val_epoch_ortho_loss / len(val_loader)
             avg_unique_loss_val = val_epoch_unique_loss / len(val_loader)
             avg_shared_loss_val = val_epoch_shared_loss / len(val_loader)
+            avg_fw_loss_val = val_epoch_fw_loss / len(val_loader)
         
             
-            print(f"Validation  Loss: {avg_epoch_loss_val:.5f} | Ortho: {avg_ortho_loss_val:.5f} | Unique: {avg_unique_loss_val:.5f} | Shared: {avg_shared_loss_val:.5f}")
+            print(f"Validation  Loss: {avg_epoch_loss_val:.5f} | Ortho: {avg_ortho_loss_val:.5f} | Unique: {avg_unique_loss_val:.5f} | Shared: {avg_shared_loss_val:.5f} | fw: {avg_fw_loss_val:.5f}")
 
             # Log metrics to WandB
             wandb.log({
                 "val/loss": avg_epoch_loss_val,
                 "val/loss/ortho": avg_ortho_loss_val,
                 "val/loss/unique": avg_unique_loss_val,
-                "val/loss/shared": avg_shared_loss_val
+                "val/loss/shared": avg_shared_loss_val,
+                "val/loss/fw": avg_fw_loss_val
             }, step= _iter + 1)
         
 
-            if avg_epoch_loss_val < overall_best_val_loss:
-                overall_best_val_loss = avg_epoch_loss_val
-                overall_best_state_dict = copy.deepcopy(model.state_dict())
-                overall_best_epoch = _iter + 1
-                print(f"New best model found at epoch {overall_best_epoch} with validation loss {overall_best_val_loss:.5f}")
+            # if avg_fw_loss_val < overall_best_val_loss:
+            #     overall_best_val_loss = avg_fw_loss_val
+            #     overall_best_state_dict = copy.deepcopy(model.state_dict())
+            #     overall_best_epoch = _iter + 1
+            #     print(f"New best model found at epoch {overall_best_epoch} with validation loss {overall_best_val_loss:.5f}")
 
         # Save model checkpoint every 10 epochs and at the end
-        if (_iter + 1) % 10 == 0:
+        if (_iter + 1) % 10 == 0 or (_iter + 1) == epochs:
             checkpoint_name = f"checkpoint_epoch_{_iter + 1}.pt" if (_iter + 1) // 10 != (epochs // 10) else f"final_checkpoint.pt"
             checkpoint_path = os.path.join(checkpoint_dir, checkpoint_name)
             os.makedirs(checkpoint_dir, exist_ok=True) # ensure directory exists

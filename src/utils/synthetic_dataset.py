@@ -7,8 +7,10 @@ import sys
 import torch
 from typing import Dict, Any, Callable, Optional, Sequence, Tuple, List, Union, Literal
 import torch.nn as nn
-from scipy.stats import vonmises_fisher, multivariate_normal
+from scipy.stats import vonmises_fisher, multivariate_normal, special_ortho_group, ortho_group
+from scipy.linalg import block_diag
 from itertools import combinations
+from einops import rearrange
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
@@ -70,12 +72,8 @@ class MultimodalDataset(Dataset):
             t_s = {k: self.t_s[k][idx] for k in self.s_keys}
             return x, u, s, t_u, t_s
             
-  def sample_batch(self, batch_size):
-    sample_idxs = np.random.choice(self.__len__(), batch_size, replace=False)
-    samples = self.__getitem__(sample_idxs)
-    return samples
 
-# This class handles the generation of synthetic dataset for the two-modality case
+# This class handles the generation of synthetic dataset
 class GenerateData():
     def __init__(self, N_data: int, trans_type: str= "uniform", latent_dim: int= 16, M: int= 2):
         """
@@ -241,15 +239,17 @@ class GenerateData():
             mask[start:end, start:end] = 1
         return mask
 
+    
+
     def create_dataset(self, dist: Literal["normal", "vmf"] = "normal", ts: List[int] = [5, 5], gammas: List[float] = [10.0, 10.0], normalize: bool = True, **kwargs):
-        
         # Generate latent factors
         latent_factors = self.sample_latent_factors(dist= dist, **kwargs)
-
+        
         # Create modality data
         Z = {}
         for i in range(self.M):
             Z[i] = self.concat_components(latent_factors, [S for S in latent_factors.keys() if i in S])
+            print(f"Modality {i+1} latent factor shape: {Z[i].shape}")
     
         # Create transformation matrices
         self.create_transformation_mats(ts= ts, gammas= gammas)
@@ -318,6 +318,8 @@ class GenerateData():
         }
         return self.dataset_dict
 
+
+    
     def print_dataset_info(self):
         if not hasattr(self, 'dataset_dict'):
             raise ValueError("Dataset not created yet. Please run create_dataset() first.")
@@ -338,7 +340,7 @@ class GenerateData():
 
     # Defining simple aumentations
     @staticmethod
-    def noise(x, scale= 0.01):
+    def noise(x, scale= 0.01, generator= None):
         """
         Adds Gaussian noise to the input tensor.
         Args:
@@ -348,9 +350,9 @@ class GenerateData():
             torch.Tensor: Noisy data tensor.
         """
         epsilon = 0.01  # fraction of vector norm
-
+        
         # generate random Gaussian noise
-        noise = torch.normal(mean=0.0, std=1.0, size=x.shape)
+        noise = torch.normal(mean=0.0, std=1.0, size=x.shape, generator=generator).to(x.device)
 
         # scale noise accordingly so that it scales proportionally to each direction's magnitude
         noise = noise * x * epsilon
@@ -371,7 +373,7 @@ class GenerateData():
         swapped = torch.cat([x[..., mid:], x[..., :mid]], dim=-1)
         return swapped
     @staticmethod
-    def random_drop(x, drop_scale=10):
+    def random_drop(x, drop_scale=10, generator= None):
         """
         Randomly drops a fraction of the input tensor's elements by setting them to zero.
         Args:
@@ -382,9 +384,15 @@ class GenerateData():
         """
         seq_len = x.shape[-2]
         feat_dim = x.shape[-1]
-        drop_num = (seq_len * feat_dim) // drop_scale # total number of elements to drop, given that the last two dims are (seq length x features)
-        drop_idxs_x = np.random.choice(seq_len, drop_num // 2, replace= True)
-        drop_idxs_y = np.random.choice(feat_dim, drop_num // 2, replace= True)
+        num_samples = (seq_len * feat_dim) // (2*drop_scale) # total number of elements to drop, given that the last two dims are (seq length x features)
+        drop_idxs_x = torch.randint(
+            seq_len, (num_samples,), generator=generator
+        ).to(x.device)
+
+        drop_idxs_y = torch.randint(
+            feat_dim, (num_samples,), generator=generator
+        ).to(x.device)
+
         x_aug = torch.clone(x)
         x_aug[..., drop_idxs_x, drop_idxs_y] = 0.0
         return x_aug
@@ -400,7 +408,181 @@ class GenerateData():
         Returns:
             X_aug (torch.Tensor): Augmented data tensor.
         """
-        aug = aug_type if aug_type != 'random' else np.random.choice(['swap', 'random_drop'])
+        aug = aug_type if aug_type != 'random' else np.random.choice(['noise', 'random_drop'])
+        match aug:
+            case 'noise':
+                X_aug = GenerateData.noise(X, kwargs.get("scale", 1e-3), generator=kwargs.get("generator", None))
+            case 'swap':
+                X_aug = GenerateData.swap(X)    
+            case 'random_drop':
+                X_aug = GenerateData.random_drop(X, kwargs.get("drop_scale", 10), generator=kwargs.get("generator", None))
+            case _:
+                raise ValueError(f"Unsupported augmentation type: {aug_type}")
+        return X_aug
+
+
+
+# This class handles the generation of synthetic dataset in a general token-like format
+class GenerateTokenizedData(GenerateData):
+    """
+    Inherits from GenerateData and overrides the create_dataset method to generate data in a token-like format, where each modality is represented as a sequence of token embeddings.
+    """
+
+    def gen_latent_factors_transforms(self, max_ts: int, **kwargs):
+        """
+        Generates the base transformation matrices for each latent factor. These transformations are shared across modalities, but 
+        latent-factor specific. Each transform A_lat ~ N(0, sigma^2 * I) where sigma is a hyperparameter that controls the variance 
+        of the transformation, if not provided defaults to 1.
+        Args:
+            max_ts (int): Maximum number of tokens (embeddings) across modalities, used to add small token-level variation.
+            **kwargs: Additional parameters for each distribution.
+        Returns:
+            data (Dict[str, np.ndarray]): Dictionary containing generated latent factors' transformations.
+        """
+        latent_factors_transforms = {} # -> latent factor type transformation
+        latent_factors_deltas = {} # -> token-level deltas for each latent factor, sigma_d << sigma_A
+        sigma = kwargs.get('sigma', 1.0)
+        sigma_d = sigma / 100.0
+        for k in range(1, self.M + 1):
+            for combo in combinations(range(self.M), k):
+                latent_factors_transforms[frozenset(combo)] = np.random.normal(0, sigma, (self.latent_dim, self.latent_dim))
+                latent_factors_deltas[frozenset(combo)] = np.random.normal(0, sigma_d, (max_ts, self.latent_dim, self.latent_dim))
+        return latent_factors_transforms, latent_factors_deltas
+
+    def gen_modality_token_masks(self, ts: List[int] = [5, 5]):
+        """
+        Generates masks that are modality and token-specific, so that each token (embedding) holds information about a different subset of latent factors.
+        Args:
+            ts (List[int]): List of token lengths for each modality, used to create token-level variation.
+        Returns:
+            data (Dict[str, np.ndarray]): Dictionary containing generated modality and token-specific masks.
+        """
+        modality_token_masks = {}
+        for m in range(self.M):
+            # create binary mask of shape (T_m, num_latent_factors)
+            Mask_m = np.mod(np.random.permutation(ts[m] * (2**(self.M - 1))).reshape(ts[m], 2**(self.M - 1)), 2) 
+        
+            # check that no col is zero, so that all latent factors are represented in each modality
+            zero_col = np.where(Mask_m.sum(axis=0) == 0)[0]
+            for col in zero_col:
+                rand_row = np.random.randint(0, ts[m])
+                Mask_m[rand_row, col] = 1
+
+
+            # (Optional but also check that no row is zero, so that all tokens have some latent factor information)
+            zero_row = np.where(Mask_m.sum(axis=1) == 0)[0]
+            for row in zero_row:
+                rand_col = np.random.randint(0, 2**(self.M - 1))
+                Mask_m[row, rand_col] = 1
+
+            
+            # expand mask to shape (T_m, D*num_latent_factors, D*num_latent_factors) for elementwise multiplication with the transformation matrices
+            modality_token_masks[m] = np.asarray([block_diag(*[Mask_m[r, t]*np.ones((self.latent_dim, self.latent_dim)) for t in range(2**(self.M - 1))]) for r in range(ts[m])])
+
+        return modality_token_masks
+
+    def gen_modality_rot_mats(self):
+        """
+        Generates modality-specific rotation matrices Rm of shape (D*num_latent_factors, D*num_latent_factors)
+        """
+        R = {}
+        for m in range(self.M):
+            R[m] = special_ortho_group.rvs(self.latent_dim * 2**(self.M - 1)) # SO(N_components * latent_dim) rotation matrix
+        return R
+
+    def apply_nonlinearity(self, X, **kwargs):
+        """
+        Applies a non-linearity to the data.
+        Args:
+            X (np.ndarray): Input data array.
+        Returns:
+            np.ndarray: Non-linearly transformed data array.
+        """
+        alpha = kwargs.get('nonlin_alpha', 0.3)
+        return np.tanh(alpha*X)  # Example non-linearity, can be replaced with others
+
+    def create_dataset(self, dist: Literal["normal", "vmf"] = "normal", ts: List[int] = [5, 5], gammas: List[float] = [10.0, 10.0], normalize: bool = True, add_nonlinearity: bool = True, **kwargs):
+        
+        # Generate latent factors, transforms and masks
+        latent_factors = self.sample_latent_factors(dist= dist, **kwargs)
+        latent_factors_transforms, latent_factors_deltas = self.gen_latent_factors_transforms(max_ts=max(ts), **kwargs)
+        modality_token_masks = self.gen_modality_token_masks(ts= ts)
+        modality_rot_mats = self.gen_modality_rot_mats()
+
+    
+        # Create modality data
+        Z = {} # concatenated latent factors for each modality
+        A = {} # transformations for each latent factor and token, before applying modality-specific rotations
+        W = {} # final transformations for each modality
+        X = {} # final data for each modality
+        for i in range(self.M):
+            # Z = [Z_1, Z_2, Z_s]
+            Z[i] = self.concat_components(latent_factors, [S for S in latent_factors.keys() if i in S])
+
+            # At = block_diag([A_1 + latent_factors_deltas(t), A_2 + latent_factors_deltas(t), A_s + latent_factors_deltas(t)]), for all t in ts[i]
+            A[i] = [block_diag(*[latent_factors_transforms[S] + latent_factors_deltas[S][t] for S in latent_factors.keys() if i in S]) for t in range(ts[i])]  
+            
+            
+            # apply modality and token-specific masks to the transformations At for modality i, so that each 
+            # token (embedding) in modality i contains a different subset of latent factor information
+            A[i] = [A[i][t] * modality_token_masks[i][t] for t in range(ts[i])]
+            
+            # apply modality-specific rotations
+            W[i] = np.asarray([modality_rot_mats[i] @ A[i][t] for t in range(ts[i])])
+            
+            # create data
+            X[i] = np.einsum('tio,ni->nto', W[i], Z[i]) 
+            print(f"Modality {i+1} data shape: {X[i].shape}")
+            X[i] = self.apply_nonlinearity(X[i], **kwargs) if add_nonlinearity else X[i]
+            X[i] = self.normalize_data(X[i]) if normalize else X[i]
+
+
+        total_data = list(zip(*[X[m] for m in range(self.M)]))  # list of tuples for each sample
+        t_u = {}
+        t_s = {}
+        labels_u = {}
+        labels_s = {}
+
+        for i in range(self.M):
+            for j in range(self.M):
+                if i != j:
+                    # Unique components u_{i,j} and labels
+                    key = f'u_{i+1}{j+1}'
+                    subsets_u = self.subsets_unique_wrt(latent_factors, i, j)
+                    temp_latent_u = self.concat_components(latent_factors, subsets_u)
+                    t_u[key] = temp_latent_u
+                    labels_u[key] = self.generate_labels(temp_latent_u, seed= np.random.randint(0, 10000))
+                if i < j:
+                    # Shared components s_{i,j} and labels
+                    key_s = f's_{i+1}{j+1}'
+                    subsets_s = self.subsets_pair_shared(latent_factors, i, j)
+                    temp_latent_s = self.concat_components(latent_factors, subsets_s)
+                    t_s[key_s] = temp_latent_s
+                    labels_s[key_s] = self.generate_labels(temp_latent_s, seed= np.random.randint(0, 10000))
+
+        # pack into a dictionary
+        self.dataset_dict = {
+            'total_data': total_data,
+            'labels_u': labels_u,
+            'labels_s': labels_s,
+            't_u': t_u,
+            't_s': t_s
+        }
+
+        return self.dataset_dict
+
+    @staticmethod
+    def augment_data(X, aug_type: Literal['noise', 'swap', 'random_drop', 'random']='noise', **kwargs):
+        """
+        Simple data augmentation by adding Gaussian noise.
+        Args:
+            X (torch.Tensor): Input data tensor.
+            aug_type (str): Type of augmentation ('noise', 'swap', 'random_drop').
+            *args: Additional arguments for the augmentation function.
+        Returns:
+            X_aug (torch.Tensor): Augmented data tensor.
+        """
+        aug = aug_type if aug_type != 'random' else np.random.choice(['noise', 'random_drop'])
         match aug:
             case 'noise':
                 X_aug = GenerateData.noise(X, kwargs.get("scale", 1e-3))
@@ -412,3 +594,135 @@ class GenerateData():
                 raise ValueError(f"Unsupported augmentation type: {aug_type}")
         return X_aug
 
+
+
+# This class handles the generation of synthetic dataset in a simple embedding like format
+class GeneratePermData(GenerateData):
+    """
+    Inherits from GenerateData and overrides the create_dataset method to generate data. In this format, each modality is represented as a sequence of embeddings, derived from a base vector with linear transformations and permutations.
+    """
+
+    def gen_latent_factors_transforms(self, max_ts: int, **kwargs):
+        """
+        Generates the base transformation matrices for each latent factor. These transformations are shared across modalities, but 
+        latent-factor specific. Each transform A_lat ~ N(0, sigma^2 * I) where sigma is a hyperparameter that controls the variance 
+        of the transformation, if not provided defaults to 1.
+        Args:
+            max_ts (int): Maximum number of tokens (embeddings) across modalities, used to add small token-level variation.
+            **kwargs: Additional parameters for each distribution.
+        Returns:
+            data (Dict[str, np.ndarray]): Dictionary containing generated latent factors' transformations.
+        """
+        latent_factors_transforms = {} # -> latent factor type transformation
+        latent_factors_deltas = {} # -> token-level deltas for each latent factor, sigma_d << sigma_A
+        sigma = kwargs.get('sigma', 1.0)
+        sigma_d = sigma / 100.0
+        for k in range(1, self.M + 1):
+            for combo in combinations(range(self.M), k):
+                latent_factors_transforms[frozenset(combo)] = np.random.normal(0, sigma, (self.latent_dim, self.latent_dim))
+                latent_factors_deltas[frozenset(combo)] = np.random.normal(0, sigma_d, (max_ts, self.latent_dim, self.latent_dim))
+        return latent_factors_transforms, latent_factors_deltas
+
+
+    def gen_modality_rot_mats(self):
+        """
+        Generates modality-specific rotation matrices Rm of shape (D*num_latent_factors, D*num_latent_factors)
+        """
+        R = {}
+        for m in range(self.M):
+            R[m] = special_ortho_group.rvs(self.latent_dim * 2**(self.M - 1)) # SO(N_components * latent_dim) rotation matrix
+        return R
+
+    def apply_nonlinearity(self, X, **kwargs):
+        """
+        Applies a non-linearity to the data.
+        Args:
+            X (np.ndarray): Input data array.
+        Returns:
+            np.ndarray: Non-linearly transformed data array.
+        """
+        alpha = kwargs.get('nonlin_alpha', 0.3)
+        return np.tanh(alpha*X)  # Example non-linearity, can be replaced with others
+
+    def create_dataset(self, dist: Literal["normal", "vmf"] = "normal", ts: List[int] = [5, 5], gammas: List[float] = [10.0, 10.0], normalize: bool = True, add_nonlinearity: bool = True, **kwargs):
+        print(f"Creating data with dist={dist}, ts={ts}, gammas={gammas}, normalize={normalize}, add_nonlinearity={add_nonlinearity}, kwargs={kwargs}")
+        # Generate latent factors, transforms and masks
+        latent_factors = self.sample_latent_factors(dist= dist, **kwargs)
+        latent_factors_transforms, _ = self.gen_latent_factors_transforms(max_ts=max(ts), **kwargs)
+
+    
+        # Create modality data
+        Z = {} # concatenated latent factors for each modality
+        X = {} # final data for each modality
+
+        for i in range(self.M):
+            Z[i] = self.concat_components(latent_factors, [S for S in latent_factors.keys() if i in S])
+
+            # block diagonal projection to a higher dimension space, so that we can then reshare to the desired t, latent_dim shape each modality
+            Z[i] = np.einsum('nd,db->nb', Z[i], block_diag(*[np.random.normal(0, 1, (self.latent_dim, self.latent_dim * ts[i])) for S in latent_factors.keys() if i in S]))  # (N, D) @ (D, B) -> (N, B)
+            
+            
+            Z[i] = np.reshape(Z[i], (self.N_data, ts[i], self.latent_dim * 2**(self.M - 1)))  # (N, t, D)
+            random_permutation = np.random.permutation(ts[i]) # the permutation is unique for each modality
+            Z[i] = Z[i][:, random_permutation, :]  # shuffle embedding order 
+
+            X[i] = self.apply_nonlinearity(Z[i], **kwargs) if add_nonlinearity else Z[i]
+            X[i] = self.normalize_data(X[i]) if normalize else X[i]
+
+
+        total_data = list(zip(*[X[m] for m in range(self.M)]))  # list of tuples for each sample
+        t_u = {}
+        t_s = {}
+        labels_u = {}
+        labels_s = {}
+
+        for i in range(self.M):
+            for j in range(self.M):
+                if i != j:
+                    # Unique components u_{i,j} and labels
+                    key = f'u_{i+1}{j+1}'
+                    subsets_u = self.subsets_unique_wrt(latent_factors, i, j)
+                    temp_latent_u = self.concat_components(latent_factors, subsets_u)
+                    t_u[key] = temp_latent_u
+                    labels_u[key] = self.generate_labels(temp_latent_u, seed= np.random.randint(0, 10000))
+                if i < j:
+                    # Shared components s_{i,j} and labels
+                    key_s = f's_{i+1}{j+1}'
+                    subsets_s = self.subsets_pair_shared(latent_factors, i, j)
+                    temp_latent_s = self.concat_components(latent_factors, subsets_s)
+                    t_s[key_s] = temp_latent_s
+                    labels_s[key_s] = self.generate_labels(temp_latent_s, seed= np.random.randint(0, 10000))
+
+        # pack into a dictionary
+        self.dataset_dict = {
+            'total_data': total_data,
+            'labels_u': labels_u,
+            'labels_s': labels_s,
+            't_u': t_u,
+            't_s': t_s
+        }
+
+        return self.dataset_dict
+
+    @staticmethod
+    def augment_data(X, aug_type: Literal['noise', 'swap', 'random_drop', 'random']='noise', **kwargs):
+        """
+        Simple data augmentation by adding Gaussian noise.
+        Args:
+            X (torch.Tensor): Input data tensor.
+            aug_type (str): Type of augmentation ('noise', 'swap', 'random_drop').
+            *args: Additional arguments for the augmentation function.
+        Returns:
+            X_aug (torch.Tensor): Augmented data tensor.
+        """
+        aug = aug_type if aug_type != 'random' else np.random.choice(['noise', 'random_drop'])
+        match aug:
+            case 'noise':
+                X_aug = GenerateData.noise(X, kwargs.get("scale", 1e-3))
+            case 'swap':
+                X_aug = GenerateData.swap(X)    
+            case 'random_drop':
+                X_aug = GenerateData.random_drop(X, kwargs.get("drop_scale", 10))
+            case _:
+                raise ValueError(f"Unsupported augmentation type: {aug_type}")
+        return X_aug

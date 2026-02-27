@@ -15,6 +15,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import math
 from itertools import combinations
+import copy
 
 
 
@@ -90,8 +91,8 @@ def train_loop(X, X_aug, model, optimizer, disen_loss):
         logs: Dictionary containing loss components for monitoring
     """
     # Forward pass through RePercENT
-    outputs = model(X)
-    outputs_aug = model(X_aug)
+    outputs = model(X, mask = [None for _ in range(len(X))])
+    outputs_aug = model(X_aug, mask = [None for _ in range(len(X_aug))])
     
     # Compute disentanglement loss
     loss, logs = disen_loss(outputs, outputs_aug)
@@ -116,9 +117,9 @@ def test_loop(X, X_aug, model, disen_loss):
         loss: Computed loss value for the batch
         logs: Dictionary containing loss components for monitoring
     """
-    # Forward pass through RePercENT
-    outputs = model(X)
-    outputs_aug = model(X_aug)
+    # Forward pass 
+    outputs = model(X, mask = [None for _ in range(len(X))])
+    outputs_aug = model(X_aug, mask = [None for _ in range(len(X_aug))])
     
     # Compute disentanglement loss
     loss, logs = disen_loss(outputs, outputs_aug)
@@ -127,7 +128,7 @@ def test_loop(X, X_aug, model, disen_loss):
 
 
 
-def train(train_loader, val_loader, model, optimizer, disen_loss, epochs, device, checkpoint_dir="./checkpoints"):
+def train(train_loader, val_loader, model, optimizer, disen_loss, epochs, device, checkpoint_dir="./checkpoints", generator= None):
     """
     Full training loop for RePercENT model with evaluation on test set
     Args:
@@ -153,37 +154,39 @@ def train(train_loader, val_loader, model, optimizer, disen_loss, epochs, device
     pairs = list(combinations(range(M), 2))
     
     evaluator = ProbeEvaluator(linear_probe= linear_probe, regression_probe= regression_probe)
+    
     for _iter in range(epochs):
         # Initialize epoch loss trackers
         epoch_loss = 0.0
         epoch_ortho_loss = 0.0
         epoch_unique_loss = 0.0
         epoch_shared_loss = 0.0
-        
+        epoch_fw_loss = 0.0 # fixed weight loss for logging, when no schedulers are used, this is just the total loss with equal weights for all components
         model.train()
         print(f"----- Epoch: {_iter + 1} / {epochs} -----")
         # Training phase
         for batch_idx, (X, labels_u, labels_s, _, _) in enumerate(train_loader):
-            temp_b = X[0].shape[0]
+    
             X = [X[m].to(device) for m in range(M)]
 
             # Augment data
-            X_aug = [GenerateData.augment_data(X[m], aug_type="random") for m in range(M)]
+            X_aug = [GenerateData.augment_data(X[m], aug_type="random", generator=generator) for m in range(M)]
             
             loss, loss_logs = train_loop(X, X_aug, model, optimizer, disen_loss)
 
             # Track losses
-            epoch_loss += loss.item() / temp_b
-            epoch_ortho_loss += loss_logs['ortho'] / temp_b
-            epoch_unique_loss += loss_logs['unique'] / temp_b
-            epoch_shared_loss += loss_logs['shared'] / temp_b
+            epoch_loss += loss.item()
+            epoch_ortho_loss += loss_logs['ortho']
+            epoch_unique_loss += loss_logs['unique']
+            epoch_shared_loss += loss_logs['shared']
+            epoch_fw_loss += loss_logs['fw_loss']
             
         # Epoch statistics
         avg_epoch_loss = epoch_loss / len(train_loader)
         avg_ortho_loss = epoch_ortho_loss / len(train_loader)
         avg_unique_loss = epoch_unique_loss / len(train_loader)
         avg_shared_loss = epoch_shared_loss / len(train_loader)
-
+        avg_fw_loss = epoch_fw_loss / len(train_loader)
         # Calculate loss on test set
         model.eval()
         with torch.no_grad():
@@ -191,40 +194,33 @@ def train(train_loader, val_loader, model, optimizer, disen_loss, epochs, device
             val_epoch_ortho_loss = 0.0
             val_epoch_unique_loss = 0.0
             val_epoch_shared_loss = 0.0
-        
+            val_epoch_fw_loss = 0.0
             for batch_idx, (X, labels_u, labels_s, _, _) in enumerate(val_loader):
                 temp_b = X[0].shape[0]
                 X = [X[m].to(device) for m in range(M)]
                 
                 # Augment data 
-                X_aug = [GenerateData.augment_data(X[m], aug_type="random") for m in range(M)]
+                X_aug = [GenerateData.augment_data(X[m], aug_type="random", generator=generator) for m in range(M)]
                 
                 # Forward pass through RePercENT
                 loss_val, logs_val = test_loop(X, X_aug, model, disen_loss)
                 
                 # Track losses
-                val_epoch_loss += loss_val.item()/ temp_b
-                val_epoch_ortho_loss += logs_val["ortho"]/ temp_b
-                val_epoch_unique_loss += logs_val["unique"]/ temp_b
-                val_epoch_shared_loss += logs_val["shared"]/ temp_b
-        
+                val_epoch_loss += loss_val.item()
+                val_epoch_ortho_loss += logs_val["ortho"]
+                val_epoch_unique_loss += logs_val["unique"]
+                val_epoch_shared_loss += logs_val["shared"]
+                val_epoch_fw_loss += logs_val["fw_loss"]
         # Epoch statistics
         avg_epoch_loss_val = val_epoch_loss / len(val_loader)
         avg_ortho_loss_val = val_epoch_ortho_loss / len(val_loader)
         avg_unique_loss_val = val_epoch_unique_loss / len(val_loader)
         avg_shared_loss_val = val_epoch_shared_loss / len(val_loader)
+        avg_fw_loss_val = val_epoch_fw_loss / len(val_loader)
+
+        print(f"Training  Loss: {avg_epoch_loss:.5f} | Ortho: {avg_ortho_loss:.5f} | Unique: {avg_unique_loss:.5f} | Shared: {avg_shared_loss:.5f} | Lmd: {disen_loss.lmd:.6f}, alpha: {disen_loss.alpha:.6f}")
+        print(f"Testing  Loss: {avg_epoch_loss_val:.5f} | Ortho: {avg_ortho_loss_val:.5f} | Unique: {avg_unique_loss_val:.5f} | Shared: {avg_shared_loss_val:.5f} | Fixed Weight Loss: {avg_fw_loss_val:.5f}")
         
-
-        print(f"Training  Loss(x 100): {avg_epoch_loss* 100:.5f} | Ortho (x 100): {avg_ortho_loss* 100:.5f} | Unique (x 100): {avg_unique_loss* 100:.5f} | Shared (x 100): {avg_shared_loss* 100:.5f} | Lmd: {disen_loss.lmd:.6f}, alpha: {disen_loss.alpha:.6f}")
-        print(f"Testing  Loss(x 100): {avg_epoch_loss_val* 100:.5f} | Ortho (x 100): {avg_ortho_loss_val* 100:.5f} | Unique (x 100): {avg_unique_loss_val* 100:.5f} | Shared (x 100): {avg_shared_loss_val* 100:.5f} ")
-        
-        # Evaluate linear probe accuracy of the model's learned representations after each epoch
-        train_data_dict = extract_latents_and_labels(model, train_loader, device)
-        val_data_dict = extract_latents_and_labels(model, val_loader, device)
-
-        if components is None: # set components only once - same for all epochs
-            components = list(train_data_dict['Labels_U'].keys()) + list(train_data_dict['Labels_S'].keys())
-
         
         # Log metrics to WandB
         wandb.log({
@@ -232,10 +228,12 @@ def train(train_loader, val_loader, model, optimizer, disen_loss, epochs, device
             "train/loss/ortho": avg_ortho_loss,
             "train/loss/unique": avg_unique_loss,
             "train/loss/shared": avg_shared_loss,
+            "train/loss/fixed_weight": avg_fw_loss,
             "val/loss": avg_epoch_loss_val,
             "val/loss/ortho": avg_ortho_loss_val,
             "val/loss/unique": avg_unique_loss_val,
             "val/loss/shared": avg_shared_loss_val,
+            "val/loss/fixed_weight": avg_fw_loss_val,
         }, step= _iter + 1)
         plt.close("all")
 
@@ -259,12 +257,22 @@ def train(train_loader, val_loader, model, optimizer, disen_loss, epochs, device
         
         # Save final metrics:
         if (_iter + 1) == epochs:
+            model.load_state_dict(model.state_dict())
+            # Evaluate linear probe accuracy
+            print(f"Evaluating linear and regression probes on train and validation data...")
+            train_data_dict = extract_latents_and_labels(model, train_loader, device)
+            val_data_dict = extract_latents_and_labels(model, val_loader, device)
+
+            if components is None: # set components only once - same for all epochs
+                components = list(train_data_dict['Labels_U'].keys()) + list(train_data_dict['Labels_S'].keys())
+
             evaluator.set_data(train_data_dict= train_data_dict, val_data_dict= val_data_dict, M= M)
             linear_results = evaluator.calculate_linear_probe()
             reg_results = evaluator.calculate_reg_probe()
 
             metrics_summary = evaluator.mean_metrics(linear_results, reg_results, M= M)
 
+            print("Evaluation complete!")
             # Log the complete confusion matrix for each epoch
             wandb.log({"confusion_matrix": wandb.Image(plot_confusion_matrix(linear_results["acc"], components= components, labels= components))})
             # Log the pairwise confusion matrices, i.e. M* (M -1)/ 2 matrices for M modalities
