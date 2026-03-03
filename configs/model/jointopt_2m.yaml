@@ -1,5 +1,5 @@
 wandb:
-  project: "synthetic-new-2M"
+  project: "synthetic-moe-2M"
 
 M: 2  # number of modalities
 
@@ -8,7 +8,7 @@ shared_encoder:
   # the number of shared encoders is M * (M - 1)  -> M -1 shared components per modality
   type: "MLP" # MLP or GRU
   input_dims: [512, 512] # For the GRU is the feature dimension per time point, for the MLP is the total feature dimension as the input is flattened
-  hidden_dims: [[128], [128]]
+  hidden_dims: [[64], [64]]
   latent_dims: [32, 32]
   num_layers: 1
   activation: "relu"
@@ -18,10 +18,10 @@ unique_encoder:
   # the number of unique encoders is M * (M - 1) -> M -1 unique components per modality
   type: "MLP" # MLP or GRU
   input_dims: [512, 512]
-  hidden_dims: [[128], [128]]
+  hidden_dims: [[64], [64]]
   latent_dims: [32, 32]
   num_layers: 1
   activation: "relu"
 
-vmfkappa: 1000
+vmfkappa: 800
 add_shared: false

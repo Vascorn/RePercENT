@@ -93,7 +93,7 @@ class MoEFeedForward(nn.Module):
     def __init__(
         self,
         dim: int,
-        mult: int = 2,
+        mult: int = 1,
         num_experts: int = 8,
         temperature: float = 1.0, 
         hard: bool = False, 
@@ -145,6 +145,66 @@ class MoEFeedForward(nn.Module):
             weights = topk_vals[token_ids, slot_ids].unsqueeze(-1)
             out[token_ids] += expert_out * weights
         return out.view(B, N, D)
+
+
+class PerCompFeedForward(nn.Module):
+    """
+    Deterministic per-component FFN for x: (B, N, D)
+    Slot n always uses expert n. This module acts like a deterministic MoE with N experts and a fixed routing pattern, 
+    where each component (slot) has its own dedicated FFN.
+    """
+    def __init__(
+        self,
+        dim: int,
+        num_components: int,
+        mult: int = 1,
+        dropout: float = 0.0,
+        share_across_components: bool = False,
+    ):
+        """
+        Args:
+            dim: feature dimension D
+            num_components: number of components / slots N
+            mult: FFN expansion factor used by FeedForward
+            dropout: dropout inside each FeedForward
+            share_across_components: if True, uses a single shared FeedForward for all slots
+        """
+        super().__init__()
+        self.dim = dim
+        self.num_components = num_components
+        self.share_across_components = share_across_components
+
+        if share_across_components:
+            self.ff = FeedForward(dim, mult=mult, dropout=dropout)
+        else:
+            self.ff = nn.ModuleList([
+                FeedForward(dim, mult=mult, dropout=dropout)
+                for _ in range(num_components)
+            ])
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        x: (B, N, D)
+        returns: (B, N, D)
+        """
+        if x.dim() != 3:
+            raise ValueError(f"Expected x to have shape (B, N, D), got {tuple(x.shape)}")
+
+        B, N, D = x.shape
+        if D != self.dim:
+            raise ValueError(f"Expected last dim D={self.dim}, got {D}")
+        if N != self.num_components:
+            raise ValueError(f"Expected N={self.num_components} components, got {N}")
+
+        if self.share_across_components:
+            # Apply the same FFN to every component
+            return self.ff(x)
+
+        # Apply per-component FFN
+        outs = []
+        for n in range(N):
+            outs.append(self.ff[n](x[:, n, :]).unsqueeze(1))  # (B,1,D)
+        return torch.cat(outs, dim=1)  # (B,N,D)
 
 
 class Attention(nn.Module):
@@ -327,8 +387,6 @@ class Perceiver(nn.Module):
                 ff_top_k = 1 #2 if not late else 1          # soft-ish -> hard
                 ff_temp  = 1.5 if not late else 0.6      # soft -> peaky
                 ff_gdo   = 0.1 if not late else 0.0      # explore -> deterministic
-
-
                 
 
                 # append self attention blocks of latents
@@ -419,3 +477,177 @@ class Perceiver(nn.Module):
         # to logits
 
         return self.to_logits(x)
+
+
+# Modification of the Perceiver class to use Mixture of Experts FeedForward layers for the latent blocks, with a schedule for top_k and gate dropout to encourage expert specialization in later layers.
+# In this implementation, the self attention is droped the structure is CrossAttn -> MoEFFN -> CrossAttn -> MoEFFN ... 
+# This is because the latent vectors are supposed to represent different information component of the input. 
+class PerceiverDisen(nn.Module):
+    def __init__(
+        self,
+        *,
+        depth,
+        num_freq_bands= None,
+        max_freq= None,
+        input_channels = 3,
+        input_axis = 2,
+        seq_dim = 77,
+        num_latents = 512,
+        latent_dim = 512,
+        cross_heads = 1,
+        latent_heads = 8,
+        cross_dim_head = 64,
+        num_classes = None,
+        attn_dropout = 0.,
+        ff_dropout = 0.,
+        weight_tie_layers = False,
+        fourier_encode_data = True,
+        deterministic_moeffn = True
+    ):
+        """The shape of the final attention mechanism will be:
+        depth * (cross attention -> self_per_cross_attn * self attention)
+
+        Args:
+            num_freq_bands: Number of freq bands, with original value (2 * K + 1)
+            depth: Depth of net.
+            max_freq: Maximum frequency, hyperparameter depending on how
+                fine the data is.
+            freq_base: Base for the frequency
+            input_channels: Number of channels for each token of the input.
+            input_axis: Number of axes for input data (e.g. 2 for images, 3 for video)
+            seq_dim: The length of the input sequence (number of tokens), for images this would be the number of patches etc.
+            num_latents: Number of latents, or induced set points, or centroids.
+                Different papers giving it different names.
+            latent_dim: Latent dimension.
+            cross_heads: Number of heads for cross attention. Paper said 1.
+            cross_dim_head: Number of dimensions per cross attention head.
+            num_classes: Output number of classes.
+            attn_dropout: Attention dropout
+            ff_dropout: Feedforward dropout
+            weight_tie_layers: Whether to weight tie layers (optional).
+            fourier_encode_data: Whether to auto-fourier encode the data, using
+                the input_axis given. defaults to True, but can be turned off
+                if you are fourier encoding the data yourself.
+            deterministic_moeffn: Whether to use a deterministic MoE FFN where each component has its own expert FFN, effectively acting as a per-component FFN without any routing. 
+        """
+
+        super().__init__()
+        self.input_axis = input_axis
+        self.seq_dim = seq_dim
+        self.max_freq = max_freq
+        self.num_freq_bands = num_freq_bands
+
+        self.fourier_encode_data = fourier_encode_data
+        
+
+        # If fourier encoding, you must provide num_freq_bands and max_freq
+        if fourier_encode_data:
+            assert exists(num_freq_bands) and exists(max_freq), 'must provide num_freq_bands and max_freq if you are fourier encoding the data'
+            fourier_channels = (input_axis * ((num_freq_bands * 2) + 1)) if fourier_encode_data else 0
+            input_dim = fourier_channels + input_channels
+        else:
+            input_dim = input_channels
+
+        
+        self.latents = nn.Parameter(torch.randn(num_latents, latent_dim))
+
+        
+        get_cross_attn = lambda: PreNorm(latent_dim, Attention(latent_dim, input_dim, heads = cross_heads, dim_head = cross_dim_head, dropout = attn_dropout), context_dim = input_dim)
+        get_cross_ff_first = lambda: PreNorm(latent_dim, FeedForward(latent_dim, dropout = ff_dropout))
+        
+        self.num_experts = num_latents
+
+        if deterministic_moeffn:
+            print(f'Initializing Perceiver Disen with deterministic Expert FeedForward layers with {num_latents} experts.')
+            get_cross_ff_rest = lambda: PreNorm(
+                            latent_dim, 
+                            PerCompFeedForward(latent_dim,
+                                    num_components= self.num_experts,
+                                    mult=1,
+                                    dropout=ff_dropout,
+                                    share_across_components=False
+                                )
+                            )
+        else:
+            print(f'Initializing Perceiver Disen with Mixture of Experts FeedForward layers with {num_latents} experts.')
+            get_cross_ff_rest = lambda top_k= 1, temp=1.0, gate_do=0.0: PreNorm(
+                                latent_dim, 
+                                MoEFeedForward(latent_dim,
+                                        num_experts= self.num_experts,
+                                        top_k=top_k,
+                                        temperature=temp,
+                                        dropout=ff_dropout,
+                                        gate_dropout=gate_do
+                                    )
+                                )
+
+        get_cross_attn, get_cross_ff_first, get_cross_ff_rest = map(cache_fn, (get_cross_attn, get_cross_ff_first, get_cross_ff_rest))
+
+        self.layers = nn.ModuleList([])
+        for i in range(depth):
+            should_cache = i > 0 and weight_tie_layers
+            cache_args = {'_cache': should_cache}
+            
+
+            if i > 0 and deterministic_moeffn:
+                self.layers.append(nn.ModuleList([
+                    get_cross_attn(**cache_args),
+                    get_cross_ff_rest(**cache_args)
+                ]))
+            elif i > 0 and not deterministic_moeffn:
+                # schedule: soft early -> hard late
+                frac = i / max(depth - 1, 1)
+                late = frac >= 0.6
+
+                ff_top_k = 1 #2 if not late else 1       # soft-ish -> hard
+                ff_temp  = 1.5 if not late else 0.6      # soft -> peaky
+                ff_gdo   = 0.1 if not late else 0.0      # explore -> deterministic
+
+
+                self.layers.append(nn.ModuleList([
+                    get_cross_attn(**cache_args),
+                    get_cross_ff_rest(top_k=ff_top_k, temp=ff_temp, gate_do=ff_gdo, **cache_args)
+                ]))
+                
+            else:
+                self.layers.append(nn.ModuleList([
+                    get_cross_attn(**cache_args),
+                    get_cross_ff_first(**cache_args)
+                ]))
+
+
+    def forward(
+        self,
+        data,
+        mask = None,
+        return_embeddings = False
+        ):
+        b, *axis, _, device, dtype = *data.shape, data.device, data.dtype
+        
+        assert len(axis) == self.input_axis, 'input data must have the right number of axis'
+
+        if self.fourier_encode_data:
+            # calculate fourier encoded positions in the range of [-1, 1], for all axis
+            axis_pos = list(map(lambda size: torch.linspace(-1., 1., steps=size, device=device, dtype=dtype), axis))
+            pos = torch.stack(torch.meshgrid(*axis_pos, indexing = 'ij'), dim = -1)
+            
+            enc_pos = fourier_encode(pos, self.max_freq, self.num_freq_bands)
+            enc_pos = rearrange(enc_pos, '... n d -> ... (n d)')
+            enc_pos = repeat(enc_pos, '... -> b ...', b = b)
+            
+            data = torch.cat((data, enc_pos), dim = -1)
+
+        # concat to channels of data and flatten axis
+        data = rearrange(data, 'b ... d -> b (...) d')
+
+        x = repeat(self.latents, 'n d -> b n d', b = b)
+        
+        b = x.shape[0]
+        
+
+        # layers
+        for cross_attn, cross_ff in self.layers:
+            x = cross_attn(x, context = data, mask = mask) + x
+            x = cross_ff(x) + x
+        
+        return x

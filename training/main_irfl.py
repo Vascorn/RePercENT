@@ -57,7 +57,7 @@ def aggregate_and_log(all_final_metrics: list):
 def main():
     parser = argparse.ArgumentParser(description="Train RePercENT model on the IRFL dataset")
     parser.add_argument('--datasets_path', type=str, default="../data/irfl/datasets/", help='Path to the directory containing the IRFL dataset tensors wrt to this script')
-    parser.add_argument('--model_type', type=str, choices=['repercent', 'gmlp'], default='gmlp', help='Type of model to train, for now only repercent is implemented')
+    parser.add_argument('--model_type', type=str, choices=['repercent', 'gmlp'], default='repercent', help='Type of model to train, for now only repercent is implemented')
 
     # Define number of splits and seeds
     parser.add_argument('--n_seeds', type=int, default= 5, help='Number of seeds per split for model initialization and training')
@@ -84,6 +84,7 @@ def main():
     training_config_path = os.path.join(script_dir, "..", "configs", "training", f"train_irfl_{M}m.yaml")
     with open(training_config_path, 'r') as f:
         training_config = yaml.safe_load(f)
+    
 
     # Load the *full dataset once*
     print("Loading datasets...")
@@ -143,7 +144,8 @@ def main():
                 disenEncoders = [make_model(model_config, data_config, modality=m + 1, M=data_config["create_data"]["M"]) for m in range(data_config["create_data"]["M"])]
                 model = RePercENT(M=data_config["create_data"]["M"],
                                 disenEncoder=disenEncoders,
-                                disen_mapping=model_config["repercent"]["disen_mapping"]).to(device)
+                                disen_mapping=model_config["repercent"]["disen_mapping"],
+                                vmfkappa=model_config["repercent"]["vmfkappa"]).to(device)
             case "gmlp":
                 model = make_model_jointopt(model_config).to(device)
             case _:
@@ -151,7 +153,11 @@ def main():
 
         disen_loss = DisenLoss(alpha=training_config["disen_loss"]["alpha"],
                                     lmd=training_config["disen_loss"]["lmd"],
+                                    lmd_start_value=training_config["disen_loss"]["lmd_start_value"],
                                     lmd_end_value=training_config["disen_loss"]["lmd_end_value"],
+                                    lmd_n_iterations=training_config["disen_loss"]["lmd_n_iterations"],
+                                    lmd_start_iteration=training_config["disen_loss"]["lmd_start_iteration"],
+                                    ortho_norm=training_config["disen_loss"]["ortho_norm"],
                                     M=data_config["create_data"]["M"])
         optimizer = torch.optim.Adam(
             model.parameters(),

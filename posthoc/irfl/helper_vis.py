@@ -33,30 +33,29 @@ def extract_all_embeddings(model, test_loader, device, M= 3, comp_mod= 1):
                     "Text": {"Unique": [], "Shared": []},
                     "figurative_types": []}
 
-
+   
     model.eval()
     with torch.inference_mode():
         for batch_idx, out in enumerate(test_loader):
             print(f"Processing batch {batch_idx + 1}/ {len(test_loader)}")
             x = out['x']
             
-            outputs = test_fwd(x, model, device, M= M)
+            if comp_mod < 3:
+                outputs = test_fwd(x, model, device, M= M)
 
-            shared_text = outputs['S_view'][:, comp_mod, 0]
-            shared_text = F.normalize(shared_text, dim=-1)
+                shared_text = outputs['S_view'][:, comp_mod, 0]
+                shared_text = F.normalize(shared_text, dim=-1)
 
-            unique_text = outputs['U'][:, comp_mod, 0]
-            unique_text = F.normalize(unique_text, dim=-1)
+                unique_text = outputs['U'][:, comp_mod, 0]
+                unique_text = F.normalize(unique_text, dim=-1)
 
-            # shared_image_answers: [B, D]
-            shared_image = outputs['S_view'][:, 0, comp_mod]
-            shared_image = F.normalize(shared_image, dim=-1)
+                # shared_image_answers: [B, D]
+                shared_image = outputs['S_view'][:, 0, comp_mod]
+                shared_image = F.normalize(shared_image, dim=-1)
 
-            unique_image = outputs['U'][:, 0, comp_mod]
-            unique_image = F.normalize(unique_image, dim=-1)
+                unique_image = outputs['U'][:, 0, comp_mod]
+                unique_image = F.normalize(unique_image, dim=-1)
 
-                
-            
             
             embeds_all["Images"]["Unique"] += unique_image.cpu().numpy().tolist()
             embeds_all["Images"]["Shared"] += shared_image.cpu().numpy().tolist()

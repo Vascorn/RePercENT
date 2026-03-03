@@ -26,7 +26,7 @@ shared_encoder:
   # ---- gMLP Encoder ----
   type: "gMLP" 
   d_model: [768, 512] # This corresponds to the d_model dimension in the gMLP implementation => token embedding dimension
-  d_ff: [256, 256] # This corresponds to the Feedforward hidden dimension in the gMLP implementation
+  d_ff: [512, 512] # This corresponds to the Feedforward hidden dimension in the gMLP implementation
   proj_h: [[768, 256], [512, 256]] # Projection heads for the shared encoders to ensure output dimensions are the same across layers. Only relevant for gMLP case. In None, defaults to identity projections.
   seq_len: [49, 77] # This corresponds to the sequence length dimension in each gMLP block, and is modality-specific.
   num_layers: [2, 2] # number of gMLP layers per shared encoder
@@ -52,7 +52,7 @@ unique_encoder:
   # ---- gMLP Encoder ----
   type: "gMLP" 
   d_model: [768, 512]
-  d_ff: [256, 256]
+  d_ff: [512, 512]
   proj_h: [[768, 256], [512, 256]] # Projection heads for the unique encoders to ensure output dimensions are the same across layers. Only relevant for gMLP case. In None, defaults to identity projections.
   seq_len: [49, 77]
   num_layers: [2, 2] 

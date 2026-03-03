@@ -6,7 +6,7 @@ import torch.nn as nn
 from typing import Literal, List
 from torch.utils.data import random_split
 import wandb
-from src.models.perceiver import Perceiver
+from src.models.perceiver import Perceiver, PerceiverDisen
 from src.models.repercent import DisenEncoder, RePercENT, DisenLoss
 from src.utils.synthetic_dataset import GenerateData
 from src.utils.helpers import ProbeEvaluator, extract_latents_and_labels, linear_probe, regression_probe, plot_confusion_matrix, plot_pairwise_confusion_matrices
@@ -53,24 +53,45 @@ def make_model(model_config, data_config, modality: int= 2, M: int=2):
     LATENT_DIM= model_config["perceiver"]["latent_dim"]
     NUM_LATENTS= model_config["perceiver"]["num_latents"]
     CROSS_HEADS= model_config["perceiver"]["cross_heads"]
-    LATENT_HEADS= model_config["perceiver"]["latent_heads"]
+    CROSS_HEADS_DIM= model_config["perceiver"].get("cross_heads_dim", LATENT_DIM // CROSS_HEADS)
     POS_ENCODING= model_config["perceiver"]["pos_encoding"]
     WEIGHT_TIE_LAYERS= model_config["perceiver"]["weight_tie_layers"]
 
+    perceiver_type = model_config["perceiver"].get("type", "standard")
     
-    per_m = Perceiver(num_freq_bands= NUM_FREQ_BANDS,
-                        latent_dim= LATENT_DIM,
-                        num_latents= NUM_LATENTS,
-                        depth= DEPTH,
-                        max_freq= MAX_FREQ,
-                        latent_heads= LATENT_HEADS,
-                        cross_heads= CROSS_HEADS,
-                        input_channels= INPUT_CHANNELS,
-                        input_axis= INPUT_AXIS,
-                        fourier_encode_data= POS_ENCODING,
-                        weight_tie_layers= WEIGHT_TIE_LAYERS,
-                        use_moeffn= model_config["perceiver"].get("use_moeffn", False)
-                        )
+    match perceiver_type:
+        case "standard":
+            LATENT_HEADS= model_config["perceiver"]["latent_heads"]
+            LATENT_HEADS_DIM= model_config["perceiver"].get("latent_heads_dim", LATENT_DIM // LATENT_HEADS)
+            per_m = Perceiver(num_freq_bands= NUM_FREQ_BANDS,
+                            latent_dim= LATENT_DIM,
+                            num_latents= NUM_LATENTS,
+                            depth= DEPTH,
+                            max_freq= MAX_FREQ,
+                            latent_heads= LATENT_HEADS,
+                            latent_dim_head= LATENT_HEADS_DIM,
+                            cross_heads= CROSS_HEADS,
+                            cross_dim_head= CROSS_HEADS_DIM,
+                            input_channels= INPUT_CHANNELS,
+                            input_axis= INPUT_AXIS,
+                            fourier_encode_data= POS_ENCODING,
+                            weight_tie_layers= WEIGHT_TIE_LAYERS,
+                            use_moeffn= model_config["perceiver"].get("use_moeffn", False)
+                            )
+        case "disen":
+            per_m = PerceiverDisen(num_freq_bands= NUM_FREQ_BANDS,
+                            latent_dim= LATENT_DIM,
+                            num_latents= NUM_LATENTS,
+                            depth= DEPTH,
+                            max_freq= MAX_FREQ,
+                            cross_heads= CROSS_HEADS,
+                            cross_dim_head= CROSS_HEADS_DIM,
+                            input_channels= INPUT_CHANNELS,
+                            input_axis= INPUT_AXIS,
+                            fourier_encode_data= POS_ENCODING,
+                            weight_tie_layers= WEIGHT_TIE_LAYERS
+                            )
+
     print(f"input channels: {INPUT_CHANNELS}, latent dim: {LATENT_DIM}, num latents: {NUM_LATENTS}")
     disen_m = DisenEncoder(encoder_model= enc_m, perceiver_model= per_m)
 

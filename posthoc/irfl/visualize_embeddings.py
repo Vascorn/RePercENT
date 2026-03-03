@@ -28,7 +28,7 @@ def main():
                                                                                     the similarities between images- captions and images - definitions and then comparing the metrics). \
                                                                                     Note that 2 and 3 is only relevant for the 3-modality setting')
     # Define number of splits and seeds
-    parser.add_argument('--select_seed', type=int, default= 0, help='Select the seed index to visualize (0-based index, should be less than n_seeds)')
+    parser.add_argument('--select_seed', type=int, default= 3, help='Select the seed index to visualize (0-based index, should be less than n_seeds)')
     args = parser.parse_args()
 
     
@@ -68,6 +68,7 @@ def main():
     # define project root for loading checkpoints
     project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
     checkpoint_path = analysis_config[args.model_type]['checkpoints'][args.select_seed]
+    print(f"Loading model from checkpoint: {checkpoint_path}")
     # init device
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -81,7 +82,8 @@ def main():
             disenEncoders = [make_model(model_config, data_config, modality=m + 1, M=data_config["create_data"]["M"]) for m in range(data_config["create_data"]["M"])]
             model = RePercENT(M=data_config["create_data"]["M"],
                             disenEncoder= disenEncoders,
-                            disen_mapping= model_config["repercent"]["disen_mapping"]).to(device)
+                            disen_mapping= model_config["repercent"]["disen_mapping"],
+                            vmfkappa=model_config["repercent"]["vmfkappa"]).to(device)
         case "gmlp":
             model = make_model_jointopt(model_config).to(device)
         case _:
@@ -99,7 +101,7 @@ def main():
     fig_dir = os.path.join(script_dir, "figures/irfl/")
     os.makedirs(fig_dir, exist_ok=True)
     embeddings_all = extract_all_embeddings(model, test_loader, device, M= M, comp_mod= args.comp_mod)
-    plot_embeddings(embeddings_all, method="tsne", f_type= "simile", random_state= args.select_seed, dim= 2, fig_path= os.path.join(fig_dir, f"embeddings_{args.model_type}_seed{args.select_seed}.pdf"))
+    plot_embeddings(embeddings_all, method="tsne", f_type= "all", random_state= args.select_seed, dim= 2, fig_path= os.path.join(fig_dir, f"embeddings_{args.model_type}_seed{args.select_seed}.pdf"))
 
 
 if __name__ == "__main__":

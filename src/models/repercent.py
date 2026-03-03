@@ -181,7 +181,7 @@ class DisenLoss(nn.Module):
         self.critic = SupConLoss()
         self.norm = lambda x: nn.functional.normalize(x, dim=-1)
         self.alpha = alpha
-        self.lmd = lmd
+        self.lmd = lmd if lmd_end_value <= 0 else lmd_start_value
         self.lmd_scheduler = None if lmd_end_value <= 0 else ExponentialScheduler(start_value=lmd_start_value, end_value=lmd_end_value,
                                                              n_iterations=lmd_n_iterations, start_iteration=lmd_start_iteration)
         if self.lmd_scheduler is not None:
@@ -198,18 +198,32 @@ class DisenLoss(nn.Module):
         self.register_buffer("pair_j", self.idx[1])  # (P,)
         self.P = self.idx.shape[1]
 
-    def ortho_loss(self,x, y, norm= True):
+    def ortho_loss(self,x, y, norm= True, ltype: Literal["standard", "cosim", "xcov"] = "xcov", eps: float= 1e-8):
         if norm:
             x = self.norm(x)
             y = self.norm(y)
 
         B, D= x.shape
-        # COSINE SIMIILARITY VERSION
-        # res = torch.matmul(x, y.T)  # (B, B)
-        # res = torch.linalg.norm(res, ord="fro") / B 
-        # Wang VERSION
-        res = torch.matmul(x.T, y)  # (D, D)
-        res = torch.linalg.norm(res, ord="fro") / D  
+
+        match ltype:
+            case "standard":
+                res = torch.matmul(x.T, y)  # (D, D)
+                res = torch.linalg.norm(res, ord="fro")
+            case "cosim":                
+                res = torch.matmul(x, y.T)  # (B, B)    
+                res = torch.linalg.norm(res, ord="fro") / (B + eps)
+            case "xcov":
+                x_centered = x - x.mean(dim=0, keepdim=True)
+                y_centered = y - y.mean(dim=0, keepdim=True)
+
+                x_norm = x_centered / (x_centered.std(dim=0, keepdim=True) + eps)
+                y_norm = y_centered / (y_centered.std(dim=0, keepdim=True) + eps)
+
+                cov = torch.matmul(x_norm.T, y_norm) / (B + eps)  # (D, D)
+                res = torch.linalg.norm(cov, ord="fro") / D
+            case _:
+                raise ValueError(f"Unsupported orthogonality loss type: {ltype}")
+        
         return res
 
     def pairwise_loss(self, outputs, outputs_aug):
@@ -254,8 +268,8 @@ class DisenLoss(nn.Module):
         unique_loss = (unique_loss_xi + unique_loss_xj) / 2
 
         # Calculate orthogonality loss
-        loss_ortho = 0.5 * (self.ortho_loss(u_ij, s_ij_prob) + self.ortho_loss(u_ji, s_ji_prob)) + \
-                     0.5 * (self.ortho_loss(u_ij_aug, s_ij_prob_aug) + self.ortho_loss(u_ji_aug, s_ji_prob_aug))
+        loss_ortho = 0.5 * (self.ortho_loss(u_ij, s_ij) + self.ortho_loss(u_ji, s_ji)) + \
+                     0.5 * (self.ortho_loss(u_ij_aug, s_ij_aug) + self.ortho_loss(u_ji_aug, s_ji_aug))
         # Total loss
         if self.lmd_scheduler is not None:
             self.lmd = self.lmd_scheduler(self.iterations)
