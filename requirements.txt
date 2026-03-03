@@ -2,6 +2,8 @@
 seaborn==0.13.2
 plotly==5.24.1
 ipykernel==6.29.5
+umap-learn==0.5.11
+
 
 # ---- Deep learning (DO NOT pin torch/vision/audio in this container) ----
 # torch              (provided by nvcr.io/nvidia/pytorch:24.01-py3)
