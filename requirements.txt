@@ -2,7 +2,7 @@
 seaborn==0.13.2
 plotly==5.24.1
 ipykernel==6.29.5
-umap-learn==0.5.11
+
 
 
 # ---- Deep learning (DO NOT pin torch/vision/audio in this container) ----
@@ -51,6 +51,7 @@ hydra-core==1.3.2
 numpy==1.26.4
 omegaconf==2.3.0
 Pillow==10.4.0
+umap-learn
 scipy
 tqdm==4.66.5
 wandb==0.17.8
