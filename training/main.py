@@ -85,8 +85,8 @@ def main():
     parser.add_argument('--model_type', type=str, choices=['jointopt', 'repercent'], default='jointopt', help='Type of model to train')
 
     # Define number of splits and seeds
-    parser.add_argument('--k1', type=int, default= 1, help='Number of different train/test splits')
-    parser.add_argument('--k2', type=int, default= 1, help='Number of training seeds per split')
+    parser.add_argument('--k1', type=int, default= 3, help='Number of different train/test splits')
+    parser.add_argument('--k2', type=int, default= 2, help='Number of training seeds per split')
     parser.add_argument('--base_seed', type=int, default=2, help='Base seed for reproducibility')
 
     args = parser.parse_args()
