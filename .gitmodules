@@ -1,6 +1,3 @@
-[submodule "IRFL"]
-	path = IRFL
-	url = https://github.com/irfl-dataset/IRFL
 [submodule "src/models/third_party/g_mlp_repo"]
 	path = src/models/third_party/g_mlp_repo
 	url = https://github.com/jaketae/g-mlp.git

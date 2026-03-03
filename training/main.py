@@ -7,7 +7,7 @@ from torch.utils.data import DataLoader
 from src.utils.synthetic_dataset import GenerateTokenizedData, MultimodalDataset, save_dataset, save_data_split, GeneratePermData, GenerateData
 from src.models.perceiver import Perceiver
 from src.models.repercent import DisenEncoder, RePercENT, DisenLoss
-from src.utils.helpers import set_seed
+from src.utils.helpers import set_seed, extract_latents_and_labels
 from training.train_repercent import split_dataset, make_dataloaders, train, make_model
 from training.log_data import log_model_details, log_model_checkpoint, log_dataset
 from training.train_jointopt_2m import make_model_jointopt
@@ -85,8 +85,8 @@ def main():
     parser.add_argument('--model_type', type=str, choices=['jointopt', 'repercent'], default='jointopt', help='Type of model to train')
 
     # Define number of splits and seeds
-    parser.add_argument('--k1', type=int, default= 3, help='Number of different train/test splits')
-    parser.add_argument('--k2', type=int, default= 2, help='Number of training seeds per split')
+    parser.add_argument('--k1', type=int, default= 1, help='Number of different train/test splits')
+    parser.add_argument('--k2', type=int, default= 1, help='Number of training seeds per split')
     parser.add_argument('--base_seed', type=int, default=2, help='Base seed for reproducibility')
 
     args = parser.parse_args()
@@ -95,7 +95,7 @@ def main():
     script_dir = os.path.dirname(os.path.abspath(__file__))
     
 
-    M = 3  # number of modalities, used for model creation and dataset generation
+    M = 2  # number of modalities, used for model creation and dataset generation
     # Loading configurations for data, model, and training
     data_config_path = os.path.join(script_dir, "..", "configs", "data", f"synthetic_data_{M}m.yaml")
     with open(data_config_path, 'r') as f:
@@ -117,12 +117,12 @@ def main():
         dataset = create_dataset_synth(data_config)
         print(f"Synthetic dataset created with {len(dataset)} samples.")
         if args.save_data:
-            save_path = os.path.join(script_dir, "..", "data", "repercent_synthetic", "dataset23")
+            save_path = os.path.join(script_dir, "..", "data", "repercent_synthetic", "dataset22")
             save_dataset(dataset, save_path, data_config)
 
     else:
         # Load the dataset
-        load_path = os.path.join(script_dir, "..", "data", "repercent_synthetic", "dataset23")
+        load_path = os.path.join(script_dir, "..", "data", "repercent_synthetic", "dataset22")
         dataset = torch.load(os.path.join(load_path, "dataset.pt"), weights_only=False)
 
     group_name = time.strftime("%Y-%m-%d_%H-%M-%S")
@@ -140,7 +140,7 @@ def main():
         if args.save_data_split:
             # save split per split_idx
             print(f"Saving data split {split_idx}...")
-            save_path = os.path.join(script_dir, "..", "data", "repercent_synthetic", "dataset23")
+            save_path = os.path.join(script_dir, "..", "data", "repercent_synthetic", "dataset22")
             save_data_split(train_dataset, test_dataset, save_path, split_id= str(split_idx))
         
 
@@ -189,7 +189,7 @@ def main():
                 lr=training_config["optimizer"]["lr"],
                 weight_decay=training_config["optimizer"]["weight_decay"]
             )
-
+            
             # run key for logging
             run_key = f"split{split_idx}_seed{seed_idx}"
 
@@ -221,7 +221,7 @@ def main():
                     reinit=True, config={"k1": args.k1, "k2": args.k2, "base_seed": args.base_seed, "model_type": args.model_type})
     if args.log_dataset_artifact:
         log_dataset(
-            dataset_name="dataset23",
+            dataset_name="dataset22",
             dataset_path=os.path.join(script_dir, "..", "data", "repercent_synthetic"),
             data_config_path=data_config_path
         )

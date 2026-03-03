@@ -5,23 +5,55 @@ M: 2  # number of modalities
 
 # Use the same model configuration for each modality, except for the positional encoding parameters and input channels which are modality-specific
 shared_encoder:
+  type: "gMLP" 
+  d_model: [64, 64] # This corresponds to the d_model dimension in the gMLP implementation => token embedding dimension
+  d_ff: [64, 64] # This corresponds to the Feedforward hidden dimension in the gMLP implementation
+  proj_h: [[64, 32], [64, 32]] # Projection heads for the shared encoders to ensure output dimensions are the same across layers. Only relevant for gMLP case. In None, defaults to identity projections.
+  seq_len: [8, 8] # This corresponds to the sequence length dimension in each gMLP block, and is modality-specific.
+  num_layers: [2, 2]
+
+
   # the number of shared encoders is M * (M - 1)  -> M -1 shared components per modality
-  type: "MLP" # MLP or GRU
-  input_dims: [512, 512] # For the GRU is the feature dimension per time point, for the MLP is the total feature dimension as the input is flattened
-  hidden_dims: [[64], [64]]
-  latent_dims: [32, 32]
-  num_layers: 1
-  activation: "relu"
+  # type: "GRU"
+  # input_dims: [64, 64]
+  # hidden_dims: [[64], [64]]
+  # latent_dims: [32, 32]
+  # num_layers: 1
+  # activation: "relu"
+
+  # type: "MLP" # MLP or GRU
+  # input_dims: [512, 512] # For the GRU is the feature dimension per time point, for the MLP is the total feature dimension as the input is flattened
+  # hidden_dims: [[64], [64]]
+  # latent_dims: [32, 32]
+  # num_layers: 1
+  # activation: "relu"
 
 
 unique_encoder:
+  type: "gMLP" 
+  d_model: [64, 64] # This corresponds to the d_model dimension in the gMLP implementation => token embedding dimension
+  d_ff: [64, 64] # This corresponds to the Feedforward hidden dimension in the gMLP implementation
+  proj_h: [[64, 32], [64, 32]] # Projection heads for the shared encoders to ensure output dimensions are the same across layers. Only relevant for gMLP case. In None, defaults to identity projections.
+  seq_len: [8, 8] # This corresponds to the sequence length dimension in each gMLP block, and is modality-specific.
+  num_layers: [2, 2]
+
+
+  # type: "GRU"
+  # input_dims: [64, 64]
+  # hidden_dims: [[64], [64]]
+  # latent_dims: [32, 32]
+  # num_layers: 1
+  # activation: "relu"
+
+
+  
   # the number of unique encoders is M * (M - 1) -> M -1 unique components per modality
-  type: "MLP" # MLP or GRU
-  input_dims: [512, 512]
-  hidden_dims: [[64], [64]]
-  latent_dims: [32, 32]
-  num_layers: 1
-  activation: "relu"
+  # type: "MLP" # MLP or GRU
+  # input_dims: [512, 512]
+  # hidden_dims: [[64], [64]]
+  # latent_dims: [32, 32]
+  # num_layers: 1
+  # activation: "relu"
 
 vmfkappa: 800
 add_shared: false
