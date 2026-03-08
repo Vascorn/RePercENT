@@ -9,7 +9,7 @@ import wandb
 from src.models.perceiver import Perceiver, PerceiverDisen
 from src.models.repercent import DisenEncoder, RePercENT, DisenLoss
 from src.utils.synthetic_dataset import GenerateData
-from src.utils.helpers import ProbeEvaluator, extract_latents_and_labels, linear_probe, regression_probe, plot_confusion_matrix, plot_pairwise_confusion_matrices
+from src.utils.helpers import ProbeEvaluator, extract_latents_and_labels, linear_probe, non_linear_probe, regression_probe, plot_confusion_matrix, plot_pairwise_confusion_matrices
 from training.log_data import log_model_checkpoint
 import matplotlib.pyplot as plt
 import numpy as np
@@ -91,6 +91,9 @@ def make_model(model_config, data_config, modality: int= 2, M: int=2):
                             fourier_encode_data= POS_ENCODING,
                             weight_tie_layers= WEIGHT_TIE_LAYERS
                             )
+        
+        case _:
+            raise ValueError(f"Unsupported perceiver type: {perceiver_type}")
 
     print(f"input channels: {INPUT_CHANNELS}, latent dim: {LATENT_DIM}, num latents: {NUM_LATENTS}")
     disen_m = DisenEncoder(encoder_model= enc_m, perceiver_model= per_m)
@@ -175,7 +178,9 @@ def train(train_loader, val_loader, model, optimizer, disen_loss, epochs, device
     pairs = list(combinations(range(M), 2))
     
     evaluator = ProbeEvaluator(linear_probe= linear_probe, regression_probe= regression_probe)
-    
+
+    best_fw_val_loss = float('inf')
+    best_model_state = None
     for _iter in range(epochs):
         # Initialize epoch loss trackers
         epoch_loss = 0.0
@@ -242,7 +247,11 @@ def train(train_loader, val_loader, model, optimizer, disen_loss, epochs, device
         print(f"Training  Loss: {avg_epoch_loss:.5f} | Ortho: {avg_ortho_loss:.5f} | Unique: {avg_unique_loss:.5f} | Shared: {avg_shared_loss:.5f} | Lmd: {disen_loss.lmd:.6f}, alpha: {disen_loss.alpha:.6f}")
         print(f"Testing  Loss: {avg_epoch_loss_val:.5f} | Ortho: {avg_ortho_loss_val:.5f} | Unique: {avg_unique_loss_val:.5f} | Shared: {avg_shared_loss_val:.5f} | Fixed Weight Loss: {avg_fw_loss_val:.5f}")
         
-        
+        if avg_fw_loss_val < best_fw_val_loss:
+            print(f"New best model found at epoch {_iter + 1} with validation fixed weight loss: {avg_fw_loss_val:.5f} (previous best: {best_fw_val_loss:.5f})")
+            best_fw_val_loss = avg_fw_loss_val
+            best_model_state = copy.deepcopy(model.state_dict())
+
         # Log metrics to WandB
         wandb.log({
             "train/loss": avg_epoch_loss,
@@ -266,7 +275,7 @@ def train(train_loader, val_loader, model, optimizer, disen_loss, epochs, device
             # Create the state dictionary
             checkpoint = {
                 'epoch': _iter + 1,
-                'model_state_dict': model.state_dict(),
+                'model_state_dict': model.state_dict() if (_iter + 1) < epochs else best_model_state, # save the best model at the end
                 'optimizer_state_dict': optimizer.state_dict()
             }
             
@@ -278,7 +287,7 @@ def train(train_loader, val_loader, model, optimizer, disen_loss, epochs, device
         
         # Save final metrics:
         if (_iter + 1) == epochs:
-            model.load_state_dict(model.state_dict())
+            model.load_state_dict(best_model_state)
             # Evaluate linear probe accuracy
             print(f"Evaluating linear and regression probes on train and validation data...")
             train_data_dict = extract_latents_and_labels(model, train_loader, device)
@@ -288,19 +297,23 @@ def train(train_loader, val_loader, model, optimizer, disen_loss, epochs, device
                 components = list(train_data_dict['Labels_U'].keys()) + list(train_data_dict['Labels_S'].keys())
 
             evaluator.set_data(train_data_dict= train_data_dict, val_data_dict= val_data_dict, M= M)
+            
             linear_results = evaluator.calculate_linear_probe()
             reg_results = evaluator.calculate_reg_probe()
 
             metrics_summary = evaluator.mean_metrics(linear_results, reg_results, M= M)
-
+            
+            
             print("Evaluation complete!")
-            # Log the complete confusion matrix for each epoch
-            wandb.log({"confusion_matrix": wandb.Image(plot_confusion_matrix(linear_results["acc"], components= components, labels= components))})
-            # Log the pairwise confusion matrices, i.e. M* (M -1)/ 2 matrices for M modalities
-            wandb.log({"pairwise_confusion_matrices": wandb.Image(plot_pairwise_confusion_matrices(linear_probe_acc= linear_results["acc"], \
+            # Log the complete confusion matrix for each epoch (linear)
+            wandb.log({"linear_confusion_matrix": wandb.Image(plot_confusion_matrix(linear_results["acc"], components= components, labels= components))})
+            
+
+            # Log the pairwise confusion matrices (linear), i.e. M* (M -1)/ 2 matrices for M modalities
+            wandb.log({"linear_pairwise_confusion_matrices": wandb.Image(plot_pairwise_confusion_matrices(linear_probe_acc= linear_results["acc"], \
                                                                                         M= M, \
                                                                                         components= components, \
-                                                                                        pairs= pairs))})    
+                                                                                        pairs= pairs))})
             # Log final metrics table
             table = wandb.Table(columns=["metric", "value"])
             for k, v in metrics_summary.items():

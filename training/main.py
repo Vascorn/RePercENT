@@ -79,7 +79,7 @@ def aggregate_and_log(all_final_metrics: list):
 def main():
     parser = argparse.ArgumentParser(description="Train RePercENT or Jointopt model on synthetic data")
     parser.add_argument('--save_data', type=bool, default=False, help='Whether to save the generated synthetic dataset')
-    parser.add_argument('--save_data_split', type=bool, default=False)
+    parser.add_argument('--save_data_split', type=bool, default=True)
     parser.add_argument('--load_data', type=bool, default=True)
     parser.add_argument('--log_dataset_artifact', type=bool, default=False)
     parser.add_argument('--model_type', type=str, choices=['jointopt', 'repercent'], default='jointopt', help='Type of model to train')
@@ -95,7 +95,7 @@ def main():
     script_dir = os.path.dirname(os.path.abspath(__file__))
     
 
-    M = 2  # number of modalities, used for model creation and dataset generation
+    M = 3 # number of modalities, used for model creation and dataset generation
     # Loading configurations for data, model, and training
     data_config_path = os.path.join(script_dir, "..", "configs", "data", f"synthetic_data_{M}m.yaml")
     with open(data_config_path, 'r') as f:
@@ -117,12 +117,12 @@ def main():
         dataset = create_dataset_synth(data_config)
         print(f"Synthetic dataset created with {len(dataset)} samples.")
         if args.save_data:
-            save_path = os.path.join(script_dir, "..", "data", "repercent_synthetic", "dataset22")
+            save_path = os.path.join(script_dir, "..", "data", "repercent_synthetic", "dataset23")
             save_dataset(dataset, save_path, data_config)
 
     else:
         # Load the dataset
-        load_path = os.path.join(script_dir, "..", "data", "repercent_synthetic", "dataset22")
+        load_path = os.path.join(script_dir, "..", "data", "repercent_synthetic", "dataset23")
         dataset = torch.load(os.path.join(load_path, "dataset.pt"), weights_only=False)
 
     group_name = time.strftime("%Y-%m-%d_%H-%M-%S")
@@ -140,9 +140,9 @@ def main():
         if args.save_data_split:
             # save split per split_idx
             print(f"Saving data split {split_idx}...")
-            save_path = os.path.join(script_dir, "..", "data", "repercent_synthetic", "dataset22")
+            save_path = os.path.join(script_dir, "..", "data", "repercent_synthetic", "dataset23")
             save_data_split(train_dataset, test_dataset, save_path, split_id= str(split_idx))
-        
+        continue
 
         # Seeds per split - model initialization and training
         for seed_idx in range(args.k2):
@@ -154,7 +154,7 @@ def main():
 
             # Initialize wandb run and log hyperparameters
             run = wandb.init(
-                project=data_config["wandb"]["project"],
+                project=model_config["wandb"]["project"],
                 group=group_name,
                 name=f"{group_name}_split_{split_idx}_seed_{seed_idx}",
                 config={
@@ -214,14 +214,14 @@ def main():
             })
             wandb.finish()
     
-
+    return
     # global summary run
-    run = wandb.init(project= data_config["wandb"]["project"], 
-                    group=group_name, name= f"aggregate_{args.model_type}", 
+    run = wandb.init(project= model_config["wandb"]["project"], 
+                    group=group_name, name= f"aggregate_{args.model_type}" if args.model_type == "repercent" else f"aggregate_{model_config['shared_encoder']['type']}", 
                     reinit=True, config={"k1": args.k1, "k2": args.k2, "base_seed": args.base_seed, "model_type": args.model_type})
     if args.log_dataset_artifact:
         log_dataset(
-            dataset_name="dataset22",
+            dataset_name="dataset24",
             dataset_path=os.path.join(script_dir, "..", "data", "repercent_synthetic"),
             data_config_path=data_config_path
         )

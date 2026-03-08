@@ -1,0 +1,38 @@
+andb:
+  project: "synthetic-moe-4M"
+
+
+# Choose RePercENT checkpoints for evaluation
+repercent:
+  checkpoints:
+    - "./checkpoints/synthetic/2026-03-02_19-01-45_synthetic_repercent_seeds_5_seed_4/seed4/final_checkpoint.pt"
+    - "./checkpoints/synthetic/2026-03-02_19-01-45_synthetic_repercent_seeds_5_seed_3/seed3/final_checkpoint.pt"
+    - "./checkpoints/synthetic/2026-03-02_19-01-45_synthetic_repercent_seeds_5_seed_2/seed2/final_checkpoint.pt"
+    - "./checkpoints/synthetic/2026-03-02_19-01-45_synthetic_repercent_seeds_5_seed_1/seed1/final_checkpoint.pt"
+    - "./checkpoints/synthetic/2026-03-02_19-01-45_synthetic_repercent_seeds_5_seed_0/seed0/final_checkpoint.pt"
+
+
+# Choose baseline checkpoints for evaluation
+baselines:
+  gmlp:
+    checkpoints:
+      - "./checkpoints/synthetic/2026-03-02_19-17-44_synthetic_gmlp_seeds_5_seed_4/seed4/final_checkpoint.pt"
+      - "./checkpoints/synthetic/2026-03-02_19-17-44_synthetic_gmlp_seeds_5_seed_3/seed3/final_checkpoint.pt"
+      - "./checkpoints/synthetic/2026-03-02_19-17-44_synthetic_gmlp_seeds_5_seed_2/seed2/final_checkpoint.pt"
+      - "./checkpoints/synthetic/2026-03-02_19-17-44_synthetic_gmlp_seeds_5_seed_1/seed1/final_checkpoint.pt"
+      - "./checkpoints/synthetic/2026-03-02_19-17-44_synthetic_gmlp_seeds_5_seed_0/seed0/final_checkpoint.pt"
+  
+  gru:
+    checkpoints:
+      - "./checkpoints/synthetic/2026-03-02_19-33-44_synthetic_gru_seeds_5_seed_4/seed4/final_checkpoint.pt"
+      - "./checkpoints/synthetic/2026-03-02_19-33-44_synthetic_gru_seeds_5_seed_3/seed3/final_checkpoint.pt"
+      - "./checkpoints/synthetic/2026-03-02_19-33-44_synthetic_gru_seeds_5_seed_2/seed2/final_checkpoint.pt"
+      - "./checkpoints/synthetic/2026-03-02_19-33-44_synthetic_gru_seeds_5_seed_1/seed1/final_checkpoint.pt"
+      - "./checkpoints/synthetic/2026-03-02_19-33-44_synthetic_gru_seeds_5_seed_0/seed0/final_checkpoint.pt"
+  mlp:
+    checkpoints:
+      - "./checkpoints/synthetic/2026-03-02_19-49-44_synthetic_mlp_seeds_5_seed_4/seed4/final_checkpoint.pt"
+      - "./checkpoints/synthetic/2026-03-02_19-49-44_synthetic_mlp_seeds_5_seed_3/seed3/final_checkpoint.pt"
+      - "./checkpoints/synthetic/2026-03-02_19-49-44_synthetic_mlp_seeds_5_seed_2/seed2/final_checkpoint.pt"
+      - "./checkpoints/synthetic/2026-03-02_19-49-44_synthetic_mlp_seeds_5_seed_1/seed1/final_checkpoint.pt"
+      - "./checkpoints/synthetic/2026-03-02_19-49-44_synthetic_mlp_seeds_5_seed_0/seed0/final_checkpoint.pt"

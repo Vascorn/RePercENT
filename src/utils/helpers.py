@@ -14,10 +14,12 @@ from sklearn.metrics import matthews_corrcoef
 from sklearn.metrics import f1_score, recall_score
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_squared_error, mean_absolute_error
+from sklearn.decomposition import PCA
 import re
 from typing import Any, Callable, Dict, Optional, Tuple
 from dataclasses import dataclass, field
 import random
+from itertools import combinations
 
 def set_seed(seed: int):
     # Python & NumPy
@@ -117,6 +119,7 @@ def plot_pairwise_confusion_matrices(linear_probe_acc, M, components: List= ['u_
     return fig
 
 
+
 def linear_probe(train_data, train_labels, test_data, test_labels):
     # Train logistic regression
     clf = LogisticRegression(max_iter= 10000)
@@ -130,34 +133,94 @@ def linear_probe(train_data, train_labels, test_data, test_labels):
     recall = recall_score(test_labels, labels_pred, average='weighted')
     return {"acc": acc, "mcc": mcc, "f1": f1, "recall": recall, "predicted": labels_pred, "true_labels": test_labels}
 
-def non_linear_probe(train_data, train_labels, test_data, test_labels):
-
+def non_linear_probe(train_data, train_labels, test_data, test_labels, 
+                     hidden_dims=(64, 64), lr=1e-3, num_epochs=200, 
+                     batch_size=256, early_stopping_patience=20, device=None):
+    """
+    Train an MLP classifier probe on the learned representations.
+    
+    Args:
+        train_data: Training features (N, D)
+        train_labels: Training labels (N,)
+        test_data: Test features (N, D)
+        test_labels: Test labels (N,)
+        hidden_dims: Tuple of hidden layer dimensions
+        lr: Learning rate
+        num_epochs: Maximum number of training epochs
+        batch_size: Batch size for training
+        early_stopping_patience: Stop if val loss doesn't improve for this many epochs
+        device: Device to run on (defaults to cuda if available)
+    
+    Returns:
+        Dictionary with acc, mcc, f1, recall, predicted, true_labels
+    """
+    if device is None:
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    
     input_dim = train_data.shape[1]
- 
     output_dim = len(np.unique(train_labels))
 
-    model = nn.Sequential(
-        nn.Linear(input_dim, output_dim),
-        nn.ReLU())
+    # Build MLP
+    layers = []
+    prev_dim = input_dim
+    for hidden_dim in hidden_dims:
+        layers.extend([
+            nn.Linear(prev_dim, hidden_dim),
+            nn.BatchNorm1d(hidden_dim),
+            nn.ReLU(),
+            nn.Dropout(0.1)
+        ])
+        prev_dim = hidden_dim
+    layers.append(nn.Linear(prev_dim, output_dim))
+    
+    model = nn.Sequential(*layers).to(device)
 
-    criterion = torch.nn.CrossEntropyLoss()
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.1)
+    criterion = nn.CrossEntropyLoss()
+    optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=1e-4)
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=10)
 
     # Convert data to PyTorch tensors
-    train_data_tensor = torch.FloatTensor(train_data)
-    train_labels_tensor = torch.LongTensor(train_labels)
-    test_data_tensor = torch.FloatTensor(test_data)
-    test_labels_tensor = torch.LongTensor(test_labels)
+    train_data_tensor = torch.FloatTensor(train_data).to(device)
+    train_labels_tensor = torch.LongTensor(train_labels).to(device)
+    test_data_tensor = torch.FloatTensor(test_data).to(device)
+    test_labels_tensor = torch.LongTensor(test_labels).to(device)
 
-    # Training loop
-    num_epochs = 200
+    # Create DataLoader for batched training
+    train_dataset = torch.utils.data.TensorDataset(train_data_tensor, train_labels_tensor)
+    train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+
+    # Training loop with early stopping
+    best_loss = float('inf')
+    patience_counter = 0
+    best_state = None
+    
     for epoch in range(num_epochs):
         model.train()
-        optimizer.zero_grad()
-        outputs = model(train_data_tensor)
-        loss = criterion(outputs, train_labels_tensor)
-        loss.backward()
-        optimizer.step()
+        epoch_loss = 0.0
+        for batch_data, batch_labels in train_loader:
+            optimizer.zero_grad()
+            outputs = model(batch_data)
+            loss = criterion(outputs, batch_labels)
+            loss.backward()
+            optimizer.step()
+            epoch_loss += loss.item()
+        
+        avg_loss = epoch_loss / len(train_loader)
+        scheduler.step(avg_loss)
+        
+        # Early stopping check
+        if avg_loss < best_loss:
+            best_loss = avg_loss
+            patience_counter = 0
+            best_state = {k: v.cpu().clone() for k, v in model.state_dict().items()}
+        else:
+            patience_counter += 1
+            if patience_counter >= early_stopping_patience:
+                break
+    
+    # Load best model
+    if best_state is not None:
+        model.load_state_dict({k: v.to(device) for k, v in best_state.items()})
 
     # Evaluation
     model.eval()
@@ -167,11 +230,15 @@ def non_linear_probe(train_data, train_labels, test_data, test_labels):
         total = test_labels_tensor.size(0)
         correct = (predicted == test_labels_tensor).sum().item()
         acc = (correct / total) * 100  # Convert to percentage
-        mcc = matthews_corrcoef(test_labels_tensor.cpu(), predicted.cpu())
-        f1 = f1_score(test_labels_tensor.cpu(), predicted.cpu(), average='weighted')
-        recall = recall_score(test_labels_tensor.cpu(), predicted.cpu(), average='weighted')
+        
+        pred_cpu = predicted.cpu().numpy()
+        labels_cpu = test_labels_tensor.cpu().numpy()
+        
+        mcc = matthews_corrcoef(labels_cpu, pred_cpu)
+        f1 = f1_score(labels_cpu, pred_cpu, average='weighted')
+        recall = recall_score(labels_cpu, pred_cpu, average='weighted')
 
-    return {"acc": acc, "mcc": mcc, "f1": f1, "recall": recall, "predicted": predicted.cpu().numpy(), "true_labels": test_labels_tensor.cpu().numpy()}
+    return {"acc": acc, "mcc": mcc, "f1": f1, "recall": recall, "predicted": pred_cpu, "true_labels": labels_cpu}
 
 
 def regression_probe(train_data, train_labels, test_data, test_labels):

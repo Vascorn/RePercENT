@@ -5,20 +5,59 @@ M: 4  # number of modalities
 
 # Use the same model configuration for each modality, except for the positional encoding parameters and input channels which are modality-specific
 shared_encoder:
-  # 5 * (16 + 16)), because each modality has 5 time points and latent dimension 32 (16 for pairwise unique + 16 for pariwise shared)
   # the number of shared encoders is M * (M - 1)  -> M -1 shared components per modality
-  input_dims: [512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512]
-  hidden_dims: [[56], [56], [56], [56], [56], [56], [56], [56], [56], [56], [56], [56]]
-  latent_dims: [16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16]
+
+  # --- gMLP ----
+  # type: "gMLP" # mlp, gru or gMLP
+  # d_model: [64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64] # For the GRU is the feature dimension per time point, for the MLP is the total feature dimension as the input is flattened
+  # d_ff: [64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64]
+  # proj_h: [[64, 32], [64, 32], [64, 32], [64, 32], [64, 32], [64, 32], [64, 32], [64, 32], [64, 32], [64, 32], [64, 32], [64, 32]] # Projection heads for the shared encoders to
+  # seq_len: [8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8] # This corresponds to the sequence length dimension in each gMLP block, and is modality-specific.
+  # num_layers: [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2]
+
+  # ---- GRU Encoder ----
+  # type: "GRU" # mlp or gru
+  # input_dims: [64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64] # For the GRU is the feature dimension per time point, for the MLP is the total feature dimension as the input is flattened
+  # hidden_dims: [[64], [64], [64], [64], [64], [64], [64], [64], [64], [64], [64], [64]]
+  # latent_dims: [32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32]
+  # num_layers: 1
+  # activation: "relu"
+
+  # ---- MLP Encoder ----
+  type: "MLP" # mlp or gru
+  input_dims: [512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512] # For the GRU is the feature dimension per time point, for the MLP is the total feature dimension as the input is flattened
+  hidden_dims: [[64], [64], [64], [64], [64], [64], [64], [64], [64], [64], [64], [64]]
+  latent_dims: [32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32]
   activation: "relu"
+
 
 
 unique_encoder:
+  # --- gMLP ----
+  # type: "gMLP" # mlp, gru or gMLP
+  # d_model: [64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64] # For the GRU is the feature dimension per time point, for the MLP is the total feature dimension as the input is flattened
+  # d_ff: [64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64]
+  # proj_h: [[64, 32], [64, 32], [64, 32], [64, 32], [64, 32], [64, 32], [64, 32], [64, 32], [64, 32], [64, 32], [64, 32], [64, 32]] # Projection heads for the shared encoders to
+  # seq_len: [8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8] # This corresponds to the sequence length dimension in each gMLP block, and is modality-specific.
+  # num_layers: [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2]
+
+
   # the number of unique encoders is M * (M - 1) -> M -1 unique components per modality
+  # ---- GRU Encoder ----
+  # type: "GRU" # mlp or gru
+  # input_dims: [64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64]
+  # hidden_dims: [[64], [64], [64], [64], [64], [64], [64], [64], [64], [64], [64], [64]]
+  # latent_dims: [32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32]
+  # num_layers: 1
+  # activation: "relu"
+
+
+  # ---- MLP Encoder ----
+  type: "MLP" # mlp or gru
   input_dims: [512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512]
-  hidden_dims: [[56], [56], [56], [56], [56], [56], [56], [56], [56], [56], [56], [56]]
-  latent_dims: [16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16]
+  hidden_dims: [[64], [64], [64], [64], [64], [64], [64], [64], [64], [64], [64], [64]]
+  latent_dims: [32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32]
   activation: "relu"
 
-vmfkappa: 1000
+vmfkappa: 800
 add_shared: false

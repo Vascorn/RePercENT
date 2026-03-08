@@ -3,15 +3,16 @@ wandb:
 
 # Use the same model configuration for each modality, except for the positional encoding parameters and input channels which are modality-specific
 perceiver: 
-  type: "disen"    
-  depth: 4 # Number of layers in the Perceiver model
+  type: "standard"    
+  depth: 3 # Number of layers in the Perceiver model
   max_freq: null
   num_freq_bands: null
   input_channels: [64, 64, 64]
   input_axis: 1
   num_latents: 4 # Number of latent vectors, i.e. the number of disentangled factors to extract from each modality
   cross_heads: 2
-  pos_encoding: true
+  pos_encoding: false
+  latent_heads: 2
   latent_dim: 32 # The dimension of each latent vector
   weight_tie_layers: false
   use_moeffn: false # default is false, use this to enable Mixture of Experts Feedforward layers after the self-attention layers

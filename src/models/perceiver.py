@@ -428,7 +428,8 @@ class Perceiver(nn.Module):
         self,
         data,
         mask = None,
-        return_embeddings = False
+        return_embeddings = False,
+        pos_enc = None
         ):
         b, *axis, _, device, dtype = *data.shape, data.device, data.dtype
         
@@ -449,6 +450,10 @@ class Perceiver(nn.Module):
         data = rearrange(data, 'b ... d -> b (...) d')
 
         x = repeat(self.latents, 'n d -> b n d', b = b)
+        
+        # Add positional encodings to latents if provided
+        if pos_enc is not None:
+            x = x + pos_enc.unsqueeze(0)  # pos_enc: (num_latents, latent_dim)
         
         b = x.shape[0]
         # atten_mask_keep = torch.tensor([
@@ -477,6 +482,106 @@ class Perceiver(nn.Module):
         # to logits
 
         return self.to_logits(x)
+
+
+
+class SlotAttention(nn.Module):
+    """
+    Supports:
+      - standard attention: softmax over keys (dim=-1)
+      - competitive attention: softmax over queries (dim=-2)  (Slot Attention-style)
+      - grouped competitive attention: softmax over queries within groups (conditional competition)
+    """
+    def __init__(self, query_dim, context_dim=None, heads=8, dim_head=64, dropout=0.):
+        super().__init__()
+        inner_dim = dim_head * heads
+        context_dim = default(context_dim, query_dim)
+
+        self.scale = dim_head ** -0.5
+        self.heads = heads
+
+        self.to_q = nn.Linear(query_dim, inner_dim, bias=False)
+        self.to_kv = nn.Linear(context_dim, inner_dim * 2, bias=False)
+
+        self.dropout = nn.Dropout(dropout)
+        self.to_out = nn.Linear(inner_dim, query_dim)
+
+    @staticmethod
+    def _apply_mask_to_sim(sim, mask, h):
+        # mask is assumed to be (b, j) over context length j
+        mask = rearrange(mask, 'b ... -> b (...)')
+        max_neg_value = -torch.finfo(sim.dtype).max
+        mask = repeat(mask, 'b j -> (b h) () j', h=h)
+        sim = sim.masked_fill(~mask, max_neg_value)
+        return sim
+
+    @staticmethod
+    def _grouped_softmax_over_queries(sim, group_size: int):
+        """
+        sim: (bh, i, j)
+        Apply softmax over i (queries) within groups of size group_size.
+        This assumes queries are laid out as [g0 slots..., g1 slots..., ...] contiguously.
+        """
+        bh, i, j = sim.shape
+        assert i % group_size == 0, f"query length i={i} must be divisible by group_size={group_size}"
+        g = i // group_size
+        sim_g = sim.view(bh, g, group_size, j)            # (bh, groups, group_size, j)
+        attn_g = sim_g.softmax(dim=2)                     # compete within group over queries
+        return attn_g.view(bh, i, j)
+
+    def forward(
+        self,
+        x,
+        context=None,
+        mask=None,
+        *,
+        group_size: int | None = None,
+        slot_norm_eps: float = 1e-6,
+        renorm_over_keys: bool = True,
+    ):
+        """
+        Args:
+          x:      (b, i, query_dim)   queries (e.g., slots)
+          context:(b, j, context_dim) keys/values (e.g., tokens)
+          mask:   (b, j) True=keep, False=mask out keys
+
+
+          group_size:
+            required for "grouped_competitive"
+            example: group_size=2 for per-pair {U_ij, S_ij}
+
+          renorm_over_keys:
+            if True, after competitive softmax we renormalize across keys (dim=-1)
+            like Slot Attention: competition first, then normalize per slot for readout.
+        """
+        h = self.heads
+
+        q = self.to_q(x)
+        context = default(context, x)
+        k, v = self.to_kv(context).chunk(2, dim=-1)
+
+        # (b, n, h*d) -> (b*h, n, d)
+        q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> (b h) n d', h=h), (q, k, v))
+
+        sim = einsum('b i d, b j d -> b i j', q, k) * self.scale  # (bh, i, j)
+
+        if exists(mask):
+            sim = self._apply_mask_to_sim(sim, mask, h)
+
+        
+        assert group_size is not None and group_size >= 1, "group_size must be set"
+
+        attn = self._grouped_softmax_over_queries(sim, group_size=group_size)
+
+        if renorm_over_keys:
+            attn = attn / (attn.sum(dim=-1, keepdim=True) + slot_norm_eps)
+
+
+        attn = self.dropout(attn)
+
+        out = einsum('b i j, b j d -> b i d', attn, v)
+        out = rearrange(out, '(b h) n d -> b n (h d)', h=h)
+        return self.to_out(out)
 
 
 # Modification of the Perceiver class to use Mixture of Experts FeedForward layers for the latent blocks, with a schedule for top_k and gate dropout to encourage expert specialization in later layers.
@@ -551,15 +656,15 @@ class PerceiverDisen(nn.Module):
         
         self.latents = nn.Parameter(torch.randn(num_latents, latent_dim))
 
+        self.group_size = 2  # for SlotAttention-style grouped competitive attention, 2 because we want the pair of latents (U_ij, S_ij) to compete with each other
+        get_cross_attn = lambda: PreNorm(latent_dim, SlotAttention(latent_dim, input_dim, heads = cross_heads, dim_head = cross_dim_head, dropout = attn_dropout), context_dim = input_dim)
         
-        get_cross_attn = lambda: PreNorm(latent_dim, Attention(latent_dim, input_dim, heads = cross_heads, dim_head = cross_dim_head, dropout = attn_dropout), context_dim = input_dim)
-        get_cross_ff_first = lambda: PreNorm(latent_dim, FeedForward(latent_dim, dropout = ff_dropout))
         
         self.num_experts = num_latents
 
         if deterministic_moeffn:
             print(f'Initializing Perceiver Disen with deterministic Expert FeedForward layers with {num_latents} experts.')
-            get_cross_ff_rest = lambda: PreNorm(
+            get_cross_ff = lambda: PreNorm(
                             latent_dim, 
                             PerCompFeedForward(latent_dim,
                                     num_components= self.num_experts,
@@ -570,7 +675,7 @@ class PerceiverDisen(nn.Module):
                             )
         else:
             print(f'Initializing Perceiver Disen with Mixture of Experts FeedForward layers with {num_latents} experts.')
-            get_cross_ff_rest = lambda top_k= 1, temp=1.0, gate_do=0.0: PreNorm(
+            get_cross_ff = lambda top_k= 1, temp=1.0, gate_do=0.0: PreNorm(
                                 latent_dim, 
                                 MoEFeedForward(latent_dim,
                                         num_experts= self.num_experts,
@@ -581,7 +686,7 @@ class PerceiverDisen(nn.Module):
                                     )
                                 )
 
-        get_cross_attn, get_cross_ff_first, get_cross_ff_rest = map(cache_fn, (get_cross_attn, get_cross_ff_first, get_cross_ff_rest))
+        get_cross_attn, get_cross_ff = map(cache_fn, (get_cross_attn, get_cross_ff))
 
         self.layers = nn.ModuleList([])
         for i in range(depth):
@@ -589,12 +694,13 @@ class PerceiverDisen(nn.Module):
             cache_args = {'_cache': should_cache}
             
 
-            if i > 0 and deterministic_moeffn:
+            if deterministic_moeffn:
+                print(f'Using deterministic per-component FFN in the last layer to encourage specialization of latents in the last layer.')
                 self.layers.append(nn.ModuleList([
                     get_cross_attn(**cache_args),
-                    get_cross_ff_rest(**cache_args)
+                    get_cross_ff(**cache_args)
                 ]))
-            elif i > 0 and not deterministic_moeffn:
+            else:
                 # schedule: soft early -> hard late
                 frac = i / max(depth - 1, 1)
                 late = frac >= 0.6
@@ -606,21 +712,15 @@ class PerceiverDisen(nn.Module):
 
                 self.layers.append(nn.ModuleList([
                     get_cross_attn(**cache_args),
-                    get_cross_ff_rest(top_k=ff_top_k, temp=ff_temp, gate_do=ff_gdo, **cache_args)
+                    get_cross_ff(top_k=ff_top_k, temp=ff_temp, gate_do=ff_gdo, **cache_args)
                 ]))
-                
-            else:
-                self.layers.append(nn.ModuleList([
-                    get_cross_attn(**cache_args),
-                    get_cross_ff_first(**cache_args)
-                ]))
-
 
     def forward(
         self,
         data,
         mask = None,
-        return_embeddings = False
+        return_embeddings = False,
+        pos_enc = None
         ):
         b, *axis, _, device, dtype = *data.shape, data.device, data.dtype
         
@@ -640,14 +740,17 @@ class PerceiverDisen(nn.Module):
         # concat to channels of data and flatten axis
         data = rearrange(data, 'b ... d -> b (...) d')
 
+    
         x = repeat(self.latents, 'n d -> b n d', b = b)
         
-        b = x.shape[0]
-        
+        # Add positional encodings to latents if provided
+        if pos_enc is not None:
+            x = x + pos_enc.unsqueeze(0)  # pos_enc: (num_latents, latent_dim)
 
+        
         # layers
         for cross_attn, cross_ff in self.layers:
-            x = cross_attn(x, context = data, mask = mask) + x
+            x = cross_attn(x, context = data, mask = mask, group_size = self.group_size) + x
             x = cross_ff(x) + x
         
         return x

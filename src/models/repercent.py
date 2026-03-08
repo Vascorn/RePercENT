@@ -48,9 +48,9 @@ class DisenEncoder(nn.Module):
         self.perceiver = perceiver_model
 
 
-    def forward(self, x, mask= None):
+    def forward(self, x, mask= None, pos_enc= None):
         Z = self.encoder(x)  # Encode input data Xi to get latent representation Z
-        out = self.perceiver(Z, mask= mask)  # Pass latent representation through Perceiver to extract the disentangled features
+        out = self.perceiver(Z, mask= mask, pos_enc= pos_enc)  # Pass latent representation through Perceiver to extract the disentangled features
         return out
 
     
@@ -58,7 +58,7 @@ class RePercENT(nn.Module):
     def __init__(self, M: int = 2, disenEncoder: List[DisenEncoder] = None, \
         disenDecoder: List[nn.Module] = None, \
         disen_mapping: dict[int, dict] = {'M_1': {'U_12': 0, 'S_12': 1}, 'M_2': {'U_21': 0, 'S_21': 1}},
-        vmfkappa: float= 1e3) -> None:
+        vmfkappa: float= 1e3, add_pos_encoding: bool = True) -> None:
         '''
         RePercENT model for multi-modal representation learning with disentangled factors.
         Args:
@@ -70,6 +70,7 @@ class RePercENT(nn.Module):
                                 factors (e.g., 'U_12' -> unique component of modality 1 with respect to modality 2, 'S_12' -> shared component between modality 1 and 2, etc.) 
                                 to their respective indices in the output tensor of the corresponding DisenEncoder.
             vmfkappa (float): Concentration parameter for the vMF distribution in the probabilistic encoder heads. Default is 1e3.
+            add_pos_encoding (bool): Whether to add learnable positional encodings to the outputs of the Perceiver encoders before extracting the disentangled factors. Default is True.
         '''
 
         super().__init__()
@@ -105,10 +106,48 @@ class RePercENT(nn.Module):
 
         self.norm = lambda x: nn.functional.normalize(x, dim=-1)
 
-        # indices for all unordered pairs i<j (0-based)
-        idx = torch.triu_indices(self.M, self.M, offset=1)  # (2, P)
-        self.register_buffer("pair_i", idx[0])  # (P,)
-        self.register_buffer("pair_j", idx[1])  # (P,)
+        
+        # ========== Positional Encodings ==========
+        self.add_pos_encoding = add_pos_encoding
+        if self.add_pos_encoding:
+            # Build mapping from ordered pairs (i,j) to unique indices (1-based modality indices)
+            pair_to_idx = {}
+            pair_idx = 0
+            for i in range(1, M + 1):
+                for j in range(1, M + 1):
+                    if i != j:
+                        pair_to_idx[(i, j)] = pair_idx
+                        pair_idx += 1
+            num_pairs = len(pair_to_idx)  # M * (M - 1)
+
+            # Learnable positional encodings
+            self.pair_pos_enc = nn.Parameter(torch.randn(num_pairs, self.latent_dim) * 0.02)
+            self.type_pos_enc = nn.Parameter(torch.randn(2, self.latent_dim) * 0.02)  # 0: U (unique), 1: S (shared)
+
+
+            # indices for all unordered pairs i<j (0-based)
+            idx = torch.triu_indices(self.M, self.M, offset=1)  # (2, P)
+            self.register_buffer("pair_i", idx[0])  # (P,)
+            self.register_buffer("pair_j", idx[1])  # (P,)
+
+        # Pre-compute index buffers for each modality following disen_mapping order
+        for m in range(1, M + 1):
+            mapping = disen_mapping[f"M_{m}"]
+            seq_len = len(mapping)
+            p_idx = torch.zeros(seq_len, dtype=torch.long)
+            t_idx = torch.zeros(seq_len, dtype=torch.long)
+
+            for comp_name, pos in mapping.items():
+                comp_type = comp_name[0]  # 'U' or 'S'
+                # Extract i and j from component name (e.g., "U_12" -> i=1, j=2)
+                pair_str = comp_name.split('_')[1]  # "12"
+                i_comp, j_comp = int(pair_str[0]), int(pair_str[1])
+
+                p_idx[pos] = pair_to_idx[(i_comp, j_comp)]
+                t_idx[pos] = 0 if comp_type == 'U' else 1
+
+            self.register_buffer(f"pair_idx_m{m}", p_idx, persistent=False)
+            self.register_buffer(f"type_idx_m{m}", t_idx, persistent=False)
         self.P = idx.shape[1]
 
     def get_slot(self, Zi, i: int, comp: str):
@@ -125,7 +164,19 @@ class RePercENT(nn.Module):
         """
         
         assert len(x) == self.M, "Input data length must match number of modalities M"
-        Z = [self.disenEncoders[m](x[m], mask= mask[m]) for m in range(self.M)]  # Encode each modality
+        
+        # Compute positional encodings for each modality and pass to encoders
+        Z = []
+        for m in range(self.M):
+            if self.add_pos_encoding:
+                p_idx = getattr(self, f"pair_idx_m{m + 1}")  # (seq_dim,)
+                t_idx = getattr(self, f"type_idx_m{m + 1}")  # (seq_dim,)
+                pair_pe = self.pair_pos_enc[p_idx]  # (seq_dim, latent_dim)
+                type_pe = self.type_pos_enc[t_idx]  # (seq_dim, latent_dim)
+                pos_enc = pair_pe + type_pe  # (seq_dim, latent_dim)
+            else:
+                pos_enc = None
+            Z.append(self.disenEncoders[m](x[m], mask=mask[m], pos_enc=pos_enc))
         
         # extract components:
         # Each of U[*, i, j, *] corresponds to unique component from modality i with respect to modality j, similar for S and S_prob
@@ -155,10 +206,10 @@ class RePercENT(nn.Module):
 
         # --- Z_concat: (B, P, 2, 2D) ---
         # view 0 for pair (i,j): [u_ij, s_ji]
-        Z_i_concat = torch.cat([U[:, i, j, :], S_prob[:, j, i, :]], dim=-1)  # (B,P,2D)
+        Z_i_concat = torch.cat([U[:, i, j, :], S_view[:, j, i, :]], dim=-1)  # (B,P,2D)
         Z_i_concat = self.norm(Z_i_concat)
         # view 1 for pair (i,j): [u_ji, s_ij]
-        Z_j_concat = torch.cat([U[:, j, i, :], S_prob[:, i, j, :]], dim=-1)  # (B,P,2D)
+        Z_j_concat = torch.cat([U[:, j, i, :], S_view[:, i, j, :]], dim=-1)  # (B,P,2D)
         Z_j_concat = self.norm(Z_j_concat)
 
         
@@ -225,6 +276,7 @@ class DisenLoss(nn.Module):
                 raise ValueError(f"Unsupported orthogonality loss type: {ltype}")
         
         return res
+    
 
     def pairwise_loss(self, outputs, outputs_aug):
         """
@@ -255,9 +307,9 @@ class DisenLoss(nn.Module):
         loss_y = (loss_y + loss_y_aug) / 2
 
         #Calculate kl divergence for the probabilistic shared components
-        # skl = kl_vmf(s_ij_prob, s_ji_prob)
-        # skl_aug = kl_vmf(s_ij_prob_aug, s_ji_prob_aug)
-        # skl = (skl + skl_aug) / 2
+        #skl = kl_vmf(self.norm(s_ij), self.norm(s_ji))
+        #skl_aug = kl_vmf(self.norm(s_ij_aug), self.norm(s_ji_aug))
+        #skl = (skl + skl_aug) / 2
 
         # Calculate losses for modality unique components
         concat_embed_xi = torch.cat([z_i_concat.unsqueeze(dim= 1), z_i_concat_aug.unsqueeze(dim= 1)], dim= 1)
@@ -266,6 +318,7 @@ class DisenLoss(nn.Module):
         unique_loss_xi, loss_xi, loss_yi = self.critic(concat_embed_xi)
         unique_loss_xj, loss_xj, loss_yj = self.critic(concat_embed_xj)
         unique_loss = (unique_loss_xi + unique_loss_xj) / 2
+
 
         # Calculate orthogonality loss
         loss_ortho = 0.5 * (self.ortho_loss(u_ij, s_ij) + self.ortho_loss(u_ji, s_ji)) + \
