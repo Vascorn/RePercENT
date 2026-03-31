@@ -38,9 +38,12 @@ def save_dataset(dataset, save_path: str, data_config: Dict[str, Any]= None):
         print(f"README saved at {readme_path}")
     return
 
-def save_data_split(train_dataset, test_dataset, save_path: str, split_id: str= "0"):
+def save_data_split(train_dataset, test_dataset, val_dataset= None, save_path: str= "../../data/repercent_synthetic/dataset", split_id: str= "0"):
     os.makedirs(save_path, exist_ok=True)
-    torch.save({'train_dataset': train_dataset, 'test_dataset': test_dataset}, os.path.join(save_path, f"data_split_{split_id}.pt"))
+    data = {'train_dataset': train_dataset, 'test_dataset': test_dataset}
+    if val_dataset is not None:
+        data['val_dataset'] = val_dataset
+    torch.save(data, os.path.join(save_path, f"data_split_{split_id}.pt"))
     print(f"Data split saved at {save_path}")
     return
 

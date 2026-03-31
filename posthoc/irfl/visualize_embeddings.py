@@ -28,7 +28,7 @@ def main():
                                                                                     the similarities between images- captions and images - definitions and then comparing the metrics). \
                                                                                     Note that 2 and 3 is only relevant for the 3-modality setting')
     # Define number of splits and seeds
-    parser.add_argument('--select_seed', type=int, default= 3, help='Select the seed index to visualize (0-based index, should be less than n_seeds)')
+    parser.add_argument('--select_seed', type=int, default= 1, help='Select the seed index to visualize (0-based index, should be less than n_seeds)')
     args = parser.parse_args()
 
     
@@ -98,10 +98,10 @@ def main():
     
     
     test_loader = DataLoader(test_dataset, batch_size= 32, shuffle=False, generator= torch.Generator().manual_seed(2))
-    fig_dir = os.path.join(script_dir, "figures/irfl/")
+    fig_dir = os.path.join(script_dir, "figures/embeddings/")
     os.makedirs(fig_dir, exist_ok=True)
     embeddings_all = extract_all_embeddings(model, test_loader, device, M= M, comp_mod= args.comp_mod)
-    plot_embeddings(embeddings_all, method="tsne", f_type= "all", random_state= args.select_seed, dim= 2, fig_path= os.path.join(fig_dir, f"embeddings_{args.model_type}_seed{args.select_seed}.pdf"))
+    plot_embeddings(embeddings_all, method="umap", f_type= "all", random_state= args.select_seed, dim= 2, fig_path= os.path.join(fig_dir, f"embeddings_{args.model_type}_seed{args.select_seed}.pdf"))
 
 
 if __name__ == "__main__":

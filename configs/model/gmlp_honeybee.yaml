@@ -1,0 +1,30 @@
+wandb:
+  project: "honeybee-4m"
+
+M: 4  # number of modalities
+
+# Use the same model configuration for each modality, except for the positional encoding parameters and input channels which are modality-specific
+shared_encoder:
+  # the number of shared encoders is M * (M - 1)  -> M -1 shared components per modality
+
+  # --- gMLP ----
+  type: "gMLP" # mlp, gru or gMLP
+  d_model: [1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 48, 48, 48] # For the GRU is the feature dimension per time point, for the MLP is the total feature dimension as the input is flattened
+  d_ff: [256, 256, 256, 256, 256, 256, 256, 256, 256, 48, 48, 48]
+  proj_h: [[1024, 256], [1024, 256], [1024, 256], [1024, 256], [1024, 256], [1024, 256], [1024, 256], [1024, 256], [1024, 256], [48, 256], [48, 256], [48, 256]] # Projection heads for the shared encoders to ensure output dimensions are the same, if needed (e.g. for gMLP case)
+  seq_len: [1, 1, 1, 3, 3, 3, 16, 16, 16, 4, 4, 4] # This corresponds to the sequence length dimension in each gMLP block, and is modality- and modality-order-specific
+  num_layers: [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2]
+
+
+unique_encoder:
+  # --- gMLP ----
+  type: "gMLP" # mlp, gru or gMLP
+  d_model: [1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 48, 48, 48] # For the GRU is the feature dimension per time point, for the MLP is the total feature dimension as the input is flattened
+  d_ff: [256, 256, 256, 256, 256, 256, 256, 256, 256, 48, 48, 48]
+  proj_h: [[1024, 256], [1024, 256], [1024, 256], [1024, 256], [1024, 256], [1024, 256], [1024, 256], [1024, 256], [1024, 256], [48, 256], [48, 256], [48, 256]] # Projection heads for the unique encoders to ensure output dimensions are the same, if needed (e.g. for gMLP case)
+  seq_len: [1, 1, 1, 3, 3, 3, 16, 16, 16, 4, 4, 4] # This corresponds to the sequence length dimension in each gMLP block, and is modality- and modality-order-specific
+  num_layers: [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2]
+
+
+vmfkappa: 1000
+add_shared: false

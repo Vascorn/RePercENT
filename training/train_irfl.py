@@ -271,11 +271,11 @@ def train(train_loader, test_loader, model, optimizer, disen_loss, epochs, devic
             }, step= _iter + 1)
         
 
-            # if avg_fw_loss_val < overall_best_val_loss:
-            #     overall_best_val_loss = avg_fw_loss_val
-            #     overall_best_state_dict = copy.deepcopy(model.state_dict())
-            #     overall_best_epoch = _iter + 1
-            #     print(f"New best model found at epoch {overall_best_epoch} with validation loss {overall_best_val_loss:.5f}")
+            if avg_fw_loss_val < overall_best_val_loss:
+                overall_best_val_loss = avg_fw_loss_val
+                overall_best_state_dict = copy.deepcopy(model.state_dict())
+                overall_best_epoch = _iter + 1
+                print(f"New best model found at epoch {overall_best_epoch} with validation loss {overall_best_val_loss:.5f}")
 
         # Save model checkpoint every 10 epochs and at the end
         if (_iter + 1) % 10 == 0 or (_iter + 1) == epochs:

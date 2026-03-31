@@ -14,6 +14,7 @@ from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
+import umap
 
 
 def all_to_np(x):
@@ -74,7 +75,7 @@ def extract_all_embeddings(model, test_loader, device, M= 3, comp_mod= 1):
 
 def reduce_d(X, method="pca", dim: int= 2, random_state=0, **kwargs):
     """
-    Reduce [N, D] -> [N, 2] using PCA or t-SNE.
+    Reduce [N, D] -> [N, 2] using PCA, t-SNE, or UMAP.
     """
     method = method.lower()
     if method == "pca":
@@ -96,7 +97,22 @@ def reduce_d(X, method="pca", dim: int= 2, random_state=0, **kwargs):
         )
         return reducer.fit_transform(X)
 
-    raise ValueError("method must be 'pca' or 'tsne'")
+    if method == "umap":
+        # UMAP parameters with sensible defaults
+        n_neighbors = kwargs.pop("n_neighbors", 256)
+        min_dist = kwargs.pop("min_dist", 0.5)
+        metric = kwargs.pop("metric", "seuclidean")
+        reducer = umap.UMAP(
+            n_components=dim,
+            n_neighbors=n_neighbors,
+            min_dist=min_dist,
+            metric=metric,
+            random_state=random_state,
+            **kwargs
+        )
+        return reducer.fit_transform(X)
+
+    raise ValueError("method must be 'pca', 'tsne', or 'umap'")
 
 
 def plot_embeddings(embeds_all, method="pca", f_type:Literal["all", "metaphor", "idiom", "simile"] = "all", random_state=0, fig_path:str=None, dim: int=2, **kwargs):
@@ -104,11 +120,11 @@ def plot_embeddings(embeds_all, method="pca", f_type:Literal["all", "metaphor", 
     Plot the unique and shared embeddings for images and text, colored by modality type.
     Args:
         embeds_all: dict containing the embeddings and figurative types, as returned by extract_all_embeddings()
-        method: "pca" or "tsne" for dimensionality reduction
+        method: "pca", "tsne", or "umap" for dimensionality reduction
         f_type: which figurative type to plot (default "all")
         random_state: random state for dimensionality reduction
         fig_path: if provided, save the figure to this path instead of showing it
-        **kwargs: additional arguments for dimensionality reduction (e.g., perplexity for t-SNE)
+        **kwargs: additional arguments for dimensionality reduction (e.g., perplexity for t-SNE, n_neighbors for UMAP)
     """
     
     

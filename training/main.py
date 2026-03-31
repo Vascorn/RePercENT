@@ -38,12 +38,13 @@ def create_dataset_synth(data_config: dict= None)-> MultimodalDataset:
 
 
 
-def split_dataset_seeded(dataset, test_size: float, seed: int):
+def split_dataset_seeded(dataset, test_size: float, val_size: float, seed: int):
     n_total = len(dataset)
     n_test = int(round(n_total * test_size))
-    n_train = n_total - n_test
+    n_val = int(round(n_total * val_size))
+    n_train = n_total - n_test - n_val
     g = torch.Generator().manual_seed(seed)
-    return random_split(dataset, [n_train, n_test], generator=g)
+    return random_split(dataset, [n_train, n_test, n_val], generator=g)
 
 
 def aggregate_and_log(all_final_metrics: list):
@@ -95,7 +96,7 @@ def main():
     script_dir = os.path.dirname(os.path.abspath(__file__))
     
 
-    M = 3 # number of modalities, used for model creation and dataset generation
+    M = 4 # number of modalities, used for model creation and dataset generation
     # Loading configurations for data, model, and training
     data_config_path = os.path.join(script_dir, "..", "configs", "data", f"synthetic_data_{M}m.yaml")
     with open(data_config_path, 'r') as f:
@@ -117,14 +118,15 @@ def main():
         dataset = create_dataset_synth(data_config)
         print(f"Synthetic dataset created with {len(dataset)} samples.")
         if args.save_data:
-            save_path = os.path.join(script_dir, "..", "data", "repercent_synthetic", "dataset23")
+            save_path = os.path.join(script_dir, "..", "data", "repercent_synthetic", "dataset24")
             save_dataset(dataset, save_path, data_config)
 
     else:
         # Load the dataset
-        load_path = os.path.join(script_dir, "..", "data", "repercent_synthetic", "dataset23")
+        load_path = os.path.join(script_dir, "..", "data", "repercent_synthetic", "dataset24")
         dataset = torch.load(os.path.join(load_path, "dataset.pt"), weights_only=False)
-
+    
+    
     group_name = time.strftime("%Y-%m-%d_%H-%M-%S")
     group_name += f"_{args.model_type}_splits_{args.k1}_seeds_{args.k2}" if args.model_type == "repercent" else f"_{model_config['shared_encoder']['type']}_splits_{args.k1}_seeds_{args.k2}"
     # Initialize list to store final metrics across all runs
@@ -135,22 +137,26 @@ def main():
         split_seed = args.base_seed + 10_000 + split_idx
         
         # deterministic split
-        train_dataset, test_dataset = split_dataset_seeded(dataset, test_size=training_config["training"]["test_size"], seed=split_seed)
+        train_dataset, test_dataset, val_dataset = split_dataset_seeded(dataset, \
+                                                                        test_size=training_config["training"]["test_size"], \
+                                                                        val_size= training_config["training"]["val_size"], \
+                                                                        seed=split_seed)
+
 
         if args.save_data_split:
-            # save split per split_idx
+            # save split per split_idx and seed for reproducibility
             print(f"Saving data split {split_idx}...")
-            save_path = os.path.join(script_dir, "..", "data", "repercent_synthetic", "dataset23")
-            save_data_split(train_dataset, test_dataset, save_path, split_id= str(split_idx))
+            save_path = os.path.join(script_dir, "..", "data", "repercent_synthetic", "dataset24")
+            save_data_split(train_dataset, test_dataset, val_dataset= val_dataset, save_path= save_path, split_id= str(split_idx))
+        
         continue
-
         # Seeds per split - model initialization and training
         for seed_idx in range(args.k2):
             train_seed = args.base_seed + 100 * split_idx + seed_idx
             set_seed(train_seed)
             generator = torch.Generator().manual_seed(train_seed)
             # dataloaders
-            train_loader, test_loader = make_dataloaders(train_dataset, test_dataset,batch_size=training_config["training"]["batch_size"], generator=generator)
+            train_loader, test_loader, val_loader = make_dataloaders(train_dataset, test_dataset, val_dataset= val_dataset, batch_size=training_config["training"]["batch_size"], generator=generator)
 
             # Initialize wandb run and log hyperparameters
             run = wandb.init(
@@ -162,8 +168,6 @@ def main():
                     "model_type": args.model_type,
                 }
             )
-            print("INIT RUN:", wandb.run.id, wandb.run.name)
-            print("EPOCH RUN:", wandb.run.id, wandb.run.name)
 
             log_model_details(run, model_name=args.model_type, data_config=data_config_path, model_config=model_config_path, training_config=training_config_path)
 
@@ -202,7 +206,11 @@ def main():
             })
 
             # TRAIN
-            final_metrics = train(train_loader, test_loader, model, optimizer, disen_loss, training_config["training"]["n_epochs"], device, checkpoint_dir=os.path.join(script_dir, '..', 'checkpoints', 'repercent_synthetic', run.name, run_key), generator= generator)
+            final_metrics = train(train_loader, test_loader, model, optimizer, disen_loss, \
+                                training_config["training"]["n_epochs"], \
+                                device, val_loader= val_loader, \
+                                checkpoint_dir=os.path.join(script_dir, '..', 'checkpoints', 'repercent_synthetic', run.name, run_key), \
+                                generator= generator)
 
             # Store + log final snapshot table
             all_final_metrics.append({
@@ -213,8 +221,8 @@ def main():
                 "metrics": final_metrics,
             })
             wandb.finish()
-    
     return
+    
     # global summary run
     run = wandb.init(project= model_config["wandb"]["project"], 
                     group=group_name, name= f"aggregate_{args.model_type}" if args.model_type == "repercent" else f"aggregate_{model_config['shared_encoder']['type']}", 

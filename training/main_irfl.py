@@ -57,7 +57,7 @@ def aggregate_and_log(all_final_metrics: list):
 def main():
     parser = argparse.ArgumentParser(description="Train RePercENT model on the IRFL dataset")
     parser.add_argument('--datasets_path', type=str, default="../data/irfl/datasets/", help='Path to the directory containing the IRFL dataset tensors wrt to this script')
-    parser.add_argument('--model_type', type=str, choices=['repercent', 'gmlp'], default='repercent', help='Type of model to train, for now only repercent is implemented')
+    parser.add_argument('--model_type', type=str, choices=['repercent', 'gmlp', 'gru'], default='gru', help='Type of model to train, for now only repercent is implemented')
 
     # Define number of splits and seeds
     parser.add_argument('--n_seeds', type=int, default= 5, help='Number of seeds per split for model initialization and training')
@@ -133,23 +133,21 @@ def main():
                 "model_type": args.model_type,
             }
         )
-        print("INIT RUN:", wandb.run.id, wandb.run.name)
-        print("EPOCH RUN:", wandb.run.id, wandb.run.name)
+        
 
         log_model_details(run, model_name=args.model_type, data_config=data_config_path, model_config=model_config_path, training_config=training_config_path)
 
         # model creation
-        match args.model_type:
-            case "repercent":
-                disenEncoders = [make_model(model_config, data_config, modality=m + 1, M=data_config["create_data"]["M"]) for m in range(data_config["create_data"]["M"])]
-                model = RePercENT(M=data_config["create_data"]["M"],
-                                disenEncoder=disenEncoders,
-                                disen_mapping=model_config["repercent"]["disen_mapping"],
-                                vmfkappa=model_config["repercent"]["vmfkappa"]).to(device)
-            case "gmlp":
-                model = make_model_jointopt(model_config).to(device)
-            case _:
-                raise ValueError(f"Unsupported model type: {args.model_type}")
+        if args.model_type == "repercent":
+            disenEncoders = [make_model(model_config, data_config, modality=m + 1, M=data_config["create_data"]["M"]) for m in range(data_config["create_data"]["M"])]
+            model = RePercENT(M=data_config["create_data"]["M"],
+                            disenEncoder=disenEncoders,
+                            disen_mapping=model_config["repercent"]["disen_mapping"],
+                            vmfkappa=model_config["repercent"]["vmfkappa"]).to(device)
+        else:
+            model = make_model_jointopt(model_config).to(device)
+            
+        
 
         disen_loss = DisenLoss(alpha=training_config["disen_loss"]["alpha"],
                                     lmd=training_config["disen_loss"]["lmd"],

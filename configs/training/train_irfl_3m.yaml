@@ -4,11 +4,11 @@ wandb:
 
 disen_loss:
   alpha: 2.0
-  lmd: 1.0
-  lmd_start_value: 0.001
+  lmd: 5.0
+  lmd_start_value: 3.0
   lmd_end_value: 0
-  lmd_n_iterations: 10000
-  lmd_start_iteration: 5000
+  lmd_n_iterations: 250
+  lmd_start_iteration: 50
   ortho_norm: true
 
 
@@ -21,7 +21,7 @@ optimizer:
 
 training:
   test_size: 0.2
-  n_epochs: 40
+  n_epochs: 30
   batch_size: 256
   log_interval: 10
   augmentation: "random" # This includes all three augmentation types: noise, swap, random_drop

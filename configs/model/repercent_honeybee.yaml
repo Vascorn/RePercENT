@@ -1,0 +1,51 @@
+wandb:
+  project: "honeybee-4m"
+
+# Use the same model configuration for each modality, except for the positional encoding parameters and input channels which are modality-specific
+perceiver: 
+  type: "standard" # "standard" or "disen"
+  depth: 2 # Number of layers in the Perceiver model
+  max_freq: null
+  num_freq_bands: null
+  input_channels: [1024, 1024, 1024, 48] # Input channels for each modality
+  input_axis: 1
+  num_latents: 6 # Number of latent vectors, i.e. the number of disentangled factors to extract from each modality
+  cross_heads: 2
+  latent_heads: 1
+  pos_encoding: false
+  latent_dim: 256 # The dimension of each latent vector
+  weight_tie_layers: false
+  
+
+repercent:
+  M: 4 # Number of modalities
+  disen_mapping:
+    M_1:
+      U_12: 0
+      S_12: 1
+      U_13: 2
+      S_13: 3
+      U_14: 4
+      S_14: 5
+    M_2:
+      U_21: 0
+      S_21: 1
+      U_23: 2
+      S_23: 3
+      U_24: 4
+      S_24: 5
+    M_3:
+      U_31: 0
+      S_31: 1
+      U_32: 2
+      S_32: 3
+      U_34: 4
+      S_34: 5
+    M_4:
+      U_41: 0
+      S_41: 1
+      U_42: 2
+      S_42: 3
+      U_43: 4
+      S_43: 5
+  vmfkappa: 1000

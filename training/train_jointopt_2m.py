@@ -79,7 +79,7 @@ def make_model_jointopt(model_config_jointopt: dict) -> nn.Module:
                     uniqueEncoders= uniqueEncoders, 
                     shared_projh= shared_projh,
                     unique_projh= unique_projh,
-                    encoder_type= model_config_jointopt["shared_encoder"]["type"], # We assume the same encoder type for the shared & unique encoders
+                    encoder_type= model_config_jointopt["shared_encoder"]["type"].lower(), # We assume the same encoder type for the shared & unique encoders
                     vmfkappa= model_config_jointopt["vmfkappa"])
 
     return model

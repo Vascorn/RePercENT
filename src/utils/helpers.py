@@ -60,21 +60,36 @@ def plot_confusion_matrix(linear_probe_acc, labels: List= ['labels_1', 'labels_2
     return fig
 
 
-def plot_pairwise_confusion_matrices(linear_probe_acc, M, components: List= ['u_12', 'u_21', 's'], pairs: List= None):
+def plot_pairwise_confusion_matrices(
+    linear_probe_acc,
+    M,
+    components: List = ['u_12', 'u_21', 's'],
+    pairs: List = None,
+    key_display_map: Dict[str, str] = None,
+    modality_names: List[str] = None,
+    include_reverse_shared: bool = False,
+    x_label_rotation_threshold: int = 10,
+    x_label_rotation: int = 45,
+    vmin: float = 50.0,
+    vmax: float = 100.0
+):
     """
     Plot M*(M-1)/2 confusion matrices, one per modality pair.
 
-    Rows: labels
-    Columns: components
-    Values: linear probe accuracy
+    By default (include_reverse_shared=False), each pair is 3x3: [u_ij, u_ji, s_ij].
+    If include_reverse_shared=True, each pair is 4x4: [u_ij, u_ji, s_ij, s_ji].
     """
+
+    if components is None:
+        components = list(linear_probe_acc.keys())
 
     # reconstruct component & label keys (same set)
     label_keys = components.copy()
     comp_keys = components.copy()
+    comp_idx = {k: idx for idx, k in enumerate(comp_keys)}
 
-    # build full accuracy matrix (rows=labels, cols=components)
-    A = np.stack([linear_probe_acc[k] for k in label_keys], axis=0)
+    if pairs is None:
+        pairs = list(combinations(range(M), 2))
     x_shape = M if M % 2 else M // 2
     y_shape = M - 1 if (M - 1) % 2 else M // 2
     
@@ -82,38 +97,61 @@ def plot_pairwise_confusion_matrices(linear_probe_acc, M, components: List= ['u_
     fig, axes = plt.subplots(x_shape, y_shape, figsize=(5 * y_shape, 6 * x_shape))
     axes = np.atleast_1d(axes).ravel()
 
+    key_display_map = key_display_map or {}
+
     for pair_id, (i, j) in enumerate(pairs):
         
-        pair_name = f"{i+1} vs {j+1}"
+        if modality_names is not None and len(modality_names) >= max(i + 1, j + 1):
+            pair_name = f"{modality_names[i]} vs {modality_names[j]}"
+        else:
+            pair_name = f"{i+1} vs {j+1}"
         
-        # columns: u_ij, u_ji, s_ij
+        # columns: 3x3 default or 4x4 with reverse shared component
         col_keys = [f"u_{i+1}{j+1}", f"u_{j+1}{i+1}", f"s_{i+1}{j+1}"]
-        col_idx = [comp_keys.index(k) for k in col_keys]
+        if include_reverse_shared:
+            col_keys.append(f"s_{j+1}{i+1}")
 
         # rows: same pairwise labels
         row_keys = col_keys
-        row_idx = [label_keys.index(k) for k in row_keys]
+        submat = np.full((len(row_keys), len(col_keys)), np.nan, dtype=float)
 
-        submat = A[np.ix_(row_idx, col_idx)]
+        for r_idx, row_key in enumerate(row_keys):
+            if row_key not in linear_probe_acc:
+                continue
+            row_values = np.asarray(linear_probe_acc[row_key], dtype=float)
+            for c_idx, col_key in enumerate(col_keys):
+                col_index = comp_idx.get(col_key)
+                if col_index is None or col_index >= row_values.shape[0]:
+                    continue
+                submat[r_idx, c_idx] = row_values[col_index]
 
 
         ax = axes[pair_id]
         
+        display_cols = [key_display_map.get(k, k) for k in col_keys]
+        display_rows = [key_display_map.get(k, k) for k in row_keys]
+        rotate_x_labels = any(len(str(label)) > x_label_rotation_threshold for label in display_cols)
+
         sns.heatmap(
             submat,
             annot=True,
             fmt=".2f",
             cmap="Blues",
-            xticklabels=col_keys,
-            yticklabels=row_keys,
+            xticklabels=display_cols,
+            yticklabels=display_rows,
             cbar=True,
-            vmin=50,
-            vmax=100,
+            vmin=vmin,
+            vmax=vmax,
+            mask=~np.isfinite(submat),
             ax=ax
         )
         ax.set_title(f"Linear Probe – Pairwise Confusion ({pair_name})")
         ax.set_xlabel("Components")
         ax.set_ylabel("Labels")
+        if rotate_x_labels:
+            plt.setp(ax.get_xticklabels(), rotation=x_label_rotation, ha="right")
+        else:
+            plt.setp(ax.get_xticklabels(), rotation=0, ha="center")
         plt.tight_layout()
     plt.show()
     return fig

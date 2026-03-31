@@ -215,3 +215,7 @@ entrypoint.sh
 wandb/
 data/
 checkpoints/
+
+# ignore figures 
+posthoc/irfl/figures/grad_cam/
+posthoc/irfl/figures/shap/

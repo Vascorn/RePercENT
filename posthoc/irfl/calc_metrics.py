@@ -27,18 +27,18 @@ def main():
     
     parser = argparse.ArgumentParser(description="Train RePercENT model on the IRFL dataset")
     parser.add_argument('--datasets_path', type=str, default="../../data/irfl/datasets/", help='Path to the directory containing the IRFL dataset tensors wrt to this script')
-    parser.add_argument('--model_type', type=str, choices=['repercent', 'gmlp'], default='gmlp', help='Type of model to train, for now only repercent is implemented')
-    parser.add_argument('--comp_mod', type=int, choices=[1, 2, 3], default= 1, help='Which modality to compute similarities for (1 for captions, 2 for definitions, 3 for adding \
+    parser.add_argument('--model_type', type=str, choices=['repercent', 'gmlp', 'gru'], default='gru', help='Type of model to train, for now only repercent is implemented')
+    parser.add_argument('--comp_mod', type=int, choices=[1, 2, 3], default= 2, help='Which modality to compute similarities for (1 for captions, 2 for definitions, 3 for adding \
                                                                                     the similarities between images- captions and images - definitions and then comparing the metrics). \
                                                                                     Note that 2 and 3 is only relevant for the 3-modality setting')
     # Define number of splits and seeds
-    parser.add_argument('--base_seed', type=int, default= 1, help='Base seed for reproducibility')
+    parser.add_argument('--base_seed', type=int, default= 2, help='Base seed for reproducibility')
     args = parser.parse_args()
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     script_dir = os.path.dirname(os.path.abspath(__file__))
     
-    M = 2 # number of modalities, for the IRFL: M = 2 -> images + captions, M = 3 -> images + captions + definitions
+    M = 3 # number of modalities, for the IRFL: M = 2 -> images + captions, M = 3 -> images + captions + definitions
     
     # Loading configurations for data, model, and training
     print("Loading configurations...")
@@ -90,6 +90,8 @@ def main():
                                 disenEncoder= disenEncoders,
                                 disen_mapping= model_config["repercent"]["disen_mapping"]).to(device)
             case "gmlp":
+                model = make_model_jointopt(model_config).to(device)
+            case "gru":
                 model = make_model_jointopt(model_config).to(device)
             case _:
                 raise ValueError(f"Unsupported model type: {args.model_type}")

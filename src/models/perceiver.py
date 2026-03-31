@@ -283,6 +283,7 @@ class Perceiver(nn.Module):
         self_per_cross_attn = 1,
         final_classifier_head = True,
         use_moeffn = False,
+        use_slot_attn = False
     ):
         """The shape of the final attention mechanism will be:
         depth * (cross attention -> self_per_cross_attn * self attention)
@@ -313,6 +314,7 @@ class Perceiver(nn.Module):
           self_per_cross_attn: Number of self attention blocks per cross attn.
           final_classifier_head: mean pool and project embeddings to number of classes (num_classes) at the end
           use_moeffn: Whether to use Mixture of Experts FeedForward networks for latent blocks.
+          use_slot_attn: Whether to use Slot Attention for cross attention layers, which can be beneficial for certain data types like images. If False, standard multi-head attention is used for cross attention.
         """
 
         super().__init__()
@@ -349,9 +351,13 @@ class Perceiver(nn.Module):
 
                 self.latents[i].copy_(vi)
                 self.latents[j].copy_(vj)
-
-        
-        get_cross_attn = lambda: PreNorm(latent_dim, Attention(latent_dim, input_dim, heads = cross_heads, dim_head = cross_dim_head, dropout = attn_dropout), context_dim = input_dim)
+        self.use_slot_attn = use_slot_attn
+        # Change to Slot attention if the input is sequence based, patch-, token- like
+        if use_slot_attn:
+            print('Initializing Perceiver with Slot Attention for cross attention layers.')
+            get_cross_attn = lambda: PreNorm(latent_dim, SlotAttention(latent_dim, input_dim, heads = cross_heads, dim_head = cross_dim_head, dropout = attn_dropout), context_dim = input_dim)
+        else:
+            get_cross_attn = lambda: PreNorm(latent_dim, Attention(latent_dim, input_dim, heads = cross_heads, dim_head = cross_dim_head, dropout = attn_dropout), context_dim = input_dim)
         get_cross_ff = lambda: PreNorm(latent_dim, FeedForward(latent_dim, dropout = ff_dropout))
         get_latent_attn = lambda: PreNorm(latent_dim, Attention(latent_dim, heads = latent_heads, dim_head = latent_dim_head, dropout = attn_dropout))
         if not use_moeffn:
@@ -468,7 +474,10 @@ class Perceiver(nn.Module):
 
         # layers
         for cross_attn, cross_ff, self_attns in self.layers:
-            x = cross_attn(x, context = data, mask = mask) + x
+            if self.use_slot_attn:
+                x = cross_attn(x, context = data, mask = mask, group_size = 2) + x
+            else:
+                x = cross_attn(x, context = data, mask = mask) + x
             x = cross_ff(x) + x
             for self_attn, self_ff in self_attns:
                 x = self_attn(x) + x
