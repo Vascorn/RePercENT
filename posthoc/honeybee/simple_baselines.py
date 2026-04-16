@@ -13,6 +13,8 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score
 from sklearn.preprocessing import LabelEncoder
 
+from posthoc.honeybee.survival_probe import evaluate_feature_survival_analysis
+
 
 HONEYBEE_MODALITIES = ["clinical_qwen", "pathology_qwen", "wsi", "molecular"]
 
@@ -45,6 +47,36 @@ def _build_wandb_summary_table(summary_metrics):
         table.add_data(*row)
 
     return table
+
+
+def _build_survival_summary_table(summary_metrics):
+    cancer_types = sorted(
+        {
+            str(cancer_type)
+            for component_metrics in summary_metrics.values()
+            for cancer_type in component_metrics.keys()
+        }
+    )
+    print(f"Survival summary cancer types: {cancer_types}")
+    
+    columns = [str(column) for column in ["component", *cancer_types]]
+    table = wandb.Table(columns=columns)
+
+    for component_name in sorted(summary_metrics.keys()):
+        component_metrics = summary_metrics[component_name]
+        row = [str(component_name)]
+
+        for cancer_type in cancer_types:
+            c_index = component_metrics.get(cancer_type, {}).get("c_index")
+            if c_index is None:
+                row.append("N/A")
+            else:
+                row.append(f"{float(c_index):.4f}")
+
+        table.add_data(*row)
+
+    return table
+
 
 
 def _masked_mean(embeddings, mask):
@@ -110,6 +142,70 @@ def _extract_dataset_features(dataset, modality_order=None):
     return feature_store, np.asarray(labels)
 
 
+def _safe_float(value):
+    if isinstance(value, torch.Tensor):
+        value = value.item()
+    if isinstance(value, np.generic):
+        value = value.item()
+    if value is None:
+        return np.nan
+    if isinstance(value, str):
+        cleaned = value.strip().lower()
+        if cleaned in {"", "unknown", "nan", "na", "none", "not reported", "--"}:
+            return np.nan
+        try:
+            return float(cleaned)
+        except ValueError:
+            return np.nan
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return np.nan
+
+
+def _is_observed_event(vital_status):
+    if vital_status is None:
+        return None
+    status = str(vital_status).strip().lower()
+    if status in {"dead", "deceased", "1", "true"}:
+        return 1
+    if status in {"alive", "living", "0", "false"}:
+        return 0
+    return None
+
+
+def _extract_dataset_survival(dataset):
+    survival = {
+        "patient_id": [],
+        "event": [],
+        "time": [],
+        "valid": [],
+        "cancer_type": [],
+    }
+
+    for sample_idx in range(len(dataset)):
+        sample = dataset[sample_idx]
+        event = _is_observed_event(sample.get("vital_status"))
+        death_days = _safe_float(sample.get("days_to_death"))
+        follow_up_days = _safe_float(sample.get("days_to_last_follow_up"))
+
+        if event == 1:
+            time = death_days
+        elif event == 0:
+            time = follow_up_days
+        else:
+            time = np.nan
+
+        valid = event is not None and np.isfinite(time) and time >= 0.0
+        survival["patient_id"].append(str(sample.get("patient_id", "unknown")))
+        survival["event"].append(int(event) if event is not None else -1)
+        survival["time"].append(float(time) if np.isfinite(time) else np.nan)
+        survival["valid"].append(bool(valid))
+        survival["cancer_type"].append(str(sample["cancer_type"]))
+
+    return {key: np.asarray(values) for key, values in survival.items()}
+
+
 def _extract_acc_per_cancer_type(y_pred, y_true, label_encoder):
     acc_per_cancer_type = {}
     for idx, cancer_type in enumerate(label_encoder.classes_):
@@ -146,6 +242,7 @@ def main():
     parser.add_argument('--datasets_path', type=str, default="../../data/honeybee/datasets/", help='Path to the directory containing the Honeybee dataset tensors wrt to this script')
     parser.add_argument('--wsi_embedding_mode', type=str, choices=['slide', 'patch'], default='slide', help='Method for aggregating WSI embeddings, either slide level or patch level')
     parser.add_argument('--split_seed', type=int, default=42, help='Seed for reproducible dataset splits')
+    parser.add_argument('--survival_cancer_types', type=str, default=None, help='Specific cancer types for survival analysis, e.g. TCGA-BRCA TCGA-LUAD')
     args = parser.parse_args()
 
     script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -164,16 +261,6 @@ def main():
     train_features, train_labels = _extract_dataset_features(train_dataset, modality_order=HONEYBEE_MODALITIES)
     test_features, test_labels = _extract_dataset_features(test_dataset, modality_order=HONEYBEE_MODALITIES)
 
-    print("Evaluating linear probes on fixed pre-extracted embeddings...")
-    metrics = _evaluate_linear_probes(
-        train_features,
-        train_labels,
-        test_features,
-        test_labels,
-        modality_order=HONEYBEE_MODALITIES,
-    )
-    print(f"Probe metrics: {metrics}")
-
     wandb.init(
         project=analysis_config["wandb"]["project"],
         name=f"simple_baselines_cancer_type_probe_{args.wsi_embedding_mode}",
@@ -185,8 +272,34 @@ def main():
         },
     )
 
-    summary_table = _build_wandb_summary_table(metrics)
-    wandb.log({"cancer_type_component_summary": summary_table})
+    print("Evaluating linear probes on fixed pre-extracted embeddings...")
+    cancer_subtype_metrics = _evaluate_linear_probes(
+        train_features,
+        train_labels,
+        test_features,
+        test_labels,
+        modality_order=HONEYBEE_MODALITIES,
+    )
+    print(f"Probe metrics: {cancer_subtype_metrics}")
+
+    print("Evaluate survival prediction of pre-extracted features...")
+    train_survival = _extract_dataset_survival(train_dataset)
+    test_survival = _extract_dataset_survival(test_dataset)
+    cancer_types = args.survival_cancer_types.split() if args.survival_cancer_types else None
+    survival_metrics = evaluate_feature_survival_analysis(
+        train_features,
+        train_survival,
+        test_features,
+        test_survival,
+        cancer_types=cancer_types
+    )
+
+    summary_table = _build_wandb_summary_table(cancer_subtype_metrics)
+    survival_summary_table = _build_survival_summary_table(survival_metrics)
+    wandb.log({
+        "cancer_type_component_summary": summary_table,
+        "survival_analysis_component_summary": survival_summary_table,
+    })
     wandb.finish()
 
 

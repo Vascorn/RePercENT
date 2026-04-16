@@ -3,9 +3,9 @@ wandb:
 
 
 disen_loss:
-  alpha: 2.0
+  alpha: 1.0
   lmd: 5.0
-  lmd_start_value: 2.0
+  lmd_start_value: 1.0
   lmd_end_value: 3.0
   lmd_n_iterations: 600
   lmd_start_iteration: 200

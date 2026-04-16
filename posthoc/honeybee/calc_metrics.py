@@ -94,6 +94,9 @@ def _aggregate_survival_metrics_across_seeds(seed_reports):
     aggregated = {}
 
     for seed_report in seed_reports:
+        if not seed_report:
+            continue
+
         for component_name, component_metrics in seed_report.items():
             component_entry = aggregated.setdefault(str(component_name), defaultdict(lambda: defaultdict(list)))
 
@@ -116,24 +119,31 @@ def _aggregate_survival_metrics_across_seeds(seed_reports):
 
 
 def _build_survival_summary_table(summary_metrics):
-    metric_names = ["c_index", "test_loss", "n_train", "n_test", "n_bins"]
-    columns = ["component", "cancer_type", *metric_names]
+    cancer_types = sorted(
+        {
+            str(cancer_type)
+            for component_metrics in summary_metrics.values()
+            for cancer_type in component_metrics.keys()
+        }
+    )
+    columns = [str(column) for column in ["component", *cancer_types]]
     table = wandb.Table(columns=columns)
 
     for component_name in sorted(summary_metrics.keys()):
         component_metrics = summary_metrics[component_name]
+        row = [component_name]
 
-        for cancer_type in sorted(component_metrics.keys()):
-            cancer_row = [component_name, cancer_type]
-            for metric_name in metric_names:
-                stats = component_metrics[cancer_type].get(metric_name)
-                if stats is None:
-                    cancer_row.append("N/A")
-                else:
-                    cancer_row.append(f'{stats["mean"]:.4f} ± {stats["std"]:.4f}')
-            table.add_data(*cancer_row)
+        for cancer_type in cancer_types:
+            stats = component_metrics.get(cancer_type)
+            if stats is None:
+                row.append("N/A")
+            else:
+                row.append(f'{stats["c_index"]["mean"]:.4f} ± {stats["c_index"]["std"]:.4f}')
+
+        table.add_data(*row)
 
     return table
+
 
 
 def main():
@@ -147,7 +157,7 @@ def main():
     parser.add_argument('--base_seed', type=int, default= 2, help='Base seed for reproducibility')
     parser.add_argument('--cancer_classification', type=bool, default=False, help='Whether to perform cancer type classification evaluation')
     parser.add_argument('--survival_analysis', type=bool, default=True, help='Whether to perform survival analysis evaluation')
-    parser.add_argument('--survival_cancer_types', type=str, nargs='+', default=None, help='Specific cancer types for survival analysis, e.g. TCGA-BRCA TCGA-LUAD')
+    parser.add_argument('--survival_cancer_types', type=str, default=None, help='Specific cancer types for survival analysis, e.g. TCGA-BRCA TCGA-LUAD')
     args = parser.parse_args()
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -183,6 +193,7 @@ def main():
                                 train_color = "tab:blue",
                                 test_color = "tab:red")
     
+    
     # seed check
     n_seeds = analysis_config['hyperparameters']['n_seeds']
     assert n_seeds == len(analysis_config[args.model_type]['checkpoints']), f"Number of seeds in hyperparameters ({n_seeds}) does not match number of checkpoints specified for {args.model_type} ({len(analysis_config[args.model_type]['checkpoints'])})"
@@ -198,6 +209,7 @@ def main():
     complete_report = {f"seed_{i}": {} for i in range(args.base_seed, args.base_seed + n_seeds)}
     seed_reports = []
     survival_seed_reports = []
+    survival_cancer_types = args.survival_cancer_types.split() if args.survival_cancer_types else None
     for seed_idx, checkpoint_path in enumerate(analysis_config[args.model_type]['checkpoints']):
         temp_seed = args.base_seed + seed_idx
 
@@ -224,7 +236,7 @@ def main():
         model.to(device)
         
         if args.cancer_classification:
-             temp_metrics = evaluate_model_cancer_type(test_loader, model, device)
+             temp_metrics = evaluate_model_cancer_type(train_loader, test_loader, model, device)
              complete_report[f"seed_{temp_seed}"] = temp_metrics
              seed_reports.append(temp_metrics)
         if args.survival_analysis:
@@ -234,15 +246,18 @@ def main():
                 test_loader,
                 model,
                 device,
-                cancer_types=args.survival_cancer_types,
+                cancer_types=survival_cancer_types
             )
+            if not survival_metrics:
+                raise ValueError(f"No survival metrics were produced for seed {temp_seed}.")
             complete_report.setdefault("survival_analysis", {})[f"seed_{temp_seed}"] = survival_metrics
 
             survival_seed_reports.append(survival_metrics)
 
+        
     wandb.init(
         project=analysis_config["wandb"]["project"],
-        name=f"{args.model_type}_cancer_type_probe_summary",
+        name=f"{args.model_type}_summary",
         config={
             "model_type": args.model_type,
             "split_seed": args.split_seed,
@@ -258,8 +273,11 @@ def main():
         wandb.log({"cancer_type_component_summary": summary_table})
     if args.survival_analysis:
         complete_report["survival_summary"] = _aggregate_survival_metrics_across_seeds(survival_seed_reports)
+        if not complete_report["survival_summary"]:
+            raise ValueError("No aggregated survival metrics were available to log to Weights & Biases.")
         survival_summary_table = _build_survival_summary_table(complete_report["survival_summary"])
-
+        print(f"Survival analysis summary metrics: {complete_report['survival_summary']}")
+        print(f"Survival analysis summary table:\n{survival_summary_table}")
         wandb.log({"survival_analysis_component_summary": survival_summary_table})
     wandb.finish()
 

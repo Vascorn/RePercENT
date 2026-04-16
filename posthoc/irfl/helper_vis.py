@@ -99,13 +99,13 @@ def reduce_d(X, method="pca", dim: int= 2, random_state=0, **kwargs):
 
     if method == "umap":
         # UMAP parameters with sensible defaults
-        n_neighbors = kwargs.pop("n_neighbors", 256)
+        n_neighbors = kwargs.pop("n_neighbors", 30)
         min_dist = kwargs.pop("min_dist", 0.5)
         metric = kwargs.pop("metric", "seuclidean")
         reducer = umap.UMAP(
             n_components=dim,
-            n_neighbors=n_neighbors,
-            min_dist=min_dist,
+            # n_neighbors=n_neighbors,
+            # min_dist=min_dist,
             metric=metric,
             random_state=random_state,
             **kwargs

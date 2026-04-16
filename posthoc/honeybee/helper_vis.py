@@ -19,7 +19,6 @@ def plot_cancer_type_distribution(test_loader, train_loader, script_dir, title="
 
     print(f"Counts for each cancer type: {train_counts}")
     
-    import matplotlib.pyplot as plt
     cancer_types = sorted(set(train_counts) | set(test_counts))
     train_values = [train_counts.get(cancer_type, 0) for cancer_type in cancer_types]
     test_values = [test_counts.get(cancer_type, 0) for cancer_type in cancer_types]

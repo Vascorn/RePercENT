@@ -102,7 +102,7 @@ def main():
             save_path = os.path.join(script_dir, args.datasets_path, f"dataset_01_{args.wsi_embedding_mode}_split_{args.split_seed}.pt")
             torch.save({'train': train_dataset, 'test': test_dataset}, save_path)
             print(f"Saved train/test split dataset to path {save_path}")
-
+    
 
     group_name = time.strftime("%Y-%m-%d_%H-%M-%S") + f"_Honeybee_{args.model_type}_seeds_{args.n_seeds}"
     # Initialize list to store final metrics across all runs

@@ -110,6 +110,8 @@ class TCGAEmbeddingsExtractor:
 
         print("Building patient index...")
 
+        to_float_or_none = lambda v: None if v is None else float(v)
+
         for modality in self.modalities:
             ds = self.hf_dataset[modality]
             id_col = self.mod_identifiers[modality]
@@ -126,12 +128,12 @@ class TCGAEmbeddingsExtractor:
                 value = self._extract_embedding(modality, row)
                 self.index[pid][modality].append(value)
 
-                if "clinical" in modality.lower() and "project_id" in row:
-                    self.index[pid]["cancer_type"] = row.get("project_id", "unknown")
-                    self.index[pid]["vital_status"] = row.get("vital_status", "unknown")
-                    self.index[pid]["days_to_death"] = row.get("days_to_death", "unknown")
-                    self.index[pid]["days_to_last_follow_up"] = row.get("days_to_last_follow_up", "unknown")
-                    self.index[pid]["days_to_diagnosis"] = row.get("days_to_diagnosis", "unknown")
+                if "clinical" in modality.lower():
+                    self.index[pid]["cancer_type"] = row.get("project_id", None)
+                    self.index[pid]["vital_status"] = row.get("vital_status", None)
+                    self.index[pid]["days_to_death"] = to_float_or_none(row.get("days_to_death", None))
+                    self.index[pid]["days_to_last_follow_up"] = to_float_or_none(row.get("days_to_last_follow_up", None))
+                    self.index[pid]["days_to_diagnosis"] = to_float_or_none(row.get("days_to_diagnosis", None))
 
             self.modality_patient_ids[modality] = seen
             print(f"  {modality}: {len(seen)} unique patients")
@@ -323,7 +325,27 @@ class MultimodalTCGA(Dataset):
         self.input_shapes = copy.deepcopy(stats["max_embeddings_per_modality"])
         if "wsi" in self.modalities and self.wsi_embedding_mode == "patch":
             self.input_shapes["wsi_patches"] = stats.get("max_wsi_patch_count", 0)
+        self.embedding_dims = self._infer_embedding_dims()
         print(f"Calculated input shapes per modality: {self.input_shapes}")
+        print(f"Calculated embedding dimensions per modality: {self.embedding_dims}")
+
+    def _infer_embedding_dims(self):
+        embedding_dims = {}
+        for modality in self.modalities:
+            embedding_dims[modality] = None
+            for pid in self.patient_ids:
+                embeddings = self.index[pid][modality]
+                if len(embeddings) == 0:
+                    continue
+
+                first_embedding = self._to_float_tensor(embeddings[0])
+                embedding_dims[modality] = int(first_embedding.shape[-1])
+                break
+
+            if embedding_dims[modality] is None:
+                raise ValueError(f"Could not infer embedding dimension for modality '{modality}'")
+
+        return embedding_dims
 
     def _to_float_tensor(self, embedding):
         if isinstance(embedding, torch.Tensor):
@@ -376,22 +398,47 @@ class MultimodalTCGA(Dataset):
         padded[:current_length] = embeddings
         return padded, pad_mask
 
+    def _metadata_value(self, pid, key, fallback= -1):
+        value = self.index[pid].get(key, fallback)
+        return fallback if value is None else value
+
+    def _empty_modality_sample(self, modality):
+        target_length = self.input_shapes[modality]
+        feature_dim = self.embedding_dims[modality]
+
+        if modality == "wsi":
+            if self.wsi_embedding_mode == "slide":
+                empty_embeddings = torch.zeros((target_length, feature_dim), dtype=torch.float32)
+                empty_aug_embeddings = torch.zeros((target_length, feature_dim), dtype=torch.float32)
+                empty_pad_mask = torch.zeros(target_length, dtype=torch.bool)
+            else:
+                patch_length = self.input_shapes["wsi_patches"]
+                empty_embeddings = torch.zeros((target_length, patch_length, feature_dim), dtype=torch.float32)
+                empty_aug_embeddings = torch.zeros((target_length, patch_length, feature_dim), dtype=torch.float32)
+                empty_pad_mask = torch.zeros((target_length, patch_length), dtype=torch.bool)
+        else:
+            empty_embeddings = torch.zeros((target_length, feature_dim), dtype=torch.float32)
+            empty_aug_embeddings = torch.zeros((target_length, feature_dim), dtype=torch.float32)
+            empty_pad_mask = torch.zeros(target_length, dtype=torch.bool)
+
+        return (empty_embeddings, empty_aug_embeddings, empty_pad_mask, False)
+
     def __getitem__(self, idx):
         pid = self.patient_ids[idx]
         sample = {
             "patient_id": pid,
-            "cancer_type": self.index[pid].get("cancer_type", "unknown"),
-            "vital_status": self.index[pid].get("vital_status", "unknown"),
-            "days_to_death": self.index[pid].get("days_to_death", "unknown"),
-            "days_to_last_follow_up": self.index[pid].get("days_to_last_follow_up", "unknown"),
-            "days_to_diagnosis": self.index[pid].get("days_to_diagnosis", "unknown")
+            "cancer_type": self._metadata_value(pid, "cancer_type", "unknown"),
+            "vital_status": self._metadata_value(pid, "vital_status", "unknown"),
+            "days_to_death": self._metadata_value(pid, "days_to_death", -1.0),
+            "days_to_last_follow_up": self._metadata_value(pid, "days_to_last_follow_up", -1.0),
+            "days_to_diagnosis": self._metadata_value(pid, "days_to_diagnosis", -1.0),
         }
 
         for modality in self.modalities:
             embeddings = self.index[pid][modality]
 
             if len(embeddings) == 0:
-                sample[modality] = (None, None, None, False)
+                sample[modality] = self._empty_modality_sample(modality)
                 continue
 
             aug_embeddings = [self.augment_embeddings(emb, modality) for emb in embeddings]
@@ -474,7 +521,7 @@ def main():
     # Tesing loading the saved dataset
     load_path = os.path.join(args.data_save_path, f"dataset_01_{args.wsi_embedding_mode}.pt")
     dataset = torch.load(load_path, weights_only=False)
-
+    
      #Example of accessing a batch of data
     # NOTE: The "patch" yields a 2D padding mask of shape (num_slide, num_patches) while the "slide" mode yields a 1D padding mask of shape (num_slide,)
     loader = torch.utils.data.DataLoader(dataset, batch_size= 1, shuffle=True)
