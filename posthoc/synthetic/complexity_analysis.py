@@ -205,8 +205,20 @@ def _plot_grouped_metric(
     scatter_ref = None
 
     for family_name, family_df in grouped.groupby("model_family"):
+        family_df = family_df.sort_values("num_modalities")
         marker = MODEL_MARKERS.get(family_name, MODEL_MARKERS["Other"])
         is_repercent = family_name == "RePercENT"
+        if metric_name == "delta_to_ideal" and len(family_df) > 1:
+            average_metric = family_df["metric_mean"].mean()
+            normalized_metric = min(max((average_metric - vmin) / (vmax - vmin), 0.0), 1.0)
+            ax.plot(
+                family_df["num_modalities"],
+                family_df["model_params"],
+                color=cmap(normalized_metric),
+                linewidth=1.2,
+                alpha=1.0,
+                zorder=2,
+            )
         scatter_ref = ax.scatter(
             family_df["num_modalities"],
             family_df["model_params"],
