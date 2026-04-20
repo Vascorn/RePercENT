@@ -25,7 +25,7 @@ import textwrap
 apply_paper_plot_style()
 
 GRAD_CAM_CMAP = "jet"
-GRAD_CAM_ALPHA = 0.65
+GRAD_CAM_ALPHA = 0.8
 TEXT_BAR_COLOR = "#2B8CBE"
 TEXT_BAR_EDGE_COLOR = "#045A8D"
 
@@ -362,7 +362,7 @@ def main():
 
 
     for i, sample in enumerate(test_dataset):
-        if i <= 2500:
+        if i > 2500:
             continue
         orig = sample["orig"]
         phrase = orig["phrases"]

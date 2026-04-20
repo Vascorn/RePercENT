@@ -15,19 +15,19 @@ shared_encoder:
 
 
   # # ---- GRU Encoder ----
-  # type: "GRU" # mlp or gru
-  # input_dims: [64, 64, 64, 64, 64, 64] # For the GRU is the feature dimension per time point, for the MLP is the total feature dimension as the input is flattened
-  # hidden_dims: [[64], [64], [64], [64], [64], [64]]
-  # latent_dims: [32, 32, 32, 32, 32, 32]
-  # num_layers: 1
-  # activation: "relu"
-
-  # ---- MLP Encoder ----
-  type: "MLP" # mlp or gru
-  input_dims: [512, 512, 512, 512, 512, 512] # For the GRU is the feature dimension per time point, for the MLP is the total feature dimension as the input is flattened
+  type: "GRU" # mlp or gru
+  input_dims: [64, 64, 64, 64, 64, 64] # For the GRU is the feature dimension per time point, for the MLP is the total feature dimension as the input is flattened
   hidden_dims: [[64], [64], [64], [64], [64], [64]]
   latent_dims: [32, 32, 32, 32, 32, 32]
+  num_layers: 1
   activation: "relu"
+
+  # ---- MLP Encoder ----
+  # type: "MLP" # mlp or gru
+  # input_dims: [512, 512, 512, 512, 512, 512] # For the GRU is the feature dimension per time point, for the MLP is the total feature dimension as the input is flattened
+  # hidden_dims: [[64], [64], [64], [64], [64], [64]]
+  # latent_dims: [32, 32, 32, 32, 32, 32]
+  # activation: "relu"
 
 
 unique_encoder:
@@ -41,19 +41,19 @@ unique_encoder:
 
 
   # # ---- GRU Encoder ----
-  # type: "GRU" # mlp or gru
-  # input_dims: [64, 64, 64, 64, 64, 64]  
-  # hidden_dims: [[64], [64], [64], [64], [64], [64]]
-  # latent_dims: [32, 32, 32, 32, 32, 32]
-  # num_layers: 1
-  # activation: "relu"
-
-  # ---- MLP Encoder ----
-  type: "MLP" # mlp or gru
-  input_dims: [512, 512, 512, 512, 512, 512]
+  type: "GRU" # mlp or gru
+  input_dims: [64, 64, 64, 64, 64, 64]  
   hidden_dims: [[64], [64], [64], [64], [64], [64]]
   latent_dims: [32, 32, 32, 32, 32, 32]
+  num_layers: 1
   activation: "relu"
+
+  # ---- MLP Encoder ----
+  # type: "MLP" # mlp or gru
+  # input_dims: [512, 512, 512, 512, 512, 512]
+  # hidden_dims: [[64], [64], [64], [64], [64], [64]]
+  # latent_dims: [32, 32, 32, 32, 32, 32]
+  # activation: "relu"
 
 vmfkappa: 800
 add_shared: false
