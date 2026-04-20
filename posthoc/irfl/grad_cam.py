@@ -24,7 +24,7 @@ import textwrap
 
 apply_paper_plot_style()
 
-GRAD_CAM_CMAP = "magma"
+GRAD_CAM_CMAP = "jet"
 GRAD_CAM_ALPHA = 0.65
 TEXT_BAR_COLOR = "#2B8CBE"
 TEXT_BAR_EDGE_COLOR = "#045A8D"

@@ -14,19 +14,19 @@ shared_encoder:
 
 
   # the number of shared encoders is M * (M - 1)  -> M -1 shared components per modality
-  type: "GRU"
-  input_dims: [64, 64]
-  hidden_dims: [[64], [64]]
-  latent_dims: [32, 32]
-  num_layers: 1
-  activation: "relu"
-
-  # type: "MLP" # MLP or GRU
-  # input_dims: [512, 512] # For the GRU is the feature dimension per time point, for the MLP is the total feature dimension as the input is flattened
+  # type: "GRU"
+  # input_dims: [64, 64]
   # hidden_dims: [[64], [64]]
   # latent_dims: [32, 32]
   # num_layers: 1
   # activation: "relu"
+
+  type: "MLP" # MLP or GRU
+  input_dims: [512, 512] # For the GRU is the feature dimension per time point, for the MLP is the total feature dimension as the input is flattened
+  hidden_dims: [[64], [64]]
+  latent_dims: [32, 32]
+  num_layers: 1
+  activation: "relu"
 
 
 unique_encoder:
@@ -38,22 +38,22 @@ unique_encoder:
   # num_layers: [2, 2]
 
 
-  type: "GRU"
-  input_dims: [64, 64]
-  hidden_dims: [[64], [64]]
-  latent_dims: [32, 32]
-  num_layers: 1
-  activation: "relu"
-
-
-  
-  # the number of unique encoders is M * (M - 1) -> M -1 unique components per modality
-  # type: "MLP" # MLP or GRU
-  # input_dims: [512, 512]
+  # type: "GRU"
+  # input_dims: [64, 64]
   # hidden_dims: [[64], [64]]
   # latent_dims: [32, 32]
   # num_layers: 1
   # activation: "relu"
+
+
+  
+  # the number of unique encoders is M * (M - 1) -> M -1 unique components per modality
+  type: "MLP" # MLP or GRU
+  input_dims: [512, 512]
+  hidden_dims: [[64], [64]]
+  latent_dims: [32, 32]
+  num_layers: 1
+  activation: "relu"
 
 vmfkappa: 800
 add_shared: false
