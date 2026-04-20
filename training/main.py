@@ -83,7 +83,7 @@ def main():
     parser.add_argument('--save_data_split', type=bool, default=False)
     parser.add_argument('--load_data', type=bool, default=True)
     parser.add_argument('--log_dataset_artifact', type=bool, default=False)
-    parser.add_argument('--model_type', type=str, choices=['jointopt', 'repercent'], default='jointopt', help='Type of model to train')
+    parser.add_argument('--model_type', type=str, choices=['jointopt', 'repercent'], default='repercent', help='Type of model to train')
 
     # Define number of splits and seeds
     parser.add_argument('--k1', type=int, default= 3, help='Number of different train/test splits')
@@ -96,7 +96,7 @@ def main():
     script_dir = os.path.dirname(os.path.abspath(__file__))
     
 
-    M = 5 # number of modalities, used for model creation and dataset generation
+    M = 4 # number of modalities, used for model creation and dataset generation
     # Loading configurations for data, model, and training
     data_config_path = os.path.join(script_dir, "..", "configs", "data", f"synthetic_data_{M}m.yaml")
     with open(data_config_path, 'r') as f:
@@ -154,7 +154,8 @@ def main():
         
         # Seeds per split - model initialization and training
         for seed_idx in range(args.k2):
-
+            if seed_idx < 1:
+                continue
             train_seed = args.base_seed + 100 * split_idx + seed_idx
             set_seed(train_seed)
             generator = torch.Generator().manual_seed(train_seed)

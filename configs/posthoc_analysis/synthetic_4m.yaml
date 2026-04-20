@@ -5,12 +5,12 @@ wandb:
 # Choose RePercENT checkpoints for evaluation
 repercent:
   checkpoints:
-    - "./checkpoints/repercent_synthetic/2026-03-08_19-35-40_repercent_splits_3_seeds_2_split_0_seed_0/split0_seed0/final_best_checkpoint.pt"
-    - "./checkpoints/repercent_synthetic/2026-03-08_19-35-40_repercent_splits_3_seeds_2_split_0_seed_1/split0_seed1/final_best_checkpoint.pt"
-    - "./checkpoints/repercent_synthetic/2026-03-08_19-35-40_repercent_splits_3_seeds_2_split_1_seed_0/split1_seed0/final_best_checkpoint.pt"
-    - "./checkpoints/repercent_synthetic/2026-03-08_19-35-40_repercent_splits_3_seeds_2_split_1_seed_1/split1_seed1/final_best_checkpoint.pt"
-    - "./checkpoints/repercent_synthetic/2026-03-08_19-35-40_repercent_splits_3_seeds_2_split_2_seed_0/split2_seed0/final_best_checkpoint.pt"
-    - "./checkpoints/repercent_synthetic/2026-03-08_19-35-40_repercent_splits_3_seeds_2_split_2_seed_1/split2_seed1/final_best_checkpoint.pt"
+    - "./checkpoints/repercent_synthetic/2026-04-18_12-28-30_repercent_splits_3_seeds_2_split_0_seed_0/split0_seed0/final_best_checkpoint.pt"
+    - "./checkpoints/repercent_synthetic/2026-04-18_12-28-30_repercent_splits_3_seeds_2_split_0_seed_1/split0_seed1/final_best_checkpoint.pt"
+    - "./checkpoints/repercent_synthetic/2026-04-19_10-59-34_repercent_splits_3_seeds_2_split_1_seed_0/split1_seed0/final_best_checkpoint.pt"
+    - "./checkpoints/repercent_synthetic/2026-04-19_15-47-22_repercent_splits_3_seeds_2_split_1_seed_1/split1_seed1/final_best_checkpoint.pt"
+    - "./checkpoints/repercent_synthetic/2026-04-19_15-47-22_repercent_splits_3_seeds_2_split_2_seed_0/split2_seed0/final_best_checkpoint.pt"
+    - "./checkpoints/repercent_synthetic/2026-04-19_15-47-22_repercent_splits_3_seeds_2_split_2_seed_1/split2_seed1/final_best_checkpoint.pt"
     
     
 
@@ -18,12 +18,12 @@ repercent:
 jointopt:
   gmlp:
     checkpoints:
-      - "./checkpoints/repercent_synthetic/2026-03-09_09-54-55_gMLP_splits_3_seeds_2_split_0_seed_0/split0_seed0/final_best_checkpoint.pt"
-      - "./checkpoints/repercent_synthetic/2026-03-09_09-54-55_gMLP_splits_3_seeds_2_split_0_seed_1/split0_seed1/final_best_checkpoint.pt"
-      - "./checkpoints/repercent_synthetic/2026-03-09_09-54-55_gMLP_splits_3_seeds_2_split_1_seed_0/split1_seed0/final_best_checkpoint.pt"
-      - "./checkpoints/repercent_synthetic/2026-03-09_09-54-55_gMLP_splits_3_seeds_2_split_1_seed_1/split1_seed1/final_best_checkpoint.pt"
-      - "./checkpoints/repercent_synthetic/2026-03-09_09-54-55_gMLP_splits_3_seeds_2_split_2_seed_0/split2_seed0/final_best_checkpoint.pt"
-      - "./checkpoints/repercent_synthetic/2026-03-09_09-54-55_gMLP_splits_3_seeds_2_split_2_seed_1/split2_seed1/final_best_checkpoint.pt"
+      - "./checkpoints/repercent_synthetic/2026-04-18_12-30-07_gMLP_splits_3_seeds_2_split_0_seed_0/split0_seed0/final_best_checkpoint.pt"
+      - "./checkpoints/repercent_synthetic/2026-04-18_12-30-07_gMLP_splits_3_seeds_2_split_0_seed_1/split0_seed1/final_best_checkpoint.pt"
+      - "./checkpoints/repercent_synthetic/2026-04-19_11-17-44_gMLP_splits_3_seeds_2_split_1_seed_0/split1_seed0/final_best_checkpoint.pt"
+      - "./checkpoints/repercent_synthetic/2026-04-19_15-49-09_gMLP_splits_3_seeds_2_split_1_seed_1/split1_seed1/final_best_checkpoint.pt"
+      - "./checkpoints/repercent_synthetic/2026-04-19_15-49-09_gMLP_splits_3_seeds_2_split_2_seed_0/split2_seed0/final_best_checkpoint.pt"
+      - "./checkpoints/repercent_synthetic/2026-04-19_22-08-50_gMLP_splits_3_seeds_2_split_2_seed_1/split2_seed1/final_best_checkpoint.pt"
       
       
       
@@ -32,12 +32,12 @@ jointopt:
   
   gru:
     checkpoints:
-      - "./checkpoints/repercent_synthetic/2026-03-09_09-51-28_GRU_splits_3_seeds_2_split_0_seed_0/split0_seed0/final_best_checkpoint.pt"
-      - "./checkpoints/repercent_synthetic/2026-03-09_09-51-28_GRU_splits_3_seeds_2_split_0_seed_1/split0_seed1/final_best_checkpoint.pt"
-      - "./checkpoints/repercent_synthetic/2026-03-09_09-51-28_GRU_splits_3_seeds_2_split_1_seed_0/split1_seed0/final_best_checkpoint.pt"
-      - "./checkpoints/repercent_synthetic/2026-03-09_09-51-28_GRU_splits_3_seeds_2_split_1_seed_1/split1_seed1/final_best_checkpoint.pt"
-      - "./checkpoints/repercent_synthetic/2026-03-09_09-51-28_GRU_splits_3_seeds_2_split_2_seed_0/split2_seed0/final_best_checkpoint.pt"
-      - "./checkpoints/repercent_synthetic/2026-03-09_09-51-28_GRU_splits_3_seeds_2_split_2_seed_1/split2_seed1/final_best_checkpoint.pt"
+      - "./checkpoints/repercent_synthetic/2026-04-18_12-30-57_GRU_splits_3_seeds_2_split_0_seed_0/split0_seed0/final_best_checkpoint.pt"
+      - "./checkpoints/repercent_synthetic/2026-04-18_12-30-57_GRU_splits_3_seeds_2_split_0_seed_1/split0_seed1/final_best_checkpoint.pt"
+      - "./checkpoints/repercent_synthetic/2026-04-18_12-30-57_GRU_splits_3_seeds_2_split_1_seed_0/split1_seed0/final_best_checkpoint.pt"
+      - "./checkpoints/repercent_synthetic/2026-04-18_12-30-57_GRU_splits_3_seeds_2_split_1_seed_1/split1_seed1/final_best_checkpoint.pt"
+      - "./checkpoints/repercent_synthetic/2026-04-18_12-30-57_GRU_splits_3_seeds_2_split_2_seed_0/split2_seed0/final_best_checkpoint.pt"
+      - "./checkpoints/repercent_synthetic/2026-04-18_12-30-57_GRU_splits_3_seeds_2_split_2_seed_1/split2_seed1/final_best_checkpoint.pt"
       
       
       
@@ -45,12 +45,12 @@ jointopt:
 
   mlp:
     checkpoints:
-      - "./checkpoints/repercent_synthetic/2026-03-09_09-53-16_MLP_splits_3_seeds_2_split_0_seed_0/split0_seed0/final_best_checkpoint.pt"
-      - "./checkpoints/repercent_synthetic/2026-03-09_09-53-16_MLP_splits_3_seeds_2_split_0_seed_1/split0_seed1/final_best_checkpoint.pt"
-      - "./checkpoints/repercent_synthetic/2026-03-09_09-53-16_MLP_splits_3_seeds_2_split_1_seed_0/split1_seed0/final_best_checkpoint.pt"
-      - "./checkpoints/repercent_synthetic/2026-03-09_09-53-16_MLP_splits_3_seeds_2_split_1_seed_1/split1_seed1/final_best_checkpoint.pt"
-      - "./checkpoints/repercent_synthetic/2026-03-09_09-53-16_MLP_splits_3_seeds_2_split_2_seed_0/split2_seed0/final_best_checkpoint.pt"
-      - "./checkpoints/repercent_synthetic/2026-03-09_09-53-16_MLP_splits_3_seeds_2_split_2_seed_1/split2_seed1/final_best_checkpoint.pt"
+      - "./checkpoints/repercent_synthetic/2026-04-18_18-01-48_MLP_splits_3_seeds_2_split_0_seed_0/split0_seed0/final_best_checkpoint.pt"
+      - "./checkpoints/repercent_synthetic/2026-04-18_18-01-48_MLP_splits_3_seeds_2_split_0_seed_1/split0_seed1/final_best_checkpoint.pt"
+      - "./checkpoints/repercent_synthetic/2026-04-18_18-01-48_MLP_splits_3_seeds_2_split_1_seed_0/split1_seed0/final_best_checkpoint.pt"
+      - "./checkpoints/repercent_synthetic/2026-04-18_18-01-48_MLP_splits_3_seeds_2_split_1_seed_1/split1_seed1/final_best_checkpoint.pt"
+      - "./checkpoints/repercent_synthetic/2026-04-18_18-01-48_MLP_splits_3_seeds_2_split_2_seed_0/split2_seed0/final_best_checkpoint.pt"
+      - "./checkpoints/repercent_synthetic/2026-04-18_18-01-48_MLP_splits_3_seeds_2_split_2_seed_1/split2_seed1/final_best_checkpoint.pt"
       
       
       

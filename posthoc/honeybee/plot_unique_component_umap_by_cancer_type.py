@@ -11,6 +11,7 @@ from matplotlib.lines import Line2D
 import numpy as np
 import torch
 
+from posthoc.plotting_config import apply_paper_plot_style
 from posthoc.irfl.helper_vis import reduce_d
 from posthoc.honeybee.helper_metrics import (
     HONEYBEE_MODALITIES,
@@ -24,6 +25,8 @@ from posthoc.honeybee.plot_component_utils import (
     sanitize_name,
 )
 from training.main_honeybee import DEFAULT_FILTER_CANCER_TYPES, _parse_filter_cancer_types
+
+apply_paper_plot_style()
 
 
 def _build_unique_embeddings(component_features, labels, source_modality, modality_order=None):

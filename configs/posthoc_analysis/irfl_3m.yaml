@@ -5,29 +5,29 @@ wandb:
 # The paths to the checkpoints are wrt the root of the repository
 repercent:
   checkpoints:
-    - "./checkpoints/irfl/2026-03-18_10-44-41_IRFL_repercent_seeds_5_seed_0/seed0/final_checkpoint.pt"
-    - "./checkpoints/irfl/2026-03-18_10-44-41_IRFL_repercent_seeds_5_seed_1/seed1/final_checkpoint.pt"
-    - "./checkpoints/irfl/2026-03-18_10-44-41_IRFL_repercent_seeds_5_seed_2/seed2/final_checkpoint.pt"
-    - "./checkpoints/irfl/2026-03-18_10-44-41_IRFL_repercent_seeds_5_seed_3/seed3/final_checkpoint.pt"
-    - "./checkpoints/irfl/2026-03-18_10-44-41_IRFL_repercent_seeds_5_seed_4/seed4/final_checkpoint.pt"
+    - "./checkpoints/irfl/2026-04-19_16-56-47_IRFL_repercent_seeds_5_seed_0/seed0/final_checkpoint.pt"
+    - "./checkpoints/irfl/2026-04-19_16-56-47_IRFL_repercent_seeds_5_seed_1/seed1/final_checkpoint.pt"
+    - "./checkpoints/irfl/2026-04-19_16-56-47_IRFL_repercent_seeds_5_seed_2/seed2/final_checkpoint.pt"
+    - "./checkpoints/irfl/2026-04-19_16-56-47_IRFL_repercent_seeds_5_seed_3/seed3/final_checkpoint.pt"
+    - "./checkpoints/irfl/2026-04-19_16-56-47_IRFL_repercent_seeds_5_seed_4/seed4/final_checkpoint.pt"
 
 
     
 gmlp:
   checkpoints:
-    - "./checkpoints/irfl/2026-03-18_10-50-12_IRFL_gmlp_seeds_5_seed_0/seed0/final_checkpoint.pt"
-    - "./checkpoints/irfl/2026-03-18_10-50-12_IRFL_gmlp_seeds_5_seed_1/seed1/final_checkpoint.pt"
-    - "./checkpoints/irfl/2026-03-18_10-50-12_IRFL_gmlp_seeds_5_seed_2/seed2/final_checkpoint.pt"
-    - "./checkpoints/irfl/2026-03-18_10-50-12_IRFL_gmlp_seeds_5_seed_3/seed3/final_checkpoint.pt"
-    - "./checkpoints/irfl/2026-03-18_10-50-12_IRFL_gmlp_seeds_5_seed_4/seed4/final_checkpoint.pt"
+    - "./checkpoints/irfl/2026-04-19_17-34-10_IRFL_gmlp_seeds_5_seed_0/seed0/final_checkpoint.pt"
+    - "./checkpoints/irfl/2026-04-19_17-34-10_IRFL_gmlp_seeds_5_seed_1/seed1/final_checkpoint.pt"
+    - "./checkpoints/irfl/2026-04-19_17-34-10_IRFL_gmlp_seeds_5_seed_2/seed2/final_checkpoint.pt"
+    - "./checkpoints/irfl/2026-04-19_17-34-10_IRFL_gmlp_seeds_5_seed_3/seed3/final_checkpoint.pt"
+    - "./checkpoints/irfl/2026-04-19_17-34-10_IRFL_gmlp_seeds_5_seed_4/seed4/final_checkpoint.pt"
 
 gru:
   checkpoints:
-    - "./checkpoints/irfl/2026-03-18_12-15-44_IRFL_gru_seeds_5_seed_0/seed0/final_checkpoint.pt"
-    - "./checkpoints/irfl/2026-03-18_12-15-44_IRFL_gru_seeds_5_seed_1/seed1/final_checkpoint.pt"
-    - "./checkpoints/irfl/2026-03-18_12-15-44_IRFL_gru_seeds_5_seed_2/seed2/final_checkpoint.pt"
-    - "./checkpoints/irfl/2026-03-18_12-15-44_IRFL_gru_seeds_5_seed_3/seed3/final_checkpoint.pt"
-    - "./checkpoints/irfl/2026-03-18_12-15-44_IRFL_gru_seeds_5_seed_4/seed4/final_checkpoint.pt"
+    - "./checkpoints/irfl/2026-04-19_17-29-31_IRFL_gru_seeds_5_seed_0/seed0/final_checkpoint.pt"
+    - "./checkpoints/irfl/2026-04-19_17-29-31_IRFL_gru_seeds_5_seed_1/seed1/final_checkpoint.pt"
+    - "./checkpoints/irfl/2026-04-19_17-29-31_IRFL_gru_seeds_5_seed_2/seed2/final_checkpoint.pt"
+    - "./checkpoints/irfl/2026-04-19_17-29-31_IRFL_gru_seeds_5_seed_3/seed3/final_checkpoint.pt"
+    - "./checkpoints/irfl/2026-04-19_17-29-31_IRFL_gru_seeds_5_seed_4/seed4/final_checkpoint.pt"
 
 hyperparameters:
   max_distractors: 3 # Max number of distractors

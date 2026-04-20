@@ -14,6 +14,7 @@ import torch.nn.functional as F
 import yaml
 from torch.utils.data import DataLoader
 
+from posthoc.plotting_config import apply_paper_plot_style
 from posthoc.honeybee.helper_metrics import (
     HONEYBEE_MODALITIES,
     get_honeybee_modality_short_name,
@@ -29,6 +30,8 @@ from training.main_honeybee import (
 )
 from training.train_jointopt_2m import make_model_jointopt
 from training.train_repercent import make_model
+
+apply_paper_plot_style()
 
 
 PAIR_COLORS = {

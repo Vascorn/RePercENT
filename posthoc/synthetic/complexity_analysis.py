@@ -1,10 +1,17 @@
 import argparse
 import os
 import re
+import sys
 
 import matplotlib.pyplot as plt
 import pandas as pd
 import wandb
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
+
+from posthoc.plotting_config import apply_paper_plot_style
+
+apply_paper_plot_style()
 
 ENTITY = "vasiliki-rizou-epfl"
 
@@ -274,8 +281,8 @@ def _plot_grouped_metric(
                 linestyle="None",
                 markerfacecolor="lightgray",
                 markeredgecolor="black" if family_name == "RePercENT" else "gray",
-                markeredgewidth=1.1 if family_name == "RePercENT" else 0.6,
-                markersize=7,
+                markeredgewidth=1.1, #if family_name == "RePercENT" else 0.6,
+                markersize=8,
                 color="none",
             )
         )
@@ -297,7 +304,7 @@ def _plot_metric(df: pd.DataFrame, out_dir: str, metric_name: str, mean_col: str
         metric_name=metric_name,
         vmin=50.0,
         vmax=100.0,
-        cmap_name="Blues",
+        cmap_name="PuBu",
         colorbar_label="Accuracy",
         annotation_suffix="%",
         annotation_format=".1f",
@@ -312,7 +319,7 @@ def _plot_delta_to_ideal(df: pd.DataFrame, out_dir: str) -> None:
         metric_name="delta_to_ideal",
         vmin=0.5,
         vmax=0.8,
-        cmap_name="Reds",
+        cmap_name="PuBu",
         colorbar_label=r"$\Delta_{\mathrm{model}}$ (lower is better)",
         annotation_suffix="",
         annotation_format=".2f",

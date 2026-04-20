@@ -15,23 +15,19 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")
 
 from torch.utils.data import DataLoader
 
+from posthoc.plotting_config import apply_paper_plot_style
 from src.models.repercent import RePercENT
 from src.utils.helpers import set_seed
 from src.utils.irfl_dataset import make_dataset
 from training.train_repercent import make_model
 import textwrap
 
+apply_paper_plot_style()
 
-
-plt.rcParams.update({
-    "font.size": 11,
-    "axes.titlesize": 13,
-    "axes.labelsize": 12,
-    "xtick.labelsize": 10,
-    "ytick.labelsize": 10,
-    "axes.titleweight": "bold",
-    "figure.titlesize": 18,
-})
+GRAD_CAM_CMAP = "magma"
+GRAD_CAM_ALPHA = 0.65
+TEXT_BAR_COLOR = "#2B8CBE"
+TEXT_BAR_EDGE_COLOR = "#045A8D"
 
 def _normalize_cam(cam: torch.Tensor) -> np.ndarray:
     cam = torch.relu(cam)
@@ -229,8 +225,8 @@ def plot_all_pair_panels(panels: list[Dict[str, np.ndarray]], out_path: str):
         axes[row, 0].imshow(image)
         axes[row, 0].imshow(
             image_shared,
-            cmap="jet",
-            alpha=0.65,
+            cmap=GRAD_CAM_CMAP,
+            alpha=GRAD_CAM_ALPHA,
             interpolation="bicubic",
             extent=[0, w, h, 0],
         )
@@ -240,8 +236,8 @@ def plot_all_pair_panels(panels: list[Dict[str, np.ndarray]], out_path: str):
         axes[row, 1].imshow(image)
         axes[row, 1].imshow(
             image_unique,
-            cmap="jet",
-            alpha=0.65,
+            cmap=GRAD_CAM_CMAP,
+            alpha=GRAD_CAM_ALPHA,
             interpolation="bicubic",
             extent=[0, w, h, 0],
         )
@@ -260,8 +256,8 @@ def plot_all_pair_panels(panels: list[Dict[str, np.ndarray]], out_path: str):
     unique_labels_pretty = prettify_labels(text_unique_labels, width=18)
 
     bar_kwargs = dict(
-        color="#C44E52",
-        edgecolor="black",
+        color=TEXT_BAR_COLOR,
+        edgecolor=TEXT_BAR_EDGE_COLOR,
         linewidth=0.8,
         alpha=0.9
     )
@@ -300,7 +296,7 @@ def plot_all_pair_panels(panels: list[Dict[str, np.ndarray]], out_path: str):
     axes[-1, 1].grid(axis="y", linestyle="--", alpha=0.3)
     axes[-1, 1].tick_params(axis="y", labelsize=14)
 
-    fig.suptitle("Image–Text Pair Panels", fontsize=24, fontweight="bold", y=0.98)
+    fig.suptitle("Image-Text Pair Panels", fontsize=24, fontweight="bold", y=0.98)
     fig.tight_layout(rect=[0, 0.04, 1, 0.95])
     fig.savefig(out_path, dpi=300, bbox_inches="tight")
     plt.close(fig)
@@ -366,6 +362,8 @@ def main():
 
 
     for i, sample in enumerate(test_dataset):
+        if i <= 2500:
+            continue
         orig = sample["orig"]
         phrase = orig["phrases"]
 

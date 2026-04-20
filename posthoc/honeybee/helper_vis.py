@@ -3,6 +3,10 @@ import numpy as np
 import seaborn as sns
 import os
 
+from posthoc.plotting_config import apply_paper_plot_style
+
+apply_paper_plot_style()
+
 
 def plot_cancer_type_distribution(test_loader, train_loader, script_dir, title="Distribution of Cancer Types in Train and Test Sets", train_color="tab:blue", test_color="tab:orange", savefig_name="cancer_type_distribution.pdf"):
     test_counts = {}

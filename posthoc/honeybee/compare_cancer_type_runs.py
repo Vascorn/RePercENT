@@ -13,8 +13,11 @@ import numpy as np
 import seaborn as sns
 import wandb
 
+from posthoc.plotting_config import apply_paper_plot_style
 from posthoc.honeybee.helper_metrics import HONEYBEE_MODALITIES, get_honeybee_modality_short_name
 from training.main_honeybee import DEFAULT_FILTER_CANCER_TYPES, _parse_filter_cancer_types
+
+apply_paper_plot_style()
 
 
 def _sanitize_name(value):

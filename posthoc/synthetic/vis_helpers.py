@@ -2,8 +2,11 @@ from itertools import combinations
 
 import matplotlib.pyplot as plt
 import numpy as np
+from posthoc.plotting_config import apply_paper_plot_style
 from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
+
+apply_paper_plot_style()
 
 def plot_pairwise_component_projections(data_dict, M: int, method: str = "pca", max_points: int = 3000, seed: int = 0):
     """

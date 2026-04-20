@@ -19,10 +19,13 @@ except ImportError:
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
+from posthoc.plotting_config import apply_paper_plot_style
 from src.models.repercent import RePercENT
 from src.utils.helpers import set_seed
 from src.utils.irfl_dataset import make_dataset
 from training.train_repercent import make_model
+
+apply_paper_plot_style()
 
 
 def _normalize_attr(attr: np.ndarray) -> np.ndarray:

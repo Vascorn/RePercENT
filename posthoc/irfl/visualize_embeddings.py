@@ -6,6 +6,7 @@ import argparse
 import os, sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+from posthoc.plotting_config import apply_paper_plot_style
 from src.models import repercent, jointopt
 from src.models.repercent import RePercENT
 from src.utils.irfl_dataset import make_dataset
@@ -16,7 +17,7 @@ from src.utils.helpers import set_seed
 from torch.utils.data import DataLoader
 from posthoc.irfl.helper_vis import plot_embeddings, extract_all_embeddings
 
-
+apply_paper_plot_style()
 
 
 
@@ -106,8 +107,6 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
 
 
 

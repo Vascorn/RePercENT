@@ -28,7 +28,7 @@ def main():
     parser = argparse.ArgumentParser(description="Train RePercENT model on the IRFL dataset")
     parser.add_argument('--datasets_path', type=str, default="../../data/irfl/datasets/", help='Path to the directory containing the IRFL dataset tensors wrt to this script')
     parser.add_argument('--model_type', type=str, choices=['repercent', 'gmlp', 'gru'], default='gru', help='Type of model to train, for now only repercent is implemented')
-    parser.add_argument('--comp_mod', type=int, choices=[1, 2, 3], default= 2, help='Which modality to compute similarities for (1 for captions, 2 for definitions, 3 for adding \
+    parser.add_argument('--comp_mod', type=int, choices=[1, 2, 3], default= 3, help='Which modality to compute similarities for (1 for captions, 2 for definitions, 3 for adding \
                                                                                     the similarities between images- captions and images - definitions and then comparing the metrics). \
                                                                                     Note that 2 and 3 is only relevant for the 3-modality setting')
     # Define number of splits and seeds
@@ -144,7 +144,7 @@ def main():
             name = f"{args.model_type}_evaluation_images_vs_both"
             
     wandb.init(
-        project= data_config["wandb"]["project"],
+        project= f"irfl_{M}m_posthoc_analysis",
         name= name,
         config= analysis_config[args.model_type]
     )

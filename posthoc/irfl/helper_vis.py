@@ -16,6 +16,10 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 import umap
 
+from posthoc.plotting_config import apply_paper_plot_style
+
+apply_paper_plot_style()
+
 
 def all_to_np(x):
     out = {}
