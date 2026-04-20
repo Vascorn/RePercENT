@@ -301,7 +301,7 @@ def _get_pair_panel(
 
 
 def plot_all_pair_panels(panels: list[Dict[str, np.ndarray]], out_path: str):
-    fig, axes = plt.subplots(2, 2, figsize=(16, 25))
+    fig, axes = plt.subplots(2, 2, figsize=(18, 14))
 
     for row, panel in enumerate(panels):
         image = panel["image"]

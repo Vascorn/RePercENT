@@ -10,7 +10,7 @@ repercent:
     - "./checkpoints/repercent_synthetic/2026-04-19_10-59-34_repercent_splits_3_seeds_2_split_1_seed_0/split1_seed0/final_best_checkpoint.pt"
     - "./checkpoints/repercent_synthetic/2026-04-19_15-47-22_repercent_splits_3_seeds_2_split_1_seed_1/split1_seed1/final_best_checkpoint.pt"
     - "./checkpoints/repercent_synthetic/2026-04-19_15-47-22_repercent_splits_3_seeds_2_split_2_seed_0/split2_seed0/final_best_checkpoint.pt"
-    - "./checkpoints/repercent_synthetic/2026-04-19_15-47-22_repercent_splits_3_seeds_2_split_2_seed_1/split2_seed1/final_best_checkpoint.pt"
+    - "./checkpoints/repercent_synthetic/2026-04-20_15-20-10_repercent_splits_3_seeds_2_split_2_seed_1/split2_seed1/final_best_checkpoint.pt"
     
     
 

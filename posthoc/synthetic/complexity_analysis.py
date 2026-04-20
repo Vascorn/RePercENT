@@ -16,10 +16,10 @@ apply_paper_plot_style()
 ENTITY = "vasiliki-rizou-epfl"
 
 PROJECTS = [
-    "posthoc_synthetic-moe-2M",
-    "posthoc_synthetic-moe-3M",
-    "posthoc_synthetic-moe-4M",
-    "posthoc_synthetic-moe-5M",
+    "posthoc_synthetic-2M-final",
+    "posthoc_synthetic-3M-final",
+    "posthoc_synthetic-4M-final",
+    "posthoc_synthetic-5M-final",
 ]
 
 METRICS = [

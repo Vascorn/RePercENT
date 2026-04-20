@@ -221,10 +221,10 @@ def main():
     
     parser = argparse.ArgumentParser(description="Post hoc evaluation of trained models on synthetic data")
     parser.add_argument('--datasets_path', type=str, default="../../data/irfl/datasets/", help='Path to the directory containing the IRFL dataset tensors wrt to this script')
-    parser.add_argument('--model_type', type=str, choices= ['repercent', 'jointopt'], default='jointopt', help='Type of model to train, for now only repercent is implemented')
+    parser.add_argument('--model_type', type=str, choices= ['repercent', 'jointopt'], default='repercent', help='Type of model to train, for now only repercent is implemented')
     parser.add_argument('--enc_type', type=str, choices= ['gMLP', 'MLP', 'GRU'], default= 'MLP', help= "The different baseline encoders, if <model_type> is jointopt. This argument \
                                                                                                         is inactive, if model type is repercent")
-    parser.add_argument('--M', type=int, default= 5, help='Number of modalities in the synthetic setup.')
+    parser.add_argument('--M', type=int, default= 4, help='Number of modalities in the synthetic setup.')
     
     # Define number of splits and seeds - these should exactly match the training ones for reproducibility
     parser.add_argument('--k1', type=int, default= 3, help='Number of different train/test splits')
