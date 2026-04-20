@@ -21,20 +21,17 @@ from posthoc.honeybee.plot_component_utils import (
     build_color_map,
     compute_centroid_distance_matrix,
     load_split_features,
-    resolve_selected_cancer_types,
-    plot_circular_distance_layouts,
     sanitize_name,
 )
+from training.main_honeybee import DEFAULT_FILTER_CANCER_TYPES, _parse_filter_cancer_types
 
 
-def _build_unique_embeddings(component_features, labels, source_modality, selected_cancer_types, modality_order=None):
+def _build_unique_embeddings(component_features, labels, source_modality, modality_order=None):
     modality_order = modality_order or HONEYBEE_MODALITIES
     if source_modality not in modality_order:
         raise ValueError(f"Unknown modality {source_modality!r}. Available: {modality_order}")
 
     labels = np.asarray([str(label) for label in labels])
-    keep_mask = np.isin(labels, selected_cancer_types)
-    filtered_labels = labels[keep_mask]
 
     component_data = []
     for target_modality in modality_order:
@@ -44,8 +41,8 @@ def _build_unique_embeddings(component_features, labels, source_modality, select
         component_data.append({
             "source_modality": source_modality,
             "target_modality": target_modality,
-            "embeddings": component_features[component_name][keep_mask],
-            "labels": filtered_labels,
+            "embeddings": component_features[component_name],
+            "labels": labels,
         })
 
     return component_data
@@ -148,7 +145,7 @@ def main():
     parser.add_argument("--base_seed", type=int, default=2, help="Base seed used for reproducibility")
     parser.add_argument("--batch_size", type=int, default=32, help="Batch size for feature extraction")
     parser.add_argument("--modality", type=str, choices=HONEYBEE_MODALITIES, required=True, help="Source modality whose U_ij components will be visualized")
-    parser.add_argument("--cancer_types", nargs="+", default=None, help="Optional list of cancer types to include, e.g. TCGA-BRCA TCGA-LUAD")
+    parser.add_argument("--filter_cancer_types", nargs="+", default=DEFAULT_FILTER_CANCER_TYPES, help="Optional cancer types to keep, e.g. --filter_cancer_types TCGA-BRCA TCGA-LUAD or TCGA-BRCA,TCGA-LUAD. Should match training.")
     parser.add_argument("--output_dir", type=str, default="figures/unique_component_umap", help="Output directory relative to this script")
     parser.add_argument("--use_palette", action="store_true", help="Use an automatically generated seaborn categorical palette")
     parser.add_argument("--heatmap_vmax", type=float, default=float(np.pi), help="Upper bound for the angular-distance heatmap color scale")
@@ -158,18 +155,22 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     script_dir = os.path.dirname(os.path.abspath(__file__))
 
-    component_features, labels, _ = load_split_features(args, script_dir, device)
-    selected_cancer_types = resolve_selected_cancer_types(labels, args.cancer_types)
+    filter_cancer_types = _parse_filter_cancer_types(args.filter_cancer_types)
+    component_features, labels, _ = load_split_features(
+        args,
+        script_dir,
+        device,
+        filter_cancer_types=filter_cancer_types,
+    )
     component_data = _build_unique_embeddings(
         component_features,
         labels,
         args.modality,
-        selected_cancer_types,
         modality_order=HONEYBEE_MODALITIES,
     )
 
     if not component_data or component_data[0]["embeddings"].shape[0] == 0:
-        raise ValueError(f"No samples were found for cancer types: {selected_cancer_types}")
+        raise ValueError(f"No samples were found after filtering cancer types: {filter_cancer_types}")
 
     output_dir = os.path.join(script_dir, args.output_dir)
     os.makedirs(output_dir, exist_ok=True)
@@ -177,7 +178,6 @@ def main():
     suffix = f"{args.model_type}_{sanitize_name(args.modality)}_{args.split}_seed{args.select_seed}"
     umap_output_path = os.path.join(output_dir, f"unique_component_umap_{suffix}.pdf")
     heatmap_output_path = os.path.join(output_dir, f"unique_component_centroid_angular_distances_{suffix}.pdf")
-    circle_output_path = os.path.join(output_dir, f"unique_component_circular_centroid_layout_{suffix}.pdf")
 
     _plot_unique_umaps(
         component_data,
@@ -186,19 +186,9 @@ def main():
         use_palette=args.use_palette,
     )
     _plot_unique_distance_heatmaps(component_data, output_path=heatmap_output_path, heatmap_vmax=args.heatmap_vmax, heatmap_vmin=args.heatmap_vmin)
-    all_cancer_types = sorted({label for component in component_data for label in component["labels"]})
-    color_map = build_color_map(all_cancer_types, use_palette=args.use_palette)
-    plot_circular_distance_layouts(
-        component_data,
-        output_path=circle_output_path,
-        title_fn=_component_title,
-        matrix_fn=lambda item, cancer_types: compute_centroid_distance_matrix(item["embeddings"], item["labels"], cancer_types),
-        color_map=color_map,
-    )
 
     print(f"Saved {umap_output_path}")
     print(f"Saved {heatmap_output_path}")
-    print(f"Saved {circle_output_path}")
 
 
 if __name__ == "__main__":

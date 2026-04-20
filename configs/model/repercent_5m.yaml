@@ -1,5 +1,5 @@
 wandb:
-  project: "synthetic-moe-5M"
+  project: "synthetic-5M-final"
 
 # Use the same model configuration for each modality, except for the positional encoding parameters and input channels which are modality-specific
 perceiver: 

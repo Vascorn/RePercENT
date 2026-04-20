@@ -25,9 +25,51 @@ from sklearn.model_selection import train_test_split
 from training.main_irfl import aggregate_and_log
 
 
+DEFAULT_FILTER_CANCER_TYPES = [
+    'TCGA-BRCA',
+    'TCGA-COAD',
+    'TCGA-GBM',
+    'TCGA-HNSC',
+    'TCGA-KIRC',
+    'TCGA-LGG',
+    'TCGA-LUAD',
+    'TCGA-LUSC',
+    'TCGA-OV',
+    'TCGA-PRAD',
+]
+
 
 def _get_cancer_type_labels(dataset):
     return [dataset[idx]["cancer_type"] for idx in range(len(dataset))]
+
+
+def _parse_filter_cancer_types(filter_cancer_types):
+    if filter_cancer_types is None:
+        return None
+
+    cancer_types = []
+    for item in filter_cancer_types:
+        cancer_types.extend(ct.strip() for ct in item.split(",") if ct.strip())
+    return cancer_types or None
+
+
+def _format_filter_cancer_types(cancer_types):
+    if cancer_types is None:
+        return "all"
+    return ",".join(cancer_types)
+
+
+def _filter_dataset_by_cancer_types(dataset, cancer_types):
+    if cancer_types is None:
+        return dataset
+
+    cancer_type_set = set(cancer_types)
+    indices = [
+        idx
+        for idx in range(len(dataset))
+        if dataset[idx]["cancer_type"] in cancer_type_set
+    ]
+    return Subset(dataset, indices)
 
 
 def stratified_split_dataset(dataset, test_size, seed):
@@ -54,14 +96,16 @@ def main():
     parser.add_argument('--split_index', type=int, default=0, help='Index for the train/test split to load or save. Only relevant if --load_test_split is True or --save_test_split is True.')
     parser.add_argument('--wsi_embedding_mode', type=str, choices=['slide', 'patch'], default='slide', help='How to handle WSI embeddings: "slide" for pooling to slide-level, "patch" for keeping patch-level with padding')
     parser.add_argument('--model_type', type=str, choices=['repercent', 'gmlp', 'gru'], default='repercent', help='Type of model to train, for now only repercent is implemented')
-
+    parser.add_argument('--filter_cancer_types', nargs='+', default=DEFAULT_FILTER_CANCER_TYPES, help='Optional cancer types to keep, e.g. --filter_cancer_types TCGA-BRCA TCGA-LUAD or TCGA-BRCA,TCGA-LUAD. If omitted, DEFAUTL_FILTER_CANCER_TYPES will be used.')
     # Define number of splits and seeds
     parser.add_argument('--n_seeds', type=int, default= 5, help='Number of seeds per split for model initialization and training')
     parser.add_argument('--base_seed', type=int, default=2, help='Base seed for model initialization and training reproducibility')
     parser.add_argument('--split_seed', type=int, default=42, help='Seed used only for the reproducible stratified train/test split')
-    parser.add_argument('--add_val_set', type=bool, default=True, help= 'Whether to create a validation set from the training data for monitoring validation loss. If not set, the model will be trained and evaluated only on the test set.')
-    parser.add_argument('--evaluate_final_model', type=bool, default=False, help='Whether to run a final evaluation of the best model checkpoint on the test set after training. If not set, only validation metrics will be logged during training.')
+    parser.add_argument('--add_val_set', type=bool, default=False, help= 'Whether to create a validation set from the training data for monitoring validation loss. If not set, the model will be trained and evaluated only on the test set.')
+    parser.add_argument('--evaluate_final_model', type=bool, default=True, help='Whether to run a final evaluation of the best model checkpoint on the test set after training. If not set, only validation metrics will be logged during training.')
     args = parser.parse_args()
+    filter_cancer_types = _parse_filter_cancer_types(args.filter_cancer_types)
+    filter_cancer_types_label = _format_filter_cancer_types(filter_cancer_types)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -87,12 +131,14 @@ def main():
         dataset_split = torch.load(os.path.join(script_dir, args.datasets_path, f"dataset_01_{args.wsi_embedding_mode}_split_{args.split_seed}.pt"), weights_only=False)
         train_dataset = dataset_split['train']
         test_dataset = dataset_split['test']
-
+        train_dataset = _filter_dataset_by_cancer_types(train_dataset, filter_cancer_types)
+        test_dataset = _filter_dataset_by_cancer_types(test_dataset, filter_cancer_types)
     else:
         load_path = os.path.join(script_dir, args.datasets_path, f"dataset_01_{args.wsi_embedding_mode}.pt")
         
         print(f"Loading complete TCGA dataset from path {load_path}...")
         dataset = torch.load(load_path, weights_only=False)
+        dataset = _filter_dataset_by_cancer_types(dataset, filter_cancer_types)
         train_dataset, test_dataset = stratified_split_dataset(
             dataset,
             test_size=training_config["training"]["test_size"],
@@ -103,7 +149,17 @@ def main():
             torch.save({'train': train_dataset, 'test': test_dataset}, save_path)
             print(f"Saved train/test split dataset to path {save_path}")
     
+    if filter_cancer_types is not None:
+        if len(train_dataset) == 0:
+            raise ValueError(f"No training samples found for cancer types: {filter_cancer_types}.")
+        if len(test_dataset) == 0:
+            raise ValueError(f"No test samples found for cancer types: {filter_cancer_types}.")
+        print(
+            f"Filtered cancer types {filter_cancer_types}: "
+            f"{len(train_dataset)} train samples, {len(test_dataset)} test samples"
+        )
 
+    
     group_name = time.strftime("%Y-%m-%d_%H-%M-%S") + f"_Honeybee_{args.model_type}_seeds_{args.n_seeds}"
     # Initialize list to store final metrics across all runs
     all_final_metrics = []
@@ -142,6 +198,7 @@ def main():
             config={
                 "n_seeds": args.n_seeds, "base_seed": args.base_seed, "split_seed": args.split_seed,
                 "model_type": args.model_type,
+                "filter_cancer_types": filter_cancer_types,
             }
         )
         
@@ -161,6 +218,7 @@ def main():
         
 
         disen_loss = DisenLoss(alpha=training_config["disen_loss"]["alpha"],
+                                beta=training_config["disen_loss"]["beta"],
                                     lmd=training_config["disen_loss"]["lmd"],
                                     lmd_start_value=training_config["disen_loss"]["lmd_start_value"],
                                     lmd_end_value=training_config["disen_loss"]["lmd_end_value"],
@@ -182,6 +240,7 @@ def main():
             "meta/seed_idx": seed_idx,
             "meta/train_seed": train_seed,
             "meta/split_seed": args.split_seed,
+            "meta/filter_cancer_types": filter_cancer_types_label,
         })
 
         # TRAIN
@@ -211,7 +270,7 @@ def main():
         # global summary run
         run = wandb.init(project= data_config["wandb"]["project"], 
                         group=group_name, name=f"aggregate_{args.model_type}_{'w_val_set' if args.add_val_set else 'no_val_set'}", 
-                        reinit=True, config={"n_seeds": args.n_seeds, "base_seed": args.base_seed, "split_seed": args.split_seed, "model_type": args.model_type})
+                        reinit=True, config={"n_seeds": args.n_seeds, "base_seed": args.base_seed, "split_seed": args.split_seed, "model_type": args.model_type, "filter_cancer_types": filter_cancer_types})
         
         aggregate_and_log(all_final_metrics)
         wandb.finish()

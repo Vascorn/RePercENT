@@ -1,5 +1,5 @@
 wandb:
-  project: "synthetic-moe-2M"
+  project: "synthetic-2M-final"
 
 # Use the same model configuration for each modality, except for the positional encoding parameters and input channels which are modality-specific
 perceiver: 
@@ -16,6 +16,7 @@ perceiver:
   latent_dim: 32 # The dimension of each latent vector
   weight_tie_layers: false
   use_moeffn: false # default is false, use this to enable Mixture of Experts Feedforward layers after the self-attention layers
+  
 
 repercent:
   M: 2 # Number of modalities

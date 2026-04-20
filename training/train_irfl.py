@@ -75,6 +75,56 @@ def calc_batch_correct(outputs, distractors, device, comp_mod= 1):
     
     return correct
 
+
+def calc_retrieval_correct(query, answers, distractors):
+    query = F.normalize(query, dim=-1)
+    answers = F.normalize(answers, dim=-1)
+    distractors = F.normalize(distractors, dim=-1)
+
+    answer_sim = (query * answers).sum(dim=-1)
+    distractor_sims = torch.einsum('bd,bkd->bk', query, distractors)
+    return answer_sim > distractor_sims.max(dim=1).values
+
+
+def calc_batch_correct_all_representations(outputs, distractors, comp_mod=1):
+    unique_comp = outputs['U'][:, comp_mod, 0]
+    shared_comp = outputs['S_view'][:, comp_mod, 0]
+    complete_comp = torch.cat([unique_comp, shared_comp], dim=-1)
+
+    unique_image_answers = outputs['U'][:, 0, comp_mod]
+    shared_image_answers = outputs['S_view'][:, 0, comp_mod]
+    complete_image_answers = torch.cat([unique_image_answers, shared_image_answers], dim=-1)
+
+    return {
+        "shared": calc_retrieval_correct(shared_comp, shared_image_answers, distractors["shared"]),
+        "unique": calc_retrieval_correct(unique_comp, unique_image_answers, distractors["unique"]),
+        "complete": calc_retrieval_correct(complete_comp, complete_image_answers, distractors["complete"]),
+    }
+
+
+def encode_image_distractors_all_representations(model, distr_flat, batch_size, num_distractors, comp_mod):
+    if hasattr(model, "disenEncoders"): # This is the RePercENT case
+        image_components = model.disenEncoders[0](distr_flat)
+        unique_flat = model.get_slot(image_components, 1, f"U_1{comp_mod + 1}")
+        shared_flat = model.get_slot(image_components, 1, f"S_1{comp_mod + 1}")
+
+    elif hasattr(model, "sharedEncoders"): # This is the general JointOpt case
+        unique_key = f"U_1{comp_mod + 1}"
+        shared_key = f"S_1{comp_mod + 1}"
+        unique_flat = model.encode_modality(model.uniqueEncoders[unique_key], model.uniqueProjh[unique_key], distr_flat, None)
+        shared_flat = model.encode_modality(model.sharedEncoders[shared_key], model.sharedProjh[shared_key], distr_flat, None)
+
+    else:
+        raise ValueError("Expected a RePercENT or JointOpt-style model with component encoders.")
+
+    complete_flat = torch.cat([unique_flat, shared_flat], dim=-1)
+    return {
+        "unique": rearrange(unique_flat, '(b n) ... -> b n ...', b=batch_size, n=num_distractors),
+        "shared": rearrange(shared_flat, '(b n) ... -> b n ...', b=batch_size, n=num_distractors),
+        "complete": rearrange(complete_flat, '(b n) ... -> b n ...', b=batch_size, n=num_distractors),
+    }
+
+
 def test_loop(x, x_aug, model, disen_loss, device, M= 3):
     images, texts, text_mask = x["images"], x["texts"], x["pad_masks"]
     
@@ -309,6 +359,16 @@ def train(train_loader, test_loader, model, optimizer, disen_loss, epochs, devic
     # Calculate accuracy on test set
     overall_correct = 0
     overall_total = 0
+    representation_correct = {
+        "shared": 0,
+        "unique": 0,
+        "complete": 0,
+    }
+    representation_total = {
+        "shared": 0,
+        "unique": 0,
+        "complete": 0,
+    }
 
     # track per type
     type_correct = defaultdict(int)
@@ -335,17 +395,24 @@ def train(train_loader, test_loader, model, optimizer, disen_loss, epochs, devic
 
             B, N, S, D = distractors.shape
             distr_flat = rearrange(distractors, 'b n s d -> (b n) s d')
-            if hasattr(model, "disenEncoders"): # This is the RePercENT case
-                out_distractors_flat = model.disenEncoders[0](distr_flat)[:, 1, :]
+            out_distractors = encode_image_distractors_all_representations(
+                model,
+                distr_flat,
+                B,
+                N,
+                comp_mod,
+            )
 
-            elif hasattr(model, "sharedEncoders"): # This is the general JointOpt case
-                out_distractors_flat = model.encode_modality(model.sharedEncoders[f"S_1{comp_mod + 1}"], \
-                                model.sharedProjh[f"S_1{comp_mod + 1}"],distr_flat, None)
+            correct_by_representation = calc_batch_correct_all_representations(
+                outputs,
+                out_distractors,
+                comp_mod=comp_mod,
+            )
+            correct = correct_by_representation["shared"]
+            for representation_name, representation_correct_batch in correct_by_representation.items():
+                representation_correct[representation_name] += representation_correct_batch.sum().item()
+                representation_total[representation_name] += representation_correct_batch.numel()
 
-            out_distractors = rearrange(out_distractors_flat, '(b n) ... -> b n ...', b=B, n=N)
-
-
-            correct = calc_batch_correct(outputs, out_distractors, device, comp_mod= comp_mod)
             # ---- overall ----
             overall_correct += correct.sum().item()
             overall_total += correct.numel()
@@ -365,6 +432,12 @@ def train(train_loader, test_loader, model, optimizer, disen_loss, epochs, devic
     # Save final metrics:
     if (_iter + 1) == epochs:
         metrics_summary = calc_metrics_summary(overall_correct, overall_total, type_correct, type_total)
+        for representation_name in ["shared", "unique", "complete"]:
+            metrics_summary[f"{representation_name}/overall/accuracy"] = (
+                representation_correct[representation_name] / max(1, representation_total[representation_name])
+            )
+            metrics_summary[f"{representation_name}/overall/correct"] = representation_correct[representation_name]
+            metrics_summary[f"{representation_name}/overall/total"] = representation_total[representation_name]
         if val_loader is not None:
             metrics_summary["best_val_epoch"] = overall_best_epoch
             metrics_summary["best_val_loss"] = overall_best_val_loss

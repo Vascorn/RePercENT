@@ -14,6 +14,12 @@ from posthoc.honeybee.helper_metrics import evaluate_model_cancer_type, evaluate
 from posthoc.honeybee.helper_vis import plot_cancer_type_distribution
 from training.train_repercent import make_dataloaders, make_model
 from training.train_jointopt_2m import make_model_jointopt
+from training.main_honeybee import (
+    DEFAULT_FILTER_CANCER_TYPES,
+    _filter_dataset_by_cancer_types,
+    _format_filter_cancer_types,
+    _parse_filter_cancer_types,
+)
 import yaml
 import argparse
 import wandb
@@ -147,7 +153,7 @@ def _build_survival_summary_table(summary_metrics):
 
 
 def main():
-    
+
     parser = argparse.ArgumentParser(description="Train RePercENT model on the IRFL dataset")
     parser.add_argument('--datasets_path', type=str, default="../../data/honeybee/datasets/", help='Path to the directory containing the IRFL dataset tensors wrt to this script')
     parser.add_argument('--model_type', type=str, choices=['repercent', 'gmlp', 'gru'], default='repercent', help='Type of model to train, for now only repercent is implemented')
@@ -155,14 +161,18 @@ def main():
     parser.add_argument('--split_seed', type=int, default= 42, help='Seed for reproducible dataset splits, should match the seed used during training for loading the correct split')
     # Define number of splits and seeds
     parser.add_argument('--base_seed', type=int, default= 2, help='Base seed for reproducibility')
-    parser.add_argument('--cancer_classification', type=bool, default=False, help='Whether to perform cancer type classification evaluation')
-    parser.add_argument('--survival_analysis', type=bool, default=True, help='Whether to perform survival analysis evaluation')
-    parser.add_argument('--survival_cancer_types', type=str, default=None, help='Specific cancer types for survival analysis, e.g. TCGA-BRCA TCGA-LUAD')
+    parser.add_argument('--cancer_classification', type=bool, default=True, help='Whether to perform cancer type classification evaluation')
+    parser.add_argument('--survival_analysis', type=bool, default=False, help='Whether to perform survival analysis evaluation')
+    parser.add_argument('--filter_cancer_types', nargs='+', default=DEFAULT_FILTER_CANCER_TYPES, help='Optional cancer types to keep, e.g. --filter_cancer_types TCGA-BRCA TCGA-LUAD or TCGA-BRCA,TCGA-LUAD. Should match training.')
+    parser.add_argument('--survival_cancer_types', nargs='+', default=None, help='Specific cancer types for survival analysis, e.g. TCGA-BRCA TCGA-LUAD or TCGA-BRCA,TCGA-LUAD')
     args = parser.parse_args()
+    filter_cancer_types = _parse_filter_cancer_types(args.filter_cancer_types)
+    filter_cancer_types_label = _format_filter_cancer_types(filter_cancer_types)
+    survival_cancer_types = _parse_filter_cancer_types(args.survival_cancer_types)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    
+
     # Loading configurations for data, model, and training
     print("Loading configurations...")
     data_config_path = os.path.join(script_dir, "../..", "configs", "data", f"honeybee_data.yaml")
@@ -183,6 +193,19 @@ def main():
     train_dataset = dataset_split['train']
     test_dataset = dataset_split['test']
 
+    train_dataset = _filter_dataset_by_cancer_types(train_dataset, filter_cancer_types)
+    test_dataset = _filter_dataset_by_cancer_types(test_dataset, filter_cancer_types)
+    if filter_cancer_types is not None:
+        if len(train_dataset) == 0:
+            raise ValueError(f"No training samples found for cancer types: {filter_cancer_types}.")
+        if len(test_dataset) == 0:
+            raise ValueError(f"No test samples found for cancer types: {filter_cancer_types}.")
+        print(
+            f"Filtered cancer types {filter_cancer_types}: "
+            f"{len(train_dataset)} train samples, {len(test_dataset)} test samples"
+        )
+
+
     # Create loaders
     test_loader = DataLoader(test_dataset, batch_size= 32, shuffle=False, generator= torch.Generator().manual_seed(args.base_seed))
     train_loader = DataLoader(train_dataset, batch_size= 32, shuffle=True, generator= torch.Generator().manual_seed(args.base_seed))    
@@ -192,7 +215,7 @@ def main():
                                 script_dir = script_dir,
                                 train_color = "tab:blue",
                                 test_color = "tab:red")
-    
+    return
     
     # seed check
     n_seeds = analysis_config['hyperparameters']['n_seeds']
@@ -209,7 +232,6 @@ def main():
     complete_report = {f"seed_{i}": {} for i in range(args.base_seed, args.base_seed + n_seeds)}
     seed_reports = []
     survival_seed_reports = []
-    survival_cancer_types = args.survival_cancer_types.split() if args.survival_cancer_types else None
     for seed_idx, checkpoint_path in enumerate(analysis_config[args.model_type]['checkpoints']):
         temp_seed = args.base_seed + seed_idx
 
@@ -264,6 +286,8 @@ def main():
             "base_seed": args.base_seed,
             "n_seeds": n_seeds,
             "wsi_embedding_mode": args.wsi_embedding_mode,
+            "filter_cancer_types": filter_cancer_types_label,
+            "survival_cancer_types": _format_filter_cancer_types(survival_cancer_types),
         },
     )
 

@@ -80,8 +80,10 @@ def make_model(model_config, data_config, modality: int= 2, M: int=2):
                             input_axis= INPUT_AXIS,
                             fourier_encode_data= POS_ENCODING,
                             weight_tie_layers= WEIGHT_TIE_LAYERS,
-                            use_moeffn= model_config["perceiver"].get("use_moeffn", False)
+                            use_moeffn= model_config["perceiver"].get("use_moeffn", False),
+                            use_slot_attn= model_config["perceiver"].get("use_slot_attn", True)
                             )
+            print(f"Created standard Perceiver with latent heads: {LATENT_HEADS}, latent head dim: {LATENT_HEADS_DIM}, cross heads: {CROSS_HEADS}, cross head dim: {CROSS_HEADS_DIM}, pos encoding: {POS_ENCODING}, weight tie layers: {WEIGHT_TIE_LAYERS}, use_moeffn: {model_config['perceiver'].get('use_moeffn', False)}, use_slot_attn: {model_config['perceiver'].get('use_slot_attn', True)}")
         case "disen":
             per_m = PerceiverDisen(num_freq_bands= NUM_FREQ_BANDS,
                             latent_dim= LATENT_DIM,
@@ -95,11 +97,11 @@ def make_model(model_config, data_config, modality: int= 2, M: int=2):
                             fourier_encode_data= POS_ENCODING,
                             weight_tie_layers= WEIGHT_TIE_LAYERS
                             )
-        
+            print(f"input channels: {INPUT_CHANNELS}, latent dim: {LATENT_DIM}, num latents: {NUM_LATENTS}, cross heads: {CROSS_HEADS}, cross head dim: {CROSS_HEADS_DIM}, pos encoding: {POS_ENCODING}, weight tie layers: {WEIGHT_TIE_LAYERS}")
+
         case _:
             raise ValueError(f"Unsupported perceiver type: {perceiver_type}")
 
-    print(f"input channels: {INPUT_CHANNELS}, latent dim: {LATENT_DIM}, num latents: {NUM_LATENTS}, cross heads: {CROSS_HEADS}, cross head dim: {CROSS_HEADS_DIM}, pos encoding: {POS_ENCODING}, weight tie layers: {WEIGHT_TIE_LAYERS}")
     disen_m = DisenEncoder(encoder_model= enc_m, perceiver_model= per_m)
 
     return disen_m

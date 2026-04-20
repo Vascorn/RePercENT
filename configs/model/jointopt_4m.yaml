@@ -1,5 +1,5 @@
 wandb:
-  project: "synthetic-moe-4M"
+  project: "synthetic-4M-final"
 
 M: 4  # number of modalities
 

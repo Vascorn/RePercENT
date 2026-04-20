@@ -12,7 +12,12 @@ import torch
 
 from posthoc.irfl.helper_vis import reduce_d
 from posthoc.honeybee.helper_metrics import HONEYBEE_MODALITIES, get_honeybee_modality_short_name
-from posthoc.honeybee.plot_component_utils import build_color_map, resolve_selected_cancer_types, sanitize_name
+from posthoc.honeybee.plot_component_utils import (
+    build_color_map,
+    filter_split_dataset_by_cancer_types,
+    sanitize_name,
+)
+from training.main_honeybee import DEFAULT_FILTER_CANCER_TYPES, _parse_filter_cancer_types
 
 
 def _masked_mean(embeddings, mask):
@@ -74,17 +79,15 @@ def _extract_raw_modality_features(dataset, modality_order=None):
     return feature_store, np.asarray(labels)
 
 
-def _build_modality_data(raw_features, labels, selected_cancer_types, modality_order=None):
+def _build_modality_data(raw_features, labels, modality_order=None):
     modality_order = modality_order or HONEYBEE_MODALITIES
     labels = np.asarray([str(label) for label in labels])
-    keep_mask = np.isin(labels, selected_cancer_types)
-    filtered_labels = labels[keep_mask]
 
     return [
         {
             "modality": modality,
-            "embeddings": raw_features[modality][keep_mask],
-            "labels": filtered_labels,
+            "embeddings": raw_features[modality],
+            "labels": labels,
         }
         for modality in modality_order
     ]
@@ -139,7 +142,7 @@ def main():
     parser.add_argument("--split_seed", type=int, default=42, help="Seed of the saved train/test split")
     parser.add_argument("--split", type=str, choices=["train", "test"], default="test", help="Which saved split to visualize")
     parser.add_argument("--base_seed", type=int, default=2, help="Base seed used for reproducibility")
-    parser.add_argument("--cancer_types", nargs="+", default=None, help="Optional list of cancer types to include, e.g. TCGA-BRCA TCGA-LUAD")
+    parser.add_argument("--filter_cancer_types", nargs="+", default=DEFAULT_FILTER_CANCER_TYPES, help="Optional cancer types to keep, e.g. --filter_cancer_types TCGA-BRCA TCGA-LUAD or TCGA-BRCA,TCGA-LUAD. Should match training.")
     parser.add_argument("--output_dir", type=str, default="figures/raw_embedding_umap", help="Output directory relative to this script")
     parser.add_argument("--use_palette", action="store_true", help="Use an automatically generated seaborn categorical palette")
     args = parser.parse_args()
@@ -149,13 +152,18 @@ def main():
         os.path.join(script_dir, args.datasets_path, f"dataset_01_{args.wsi_embedding_mode}_split_{args.split_seed}.pt"),
         weights_only=False,
     )
+    filter_cancer_types = _parse_filter_cancer_types(args.filter_cancer_types)
+    split_dataset = filter_split_dataset_by_cancer_types(
+        dataset_split[args.split],
+        filter_cancer_types,
+        args.split,
+    )
 
-    raw_features, labels = _extract_raw_modality_features(dataset_split[args.split], modality_order=HONEYBEE_MODALITIES)
-    selected_cancer_types = resolve_selected_cancer_types(labels, args.cancer_types)
-    modality_data = _build_modality_data(raw_features, labels, selected_cancer_types, modality_order=HONEYBEE_MODALITIES)
+    raw_features, labels = _extract_raw_modality_features(split_dataset, modality_order=HONEYBEE_MODALITIES)
+    modality_data = _build_modality_data(raw_features, labels, modality_order=HONEYBEE_MODALITIES)
 
     if not modality_data or modality_data[0]["embeddings"].shape[0] == 0:
-        raise ValueError(f"No samples were found for cancer types: {selected_cancer_types}")
+        raise ValueError(f"No samples were found after filtering cancer types: {filter_cancer_types}")
 
     output_dir = os.path.join(script_dir, args.output_dir)
     os.makedirs(output_dir, exist_ok=True)

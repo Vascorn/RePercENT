@@ -283,7 +283,7 @@ class Perceiver(nn.Module):
         self_per_cross_attn = 1,
         final_classifier_head = True,
         use_moeffn = False,
-        use_slot_attn = False
+        use_slot_attn = True
     ):
         """The shape of the final attention mechanism will be:
         depth * (cross attention -> self_per_cross_attn * self attention)

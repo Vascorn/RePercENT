@@ -106,7 +106,11 @@ class RePercENT(nn.Module):
 
         self.norm = lambda x: nn.functional.normalize(x, dim=-1)
 
-        
+        # indices for all unordered pairs i<j (0-based)
+        idx = torch.triu_indices(self.M, self.M, offset=1)  # (2, P)
+        self.register_buffer("pair_i", idx[0])  # (P,)
+        self.register_buffer("pair_j", idx[1])  # (P,)
+
         # ========== Positional Encodings ==========
         self.add_pos_encoding = add_pos_encoding
         if self.add_pos_encoding:
@@ -125,29 +129,26 @@ class RePercENT(nn.Module):
             self.type_pos_enc = nn.Parameter(torch.randn(2, self.latent_dim) * 0.02)  # 0: U (unique), 1: S (shared)
 
 
-            # indices for all unordered pairs i<j (0-based)
-            idx = torch.triu_indices(self.M, self.M, offset=1)  # (2, P)
-            self.register_buffer("pair_i", idx[0])  # (P,)
-            self.register_buffer("pair_j", idx[1])  # (P,)
+            # Pre-compute index buffers for each modality following disen_mapping order
+            for m in range(1, M + 1):
+                mapping = disen_mapping[f"M_{m}"]
+                seq_len = len(mapping)
+                p_idx = torch.zeros(seq_len, dtype=torch.long)
+                t_idx = torch.zeros(seq_len, dtype=torch.long)
 
-        # Pre-compute index buffers for each modality following disen_mapping order
-        for m in range(1, M + 1):
-            mapping = disen_mapping[f"M_{m}"]
-            seq_len = len(mapping)
-            p_idx = torch.zeros(seq_len, dtype=torch.long)
-            t_idx = torch.zeros(seq_len, dtype=torch.long)
+                for comp_name, pos in mapping.items():
+                    comp_type = comp_name[0]  # 'U' or 'S'
+                    # Extract i and j from component name (e.g., "U_12" -> i=1, j=2)
+                    pair_str = comp_name.split('_')[1]  # "12"
+                    i_comp, j_comp = int(pair_str[0]), int(pair_str[1])
 
-            for comp_name, pos in mapping.items():
-                comp_type = comp_name[0]  # 'U' or 'S'
-                # Extract i and j from component name (e.g., "U_12" -> i=1, j=2)
-                pair_str = comp_name.split('_')[1]  # "12"
-                i_comp, j_comp = int(pair_str[0]), int(pair_str[1])
+                    p_idx[pos] = pair_to_idx[(i_comp, j_comp)]
+                    t_idx[pos] = 0 if comp_type == 'U' else 1
 
-                p_idx[pos] = pair_to_idx[(i_comp, j_comp)]
-                t_idx[pos] = 0 if comp_type == 'U' else 1
+                self.register_buffer(f"pair_idx_m{m}", p_idx, persistent=False)
+                self.register_buffer(f"type_idx_m{m}", t_idx, persistent=False)
 
-            self.register_buffer(f"pair_idx_m{m}", p_idx, persistent=False)
-            self.register_buffer(f"type_idx_m{m}", t_idx, persistent=False)
+
         self.P = idx.shape[1]
 
     def get_slot(self, Zi, i: int, comp: str):
@@ -224,6 +225,7 @@ class RePercENT(nn.Module):
 # It is based on the JointDisenModel from the DisentangledSSL package (https://github.com/uhlerlab/DisentangledSSL)
 class DisenLoss(nn.Module):
     def __init__(self, alpha: float = 1.0, 
+                beta: float = 0.005,
                 lmd: float= 0.5, lmd_start_value: float= 1e-3, 
                 lmd_end_value: float= 1, lmd_n_iterations: int=1e4, 
                 lmd_start_iteration: int=5e3, ortho_norm: bool= True, 
@@ -232,6 +234,7 @@ class DisenLoss(nn.Module):
         self.critic = SupConLoss()
         self.norm = lambda x: nn.functional.normalize(x, dim=-1)
         self.alpha = alpha
+        self.beta = beta
         self.lmd = lmd if lmd_end_value <= 0 else lmd_start_value
         self.lmd_scheduler = None if lmd_end_value <= 0 else ExponentialScheduler(start_value=lmd_start_value, end_value=lmd_end_value,
                                                              n_iterations=lmd_n_iterations, start_iteration=lmd_start_iteration)
@@ -307,9 +310,9 @@ class DisenLoss(nn.Module):
         loss_y = (loss_y + loss_y_aug) / 2
 
         #Calculate kl divergence for the probabilistic shared components
-        #skl = kl_vmf(self.norm(s_ij), self.norm(s_ji))
-        #skl_aug = kl_vmf(self.norm(s_ij_aug), self.norm(s_ji_aug))
-        #skl = (skl + skl_aug) / 2
+        skl = kl_vmf(self.norm(s_ij), self.norm(s_ji))
+        skl_aug = kl_vmf(self.norm(s_ij_aug), self.norm(s_ji_aug))
+        skl = (skl + skl_aug) / 2
 
         # Calculate losses for modality unique components
         concat_embed_xi = torch.cat([z_i_concat.unsqueeze(dim= 1), z_i_concat_aug.unsqueeze(dim= 1)], dim= 1)
@@ -327,10 +330,10 @@ class DisenLoss(nn.Module):
         if self.lmd_scheduler is not None:
             self.lmd = self.lmd_scheduler(self.iterations)
 
-        loss = 2 * joint_loss / (1 + self.alpha) + self.alpha * unique_loss / (1 + self.alpha) + self.lmd * loss_ortho #+ 0.1 * skl
+        loss = self.alpha * (joint_loss + self.beta * skl) + unique_loss + self.lmd * loss_ortho 
 
         # We also log a fixed weight version of the loss for easier comparison across training when alpha, lambda are using schedulers
-        fixed_weight_loss = joint_loss + unique_loss + loss_ortho
+        fixed_weight_loss = joint_loss + unique_loss + loss_ortho + skl
 
         loss_logs = {'loss': loss.item(),
                      'shared': joint_loss.item(),
@@ -339,7 +342,8 @@ class DisenLoss(nn.Module):
                      'unique': unique_loss.item(),
                      'ortho': loss_ortho.item(),
                      'fw_loss': fixed_weight_loss.item(),
-                     'lmd': self.lmd
+                     'lmd': self.lmd,
+                     'beta': self.beta
                      }
 
         return loss, loss_logs

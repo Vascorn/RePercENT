@@ -80,7 +80,7 @@ def aggregate_and_log(all_final_metrics: list):
 def main():
     parser = argparse.ArgumentParser(description="Train RePercENT or Jointopt model on synthetic data")
     parser.add_argument('--save_data', type=bool, default=False, help='Whether to save the generated synthetic dataset')
-    parser.add_argument('--save_data_split', type=bool, default=True)
+    parser.add_argument('--save_data_split', type=bool, default=False)
     parser.add_argument('--load_data', type=bool, default=True)
     parser.add_argument('--log_dataset_artifact', type=bool, default=False)
     parser.add_argument('--model_type', type=str, choices=['jointopt', 'repercent'], default='jointopt', help='Type of model to train')
@@ -96,7 +96,7 @@ def main():
     script_dir = os.path.dirname(os.path.abspath(__file__))
     
 
-    M = 4 # number of modalities, used for model creation and dataset generation
+    M = 5 # number of modalities, used for model creation and dataset generation
     # Loading configurations for data, model, and training
     data_config_path = os.path.join(script_dir, "..", "configs", "data", f"synthetic_data_{M}m.yaml")
     with open(data_config_path, 'r') as f:
@@ -118,12 +118,12 @@ def main():
         dataset = create_dataset_synth(data_config)
         print(f"Synthetic dataset created with {len(dataset)} samples.")
         if args.save_data:
-            save_path = os.path.join(script_dir, "..", "data", "repercent_synthetic", "dataset24")
+            save_path = os.path.join(script_dir, "..", "data", "repercent_synthetic", f"dataset2{M}")
             save_dataset(dataset, save_path, data_config)
 
     else:
         # Load the dataset
-        load_path = os.path.join(script_dir, "..", "data", "repercent_synthetic", "dataset24")
+        load_path = os.path.join(script_dir, "..", "data", "repercent_synthetic", f"dataset2{M}")
         dataset = torch.load(os.path.join(load_path, "dataset.pt"), weights_only=False)
     
     
@@ -134,6 +134,8 @@ def main():
 
     # Data splits
     for split_idx in range(args.k1):
+        if split_idx <2:
+            continue
         split_seed = args.base_seed + 10_000 + split_idx
         
         # deterministic split
@@ -146,12 +148,13 @@ def main():
         if args.save_data_split:
             # save split per split_idx and seed for reproducibility
             print(f"Saving data split {split_idx}...")
-            save_path = os.path.join(script_dir, "..", "data", "repercent_synthetic", "dataset24")
+            save_path = os.path.join(script_dir, "..", "data", "repercent_synthetic", f"dataset2{M}")
             save_data_split(train_dataset, test_dataset, val_dataset= val_dataset, save_path= save_path, split_id= str(split_idx))
         
-        continue
+        
         # Seeds per split - model initialization and training
         for seed_idx in range(args.k2):
+
             train_seed = args.base_seed + 100 * split_idx + seed_idx
             set_seed(train_seed)
             generator = torch.Generator().manual_seed(train_seed)
@@ -181,6 +184,7 @@ def main():
                                 disen_mapping=model_config["repercent"]["disen_mapping"]).to(device)
 
             disen_loss = DisenLoss(alpha=training_config["disen_loss"]["alpha"],
+                                    beta=training_config["disen_loss"]["beta"],
                                     lmd=training_config["disen_loss"]["lmd"],
                                     lmd_start_value=training_config["disen_loss"]["lmd_start_value"],
                                     lmd_end_value=training_config["disen_loss"]["lmd_end_value"],
@@ -229,7 +233,7 @@ def main():
                     reinit=True, config={"k1": args.k1, "k2": args.k2, "base_seed": args.base_seed, "model_type": args.model_type})
     if args.log_dataset_artifact:
         log_dataset(
-            dataset_name="dataset24",
+            dataset_name=f"dataset2{M}",
             dataset_path=os.path.join(script_dir, "..", "data", "repercent_synthetic"),
             data_config_path=data_config_path
         )

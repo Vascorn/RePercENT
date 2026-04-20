@@ -28,7 +28,7 @@ def main():
                                                                                     the similarities between images- captions and images - definitions and then comparing the metrics). \
                                                                                     Note that 2 and 3 is only relevant for the 3-modality setting')
     # Define number of splits and seeds
-    parser.add_argument('--select_seed', type=int, default= 1, help='Select the seed index to visualize (0-based index, should be less than n_seeds)')
+    parser.add_argument('--select_seed', type=int, default= 0, help='Select the seed index to visualize (0-based index, should be less than n_seeds)')
     args = parser.parse_args()
 
     

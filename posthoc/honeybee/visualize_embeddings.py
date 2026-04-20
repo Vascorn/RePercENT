@@ -22,6 +22,11 @@ from posthoc.honeybee.helper_metrics import (
 from posthoc.irfl.helper_vis import reduce_d
 from src.models.repercent import RePercENT
 from src.utils.helpers import set_seed
+from training.main_honeybee import (
+    DEFAULT_FILTER_CANCER_TYPES,
+    _filter_dataset_by_cancer_types,
+    _parse_filter_cancer_types,
+)
 from training.train_jointopt_2m import make_model_jointopt
 from training.train_repercent import make_model
 
@@ -54,6 +59,19 @@ def _build_modality_aliases(modality_names):
         used_codes.add(code)
 
     return aliases
+
+
+def _available_cancer_types(dataset, filter_cancer_types):
+    available = sorted({str(dataset[idx]["cancer_type"]) for idx in range(len(dataset))})
+    if filter_cancer_types is None:
+        return available
+
+    available_set = set(available)
+    return [
+        cancer_type
+        for cancer_type in dict.fromkeys(str(cancer_type) for cancer_type in filter_cancer_types)
+        if cancer_type in available_set
+    ]
 
 
 def _collect_pair_embeddings(loader, model, device, cancer_type, modality_order=None):
@@ -190,15 +208,16 @@ def _build_model(model_type, model_config, data_config, device):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="UMAP visualization of Honeybee pairwise embeddings for one cancer type")
+    parser = argparse.ArgumentParser(description="UMAP visualization of Honeybee pairwise embeddings by cancer type")
     parser.add_argument('--datasets_path', type=str, default="../../data/honeybee/datasets/", help='Path to the directory containing the Honeybee dataset tensors wrt to this script')
     parser.add_argument('--model_type', type=str, choices=['repercent', 'gmlp', 'gru'], default='repercent', help='Model type to visualize')
     parser.add_argument('--wsi_embedding_mode', type=str, choices=['slide', 'patch'], default='slide', help='WSI embedding mode used by the dataset split')
     parser.add_argument('--split_seed', type=int, default=42, help='Seed of the precomputed dataset split to load')
     parser.add_argument('--select_seed', type=int, default=0, help='Checkpoint seed index to visualize (0-based)')
-    parser.add_argument('--cancer_type', type=str, required=True, help='Cancer type to filter before plotting, e.g. TCGA-BRCA')
+    parser.add_argument('--filter_cancer_types', nargs='+', default=DEFAULT_FILTER_CANCER_TYPES, help='Optional cancer types to keep, e.g. --filter_cancer_types TCGA-BRCA TCGA-LUAD or TCGA-BRCA,TCGA-LUAD. Should match training.')
     parser.add_argument('--batch_size', type=int, default=32, help='Batch size for embedding extraction')
     args = parser.parse_args()
+    filter_cancer_types = _parse_filter_cancer_types(args.filter_cancer_types)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -226,7 +245,14 @@ def main():
         os.path.join(script_dir, args.datasets_path, f"dataset_01_{args.wsi_embedding_mode}_split_{args.split_seed}.pt"),
         weights_only=False,
     )
-    test_dataset = dataset_split['test']
+    test_dataset = _filter_dataset_by_cancer_types(dataset_split['test'], filter_cancer_types)
+    if filter_cancer_types is not None:
+        if len(test_dataset) == 0:
+            raise ValueError(f"No test samples found for cancer types: {filter_cancer_types}.")
+        print(f"Filtered cancer types {filter_cancer_types}: {len(test_dataset)} test samples")
+    selected_cancer_types = _available_cancer_types(test_dataset, filter_cancer_types)
+    if not selected_cancer_types:
+        raise ValueError(f"No cancer types were found after filtering: {filter_cancer_types}")
     test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False)
 
     project_root = os.path.abspath(os.path.join(script_dir, '..', '..'))
@@ -238,42 +264,44 @@ def main():
     model.load_state_dict(checkpoint['model_state_dict'])
     model.to(device)
 
-    pair_embeddings = _collect_pair_embeddings(
-        test_loader,
-        model,
-        device,
-        cancer_type=args.cancer_type,
-        modality_order=HONEYBEE_MODALITIES,
-    )
     modality_aliases = _build_modality_aliases(HONEYBEE_MODALITIES)
 
-    available_count = 0
-    for components in pair_embeddings.values():
-        available_count = max(available_count, components['unique_forward'].shape[0])
-    if available_count == 0:
-        raise ValueError(f"Cancer type {args.cancer_type} was not found in the loaded test split.")
+    for cancer_type in selected_cancer_types:
+        pair_embeddings = _collect_pair_embeddings(
+            test_loader,
+            model,
+            device,
+            cancer_type=cancer_type,
+            modality_order=HONEYBEE_MODALITIES,
+        )
 
-    fig_dir = os.path.join(script_dir, "figures", "embeddings", _sanitize_name(args.cancer_type))
-    os.makedirs(fig_dir, exist_ok=True)
+        available_count = 0
+        for components in pair_embeddings.values():
+            available_count = max(available_count, components['unique_forward'].shape[0])
+        if available_count == 0:
+            raise ValueError(f"Cancer type {cancer_type} was not found in the filtered test split.")
 
-    for i in range(len(HONEYBEE_MODALITIES)):
-        for j in range(i + 1, len(HONEYBEE_MODALITIES)):
-            modality_a = HONEYBEE_MODALITIES[i]
-            modality_b = HONEYBEE_MODALITIES[j]
-            fig_path = os.path.join(
-                fig_dir,
-                f"umap_{args.model_type}_seed{args.select_seed}_{_sanitize_name(args.cancer_type)}_{modality_a}_vs_{modality_b}.pdf",
-            )
-            _plot_pair_umap(
-                pair_embeddings[(i, j)],
-                modality_a=modality_a,
-                modality_b=modality_b,
-                cancer_type=args.cancer_type,
-                random_state=args.select_seed,
-                fig_path=fig_path,
-                modality_aliases=modality_aliases,
-            )
-            print(f"Saved {fig_path}")
+        fig_dir = os.path.join(script_dir, "figures", "embeddings", _sanitize_name(cancer_type))
+        os.makedirs(fig_dir, exist_ok=True)
+
+        for i in range(len(HONEYBEE_MODALITIES)):
+            for j in range(i + 1, len(HONEYBEE_MODALITIES)):
+                modality_a = HONEYBEE_MODALITIES[i]
+                modality_b = HONEYBEE_MODALITIES[j]
+                fig_path = os.path.join(
+                    fig_dir,
+                    f"umap_{args.model_type}_seed{args.select_seed}_{_sanitize_name(cancer_type)}_{modality_a}_vs_{modality_b}.pdf",
+                )
+                _plot_pair_umap(
+                    pair_embeddings[(i, j)],
+                    modality_a=modality_a,
+                    modality_b=modality_b,
+                    cancer_type=cancer_type,
+                    random_state=args.select_seed,
+                    fig_path=fig_path,
+                    modality_aliases=modality_aliases,
+                )
+                print(f"Saved {fig_path}")
 
 
 if __name__ == "__main__":

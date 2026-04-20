@@ -5,11 +5,16 @@ wandb:
 # The paths to the checkpoints are wrt the root of the repository
 repercent:
   checkpoints:
-    - "./checkpoints/honeybee/2026-03-31_14-39-04_Honeybee_repercent_seeds_5_seed_0/seed0/final_checkpoint.pt"
-    - "./checkpoints/honeybee/2026-03-31_14-39-04_Honeybee_repercent_seeds_5_seed_1/seed1/final_checkpoint.pt"
-    - "./checkpoints/honeybee/2026-03-31_14-39-04_Honeybee_repercent_seeds_5_seed_2/seed2/final_checkpoint.pt"
-    - "./checkpoints/honeybee/2026-03-31_14-39-04_Honeybee_repercent_seeds_5_seed_3/seed3/final_checkpoint.pt"
-    - "./checkpoints/honeybee/2026-03-31_14-39-04_Honeybee_repercent_seeds_5_seed_4/seed4/final_checkpoint.pt"
+    - "./checkpoints/honeybee/2026-04-18_15-10-25_Honeybee_repercent_seeds_5_seed_0/seed0/final_checkpoint.pt"
+    - "./checkpoints/honeybee/2026-04-18_15-10-25_Honeybee_repercent_seeds_5_seed_1/seed1/final_checkpoint.pt"
+    - "./checkpoints/honeybee/2026-04-18_15-10-25_Honeybee_repercent_seeds_5_seed_2/seed2/final_checkpoint.pt"
+    - "./checkpoints/honeybee/2026-04-18_15-10-25_Honeybee_repercent_seeds_5_seed_3/seed3/final_checkpoint.pt"
+    - "./checkpoints/honeybee/2026-04-18_15-10-25_Honeybee_repercent_seeds_5_seed_4/seed4/final_checkpoint.pt"
+    # - "./checkpoints/honeybee/2026-03-31_14-39-04_Honeybee_repercent_seeds_5_seed_0/seed0/final_checkpoint.pt"
+    # - "./checkpoints/honeybee/2026-03-31_14-39-04_Honeybee_repercent_seeds_5_seed_1/seed1/final_checkpoint.pt"
+    # - "./checkpoints/honeybee/2026-03-31_14-39-04_Honeybee_repercent_seeds_5_seed_2/seed2/final_checkpoint.pt"
+    # - "./checkpoints/honeybee/2026-03-31_14-39-04_Honeybee_repercent_seeds_5_seed_3/seed3/final_checkpoint.pt"
+    # - "./checkpoints/honeybee/2026-03-31_14-39-04_Honeybee_repercent_seeds_5_seed_4/seed4/final_checkpoint.pt"
 
 
 gmlp:

@@ -1,15 +1,16 @@
 wandb:
-  project: "synthetic-moe-3M"
+  project: "synthetic-3M-final"
 
 
 
 disen_loss:
-  alpha: 20.0
-  lmd: 0.001
+  alpha: 2
+  lmd: 1.0
   lmd_start_value: 0.1
   lmd_end_value: 1.0
   lmd_n_iterations: 8000
   lmd_start_iteration: 800
+  beta: 0.1
   ortho_norm: true
 
 optimizer:
@@ -22,7 +23,7 @@ optimizer:
 training:
   val_size: 0.1
   test_size: 0.2
-  n_epochs: 50
+  n_epochs: 150
   batch_size: 1024
   log_interval: 10
   augmentation: "random" # This includes to augmentation types: noise, random_drop

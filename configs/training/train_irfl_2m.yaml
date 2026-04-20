@@ -1,20 +1,21 @@
 wandb:
-  project: "irfl-v2-2m"
+  project: "irfl-2m-final"
 
 
 disen_loss:
-  alpha: 2.0
-  lmd: 5.0
-  lmd_start_value: 3.0
+  alpha: 6.0
+  lmd: 4.0
+  lmd_start_value: 1.0
   lmd_end_value: 0
   lmd_n_iterations: 250
   lmd_start_iteration: 50
+  beta: 2.0
   ortho_norm: true
 
 
 optimizer:
   name: "adam"
-  lr: 0.0005
+  lr: 0.0001
   weight_decay: 0.0001
 
 

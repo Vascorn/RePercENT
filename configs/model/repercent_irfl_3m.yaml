@@ -1,5 +1,5 @@
 wandb:
-  project: "irfl-v2-3m"
+  project: "irfl-3m-final"
 
 # Use the same model configuration for each modality, except for the positional encoding parameters and input channels which are modality-specific
 perceiver: 
@@ -34,4 +34,4 @@ repercent:
       S_31: 1
       U_32: 2
       S_32: 3
-  vmfkappa: 3000
+  vmfkappa: 1000

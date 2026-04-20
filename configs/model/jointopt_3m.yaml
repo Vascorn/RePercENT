@@ -1,5 +1,5 @@
 wandb:
-  project: "synthetic-moe-3M"
+  project: "synthetic-3M-final"
 
 M: 3  # number of modalities
 
@@ -42,7 +42,7 @@ unique_encoder:
 
   # # ---- GRU Encoder ----
   # type: "GRU" # mlp or gru
-  # input_dims: [64, 64, 64, 64, 64, 64]
+  # input_dims: [64, 64, 64, 64, 64, 64]  
   # hidden_dims: [[64], [64], [64], [64], [64], [64]]
   # latent_dims: [32, 32, 32, 32, 32, 32]
   # num_layers: 1

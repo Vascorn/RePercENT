@@ -14,6 +14,12 @@ from sklearn.metrics import accuracy_score
 from sklearn.preprocessing import LabelEncoder
 
 from posthoc.honeybee.survival_probe import evaluate_feature_survival_analysis
+from training.main_honeybee import (
+    DEFAULT_FILTER_CANCER_TYPES,
+    _filter_dataset_by_cancer_types,
+    _format_filter_cancer_types,
+    _parse_filter_cancer_types,
+)
 
 
 HONEYBEE_MODALITIES = ["clinical_qwen", "pathology_qwen", "wsi", "molecular"]
@@ -242,8 +248,12 @@ def main():
     parser.add_argument('--datasets_path', type=str, default="../../data/honeybee/datasets/", help='Path to the directory containing the Honeybee dataset tensors wrt to this script')
     parser.add_argument('--wsi_embedding_mode', type=str, choices=['slide', 'patch'], default='slide', help='Method for aggregating WSI embeddings, either slide level or patch level')
     parser.add_argument('--split_seed', type=int, default=42, help='Seed for reproducible dataset splits')
-    parser.add_argument('--survival_cancer_types', type=str, default=None, help='Specific cancer types for survival analysis, e.g. TCGA-BRCA TCGA-LUAD')
+    parser.add_argument('--filter_cancer_types', nargs='+', default=DEFAULT_FILTER_CANCER_TYPES, help='Optional cancer types to keep, e.g. --filter_cancer_types TCGA-BRCA TCGA-LUAD or TCGA-BRCA,TCGA-LUAD. Should match training.')
+    parser.add_argument('--survival_cancer_types', nargs='+', default=None, help='Specific cancer types for survival analysis, e.g. TCGA-BRCA TCGA-LUAD or TCGA-BRCA,TCGA-LUAD')
     args = parser.parse_args()
+    filter_cancer_types = _parse_filter_cancer_types(args.filter_cancer_types)
+    filter_cancer_types_label = _format_filter_cancer_types(filter_cancer_types)
+    survival_cancer_types = _parse_filter_cancer_types(args.survival_cancer_types)
 
     script_dir = os.path.dirname(os.path.abspath(__file__))
 
@@ -257,6 +267,17 @@ def main():
     )
     train_dataset = dataset_split['train']
     test_dataset = dataset_split['test']
+    train_dataset = _filter_dataset_by_cancer_types(train_dataset, filter_cancer_types)
+    test_dataset = _filter_dataset_by_cancer_types(test_dataset, filter_cancer_types)
+    if filter_cancer_types is not None:
+        if len(train_dataset) == 0:
+            raise ValueError(f"No training samples found for cancer types: {filter_cancer_types}.")
+        if len(test_dataset) == 0:
+            raise ValueError(f"No test samples found for cancer types: {filter_cancer_types}.")
+        print(
+            f"Filtered cancer types {filter_cancer_types}: "
+            f"{len(train_dataset)} train samples, {len(test_dataset)} test samples"
+        )
 
     train_features, train_labels = _extract_dataset_features(train_dataset, modality_order=HONEYBEE_MODALITIES)
     test_features, test_labels = _extract_dataset_features(test_dataset, modality_order=HONEYBEE_MODALITIES)
@@ -269,6 +290,8 @@ def main():
             "wsi_embedding_mode": args.wsi_embedding_mode,
             "modalities": HONEYBEE_MODALITIES,
             "fusion": "mean_within_modality_then_concat_across_modalities",
+            "filter_cancer_types": filter_cancer_types_label,
+            "survival_cancer_types": _format_filter_cancer_types(survival_cancer_types),
         },
     )
 
@@ -282,23 +305,22 @@ def main():
     )
     print(f"Probe metrics: {cancer_subtype_metrics}")
 
-    print("Evaluate survival prediction of pre-extracted features...")
-    train_survival = _extract_dataset_survival(train_dataset)
-    test_survival = _extract_dataset_survival(test_dataset)
-    cancer_types = args.survival_cancer_types.split() if args.survival_cancer_types else None
-    survival_metrics = evaluate_feature_survival_analysis(
-        train_features,
-        train_survival,
-        test_features,
-        test_survival,
-        cancer_types=cancer_types
-    )
+    # print("Evaluate survival prediction of pre-extracted features...")
+    # train_survival = _extract_dataset_survival(train_dataset)
+    # test_survival = _extract_dataset_survival(test_dataset)
+    # survival_metrics = evaluate_feature_survival_analysis(
+    #     train_features,
+    #     train_survival,
+    #     test_features,
+    #     test_survival,
+    #     cancer_types=survival_cancer_types
+    # )
 
     summary_table = _build_wandb_summary_table(cancer_subtype_metrics)
-    survival_summary_table = _build_survival_summary_table(survival_metrics)
+    # survival_summary_table = _build_survival_summary_table(survival_metrics)
     wandb.log({
-        "cancer_type_component_summary": summary_table,
-        "survival_analysis_component_summary": survival_summary_table,
+        "cancer_type_component_summary": summary_table
+        # "survival_analysis_component_summary": survival_summary_table,
     })
     wandb.finish()
 

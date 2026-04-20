@@ -1,5 +1,5 @@
 wandb:
-  project: "irfl-v2-2m"
+  project: "irfl-2m-final"
 
 # Use the same model configuration for each modality, except for the positional encoding parameters and input channels which are modality-specific
 perceiver: 
