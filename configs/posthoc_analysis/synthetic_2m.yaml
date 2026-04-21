@@ -5,12 +5,12 @@ wandb:
 # Choose RePercENT checkpoints for evaluation
 repercent:
   checkpoints:
-    - "./checkpoints/repercent_synthetic/2026-04-17_19-31-06_repercent_splits_3_seeds_2_split_0_seed_0/split0_seed0/final_best_checkpoint.pt"
-    - "./checkpoints/repercent_synthetic/2026-04-17_19-31-06_repercent_splits_3_seeds_2_split_0_seed_1/split0_seed1/final_best_checkpoint.pt"
-    - "./checkpoints/repercent_synthetic/2026-04-17_19-31-06_repercent_splits_3_seeds_2_split_1_seed_0/split1_seed0/final_best_checkpoint.pt"
-    - "./checkpoints/repercent_synthetic/2026-04-17_19-31-06_repercent_splits_3_seeds_2_split_1_seed_1/split1_seed1/final_best_checkpoint.pt"
-    - "./checkpoints/repercent_synthetic/2026-04-17_19-31-06_repercent_splits_3_seeds_2_split_2_seed_0/split2_seed0/final_best_checkpoint.pt"
-    - "./checkpoints/repercent_synthetic/2026-04-17_19-31-06_repercent_splits_3_seeds_2_split_2_seed_1/split2_seed1/final_best_checkpoint.pt"
+    - "./checkpoints/repercent_synthetic/2026-04-20_21-19-02_repercent_splits_3_seeds_2_split_0_seed_0/split0_seed0/final_best_checkpoint.pt"
+    - "./checkpoints/repercent_synthetic/2026-04-20_21-19-02_repercent_splits_3_seeds_2_split_0_seed_1/split0_seed1/final_best_checkpoint.pt"
+    - "./checkpoints/repercent_synthetic/2026-04-20_21-19-02_repercent_splits_3_seeds_2_split_1_seed_0/split1_seed0/final_best_checkpoint.pt"
+    - "./checkpoints/repercent_synthetic/2026-04-20_21-19-02_repercent_splits_3_seeds_2_split_1_seed_1/split1_seed1/final_best_checkpoint.pt"
+    - "./checkpoints/repercent_synthetic/2026-04-21_10-12-48_repercent_splits_3_seeds_2_split_2_seed_0/split2_seed0/final_best_checkpoint.pt"
+    - "./checkpoints/repercent_synthetic/2026-04-21_10-12-48_repercent_splits_3_seeds_2_split_2_seed_1/split2_seed1/final_best_checkpoint.pt"
     
     
 

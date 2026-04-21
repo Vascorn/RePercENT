@@ -96,7 +96,7 @@ def main():
     script_dir = os.path.dirname(os.path.abspath(__file__))
     
 
-    M = 4 # number of modalities, used for model creation and dataset generation
+    M = 2 # number of modalities, used for model creation and dataset generation
     # Loading configurations for data, model, and training
     data_config_path = os.path.join(script_dir, "..", "configs", "data", f"synthetic_data_{M}m.yaml")
     with open(data_config_path, 'r') as f:
@@ -134,7 +134,7 @@ def main():
 
     # Data splits
     for split_idx in range(args.k1):
-        if split_idx <2:
+        if split_idx < 2:
             continue
         split_seed = args.base_seed + 10_000 + split_idx
         
@@ -154,8 +154,7 @@ def main():
         
         # Seeds per split - model initialization and training
         for seed_idx in range(args.k2):
-            if seed_idx < 1:
-                continue
+            
             train_seed = args.base_seed + 100 * split_idx + seed_idx
             set_seed(train_seed)
             generator = torch.Generator().manual_seed(train_seed)
