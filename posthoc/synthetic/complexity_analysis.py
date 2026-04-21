@@ -95,6 +95,25 @@ MODEL_COLORS = {
 MODEL_ORDER = ["RePercENT", "gMLP", "GRU", "MLP", "JointOpt", "Other"]
 NEUTRAL_PLOT_COLOR = "#6E6E6E"
 
+MODEL_LINESTYLES = {
+    "RePercENT": "-",
+    "gMLP": "--",
+    "GRU": "-.",
+    "MLP": ":",
+    "JointOpt": (0, (5, 1.5)),
+    "Other": (0, (2, 1.2)),
+}
+
+TITLE_FONTSIZE = 13
+AXIS_LABEL_FONTSIZE = 15
+TICK_LABEL_FONTSIZE = 10
+ANNOTATION_FONTSIZE = 10
+LEGEND_FONTSIZE = 10
+LEGEND_TITLE_FONTSIZE = 10
+COLORBAR_LABEL_FONTSIZE = 12
+COLORBAR_TICK_FONTSIZE = 13
+COMPLEXITY_FIGSIZE = (7, 5)
+
 
 def _metric_average_color(family_df: pd.DataFrame, cmap, vmin: float | None, vmax: float | None):
     average_metric = family_df["metric_mean"].mean()
@@ -221,13 +240,14 @@ def _plot_grouped_metric(
     connect_points: bool = True,
     use_model_colors: bool = True,
     line_color_mode: str = "model",
+    use_model_linestyles: bool = False,
 ) -> None:
     if grouped.empty:
         print(f"No rows available for plotting {metric_name}.")
         return
 
     os.makedirs(out_dir, exist_ok=True)
-    fig, ax = plt.subplots(figsize=(8.6, 7.6))
+    fig, ax = plt.subplots(figsize=COMPLEXITY_FIGSIZE, constrained_layout=True)
 
     cmap = plt.get_cmap(cmap_name)
     label_offsets = {
@@ -251,28 +271,30 @@ def _plot_grouped_metric(
             plot_color = family_color
         else:
             plot_color = NEUTRAL_PLOT_COLOR
+        line_style = MODEL_LINESTYLES.get(family_name, MODEL_LINESTYLES["Other"]) if use_model_linestyles else "-"
         is_repercent = family_name == "RePercENT"
         if connect_points and len(family_df) > 1:
             ax.plot(
                 family_df["num_modalities"],
-                family_df["model_params"],
+                family_df["model_params"] / 1e6,
                 color=plot_color,
-                linewidth=2.3, #if is_repercent else 1.2,
+                linestyle=line_style,
+                linewidth=2.6 if is_repercent else 2.3,
                 alpha=0.9,
                 zorder=2,
             )
 
         scatter_kwargs = {
             "marker": marker,
-            "s": 90,
-            "linewidths": 1.4 if is_repercent else 1.1,
+            "s": 100,
+            "linewidths": 1.8 if is_repercent else 1.4,
             "alpha": 1.0,
             "zorder": 4,
         }
         if use_heatmap:
             scatter_ref = ax.scatter(
                 family_df["num_modalities"],
-                family_df["model_params"],
+                family_df["model_params"] / 1e6,
                 c=family_df["metric_mean"],
                 cmap=cmap,
                 vmin=vmin,
@@ -283,7 +305,7 @@ def _plot_grouped_metric(
         else:
             scatter_ref = ax.scatter(
                 family_df["num_modalities"],
-                family_df["model_params"],
+                family_df["model_params"] / 1e6,
                 color=plot_color,
                 edgecolors="black",
                 **scatter_kwargs,
@@ -291,36 +313,42 @@ def _plot_grouped_metric(
 
         dx, dy = label_offsets.get(family_name, (6, 6))
         for _, row in family_df.iterrows():
+            if row["num_modalities"] <= 3:
+                continue
             ax.annotate(
                 f"{row['metric_mean']:{annotation_format}}{annotation_suffix}",
-                (row["num_modalities"], row["model_params"]),
+                (row["num_modalities"], row["model_params"] / 1e6),
                 xytext=(dx, dy),
                 textcoords="offset points",
-                fontsize=10,
+                fontsize=ANNOTATION_FONTSIZE,
                 color=plot_color if use_model_colors and not use_heatmap else "black",
                 alpha=1.0,
-                weight="bold" #if is_repercent else None,
+                weight="semibold",
             )
 
     title = METRIC_TITLES.get(metric_name, metric_name.replace("_", " ").title())
-    ax.set_title(f"{title} vs Complexity")
-    ax.set_xlabel("Number of Modalities")
-    ax.set_ylabel("Number of Parameters")
+    ax.set_title(f"{title} vs Complexity", fontsize=TITLE_FONTSIZE, pad=14)
+    ax.set_xlabel("M", fontsize=AXIS_LABEL_FONTSIZE, labelpad=8)
+    ax.set_ylabel("Parameter count (M)", fontsize=AXIS_LABEL_FONTSIZE, labelpad=8)
     ax.set_xticks(modality_ticks)
     ax.set_xlim(min(modality_ticks) - 0.35, max(modality_ticks) + 0.35)
+    ax.tick_params(axis="both", labelsize=TICK_LABEL_FONTSIZE)
+    ax.yaxis.offsetText.set_fontsize(TICK_LABEL_FONTSIZE)
     ax.grid(True, alpha=0.2)
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)
 
     if use_heatmap and scatter_ref is not None:
         cbar = fig.colorbar(scatter_ref, ax=ax)
-        cbar.set_label(colorbar_label)
+        cbar.set_label(colorbar_label, fontsize=COLORBAR_LABEL_FONTSIZE, labelpad=10)
+        cbar.ax.tick_params(labelsize=COLORBAR_TICK_FONTSIZE, length=3)
 
     legend_handles = []
     legend_labels = []
     for family_name in MODEL_ORDER:
         if family_name not in grouped["model_family"].unique():
             continue
+        line_style = MODEL_LINESTYLES.get(family_name, MODEL_LINESTYLES["Other"]) if use_model_linestyles else "-"
         family_color = MODEL_COLORS.get(family_name, MODEL_COLORS["Other"])
         if line_color_mode == "model" and use_model_colors:
             plot_color = family_color
@@ -335,19 +363,32 @@ def _plot_grouped_metric(
                 [0],
                 [0],
                 marker=MODEL_MARKERS.get(family_name, MODEL_MARKERS["Other"]),
-                linestyle="-" if connect_points else "None",
+                linestyle=line_style if connect_points else "None",
                 markerfacecolor=markerfacecolor,
                 markeredgecolor=markeredgecolor,
                 markeredgewidth=1.0,
-                markersize=9.5,
+                markersize=10,
                 color=plot_color,
-                linewidth=1.2,
+                linewidth=2.2
             )
         )
         legend_labels.append(family_name)
-    ax.legend(legend_handles, legend_labels, title="Model", loc="upper left", frameon=True)
+    legend = ax.legend(
+        legend_handles,
+        legend_labels,
+        title="Model",
+        loc="upper left",
+        frameon=True,
+        fontsize=LEGEND_FONTSIZE,
+        title_fontsize=LEGEND_TITLE_FONTSIZE,
+        handlelength=3.0,
+        borderpad=0.6,
+        labelspacing=0.45,
+    )
+    for text in legend.get_texts():
+        if text.get_text() == "RePercENT":
+            text.set_fontweight("bold")
 
-    fig.tight_layout()
     suffix = "heatmap" if use_heatmap else "trajectory"
     out_path = os.path.join(out_dir, f"{metric_name}_modalities_params_{suffix}.pdf")
     fig.savefig(out_path, bbox_inches="tight")
@@ -400,6 +441,7 @@ def _plot_delta_to_ideal(df: pd.DataFrame, out_dir: str) -> None:
         connect_points=True,
         use_model_colors=True,
         line_color_mode="model",
+        use_model_linestyles=True,
     )
     _plot_grouped_metric(
         grouped=grouped,
@@ -415,6 +457,7 @@ def _plot_delta_to_ideal(df: pd.DataFrame, out_dir: str) -> None:
         connect_points=True,
         use_model_colors=False,
         line_color_mode="metric_average",
+        use_model_linestyles=True,
     )
 
 
