@@ -408,7 +408,7 @@ def _plot_delta_to_ideal(df: pd.DataFrame, out_dir: str) -> None:
         vmin=10.0,
         vmax=20.0,
         cmap_name="PuBu",
-        colorbar_label=r"$\Delta_{\mathrm{model}}$ percentage points (lower is better)",
+        colorbar_label=r"$\Delta_{\mathrm{model}}$ % (lower is better)",
         annotation_suffix="",
         annotation_format=".1f",
         use_heatmap=True,
