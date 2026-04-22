@@ -35,8 +35,8 @@ def main():
     # Define number of splits and seeds
     parser.add_argument('--k1', type=int, default= 3, help='Number of different train/test splits')
     parser.add_argument('--base_seed', type=int, default=2, help='Base seed for reproducibility')
-    parser.add_argument('--alpha_values', nargs='+', type=float, default=[0.01, 0.1, 1.0, 10.0, 100.0], help='Values of alpha to iterate over')
-    parser.add_argument('--M_values', nargs='+', type=int, default=[4, 5], help='Numbers of modalities to iterate over')
+    parser.add_argument('--alpha_values', nargs='+', type=float, default=[1.0], help='Values of alpha to iterate over')
+    parser.add_argument('--M_values', nargs='+', type=int, default=[5], help='Numbers of modalities to iterate over')
 
     args = parser.parse_args()
 
@@ -67,9 +67,6 @@ def main():
         
         group_name = f"{args.model_type}_splits_{args.k1}" if args.model_type == "repercent" else f"_{model_config['shared_encoder']['type']}_splits_{args.k1}"
         group_name += f"_{M}M" # modality number identifier for wandb grouping
-        
-
-
         
         
 

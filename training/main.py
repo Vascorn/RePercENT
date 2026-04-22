@@ -134,8 +134,7 @@ def main():
 
     # Data splits
     for split_idx in range(args.k1):
-        if split_idx < 2:
-            continue
+        
         split_seed = args.base_seed + 10_000 + split_idx
         
         # deterministic split
