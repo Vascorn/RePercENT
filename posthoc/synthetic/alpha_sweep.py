@@ -10,7 +10,7 @@ import wandb
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
-from posthoc.plotting_config import apply_paper_plot_style
+from posthoc.plotting_config import apply_paper_plot_style, get_line_style
 
 apply_paper_plot_style()
 
@@ -36,8 +36,8 @@ METRIC_TITLES = {
     "u2s_acc": r"Accuracy $\mathrm{u} \to \mathrm{y_s}$",
     "s2s_acc": r"Accuracy $\mathrm{s} \to \mathrm{y_s}$",
     "s2u_acc": r"Accuracy $\mathrm{s} \to \mathrm{y_u}$",
-    "delta_u": r"$\Delta_\mathrm{u} = (\mathrm{u} \to \mathrm{y_u}) - (\mathrm{u} \to \mathrm{y_s})$",
-    "delta_s": r"$\Delta_\mathrm{s} = (\mathrm{s} \to \mathrm{y_s}) - (\mathrm{s} \to \mathrm{y_u})$",
+    "delta_u": r"$\Delta_\mathrm{u}$",
+    "delta_s": r"$\Delta_\mathrm{s}$",
 }
 
 DELTA_METRICS = {
@@ -46,39 +46,15 @@ DELTA_METRICS = {
 }
 
 
-MODALITY_MARKERS = {
-    "2": "o",
-    "3": "s",
-    "4": "^",
-    "5": "D"
-}
-
-MODALITY_COLORS = {
-    "2": "#984EA3",
-    "3": "#377EB8",
-    "4": "#E41A1C",
-    "5": "#4DAF4A",
-}
-
-
-NEUTRAL_PLOT_COLOR = "#6E6E6E"
-
-MODALITY_LINESTYLES = {
-    "2": "-",
-    "3": "--",
-    "4": "-.",
-    "5": ":"
-}
-
-TITLE_FONTSIZE = 16
-AXIS_LABEL_FONTSIZE = 18
-TICK_LABEL_FONTSIZE = 10
-ANNOTATION_FONTSIZE = 10
-LEGEND_FONTSIZE = 10
-LEGEND_TITLE_FONTSIZE = 10
-COLORBAR_LABEL_FONTSIZE = 15
-COLORBAR_TICK_FONTSIZE = 13
 FIGSIZE = (7, 5)
+ALPHA_REFERENCE = 1.0
+ALPHA_REFERENCE_STYLE = {
+    "color": "0.45",
+    "linestyle": "--",
+    "linewidth": 1.5,
+    "alpha": 0.9,
+    "zorder": 0,
+}
 
 
 def _run_name(num_modalities: str, alpha: str) -> str:
@@ -286,6 +262,10 @@ def _metric_percent_multiplier(df: pd.DataFrame, columns: list[str]) -> float:
     return 1.0 if values.abs().max() > 1.0 else 100.0
 
 
+def _add_alpha_reference_line(ax) -> None:
+    ax.axvline(ALPHA_REFERENCE, **ALPHA_REFERENCE_STYLE)
+
+
 def _plot_metric_alpha_sweep(df: pd.DataFrame, out_dir: str, metric_name: str) -> None:
     plot_df = df.copy()
     mean_plot_col = f"{metric_name}_mean"
@@ -297,29 +277,25 @@ def _plot_metric_alpha_sweep(df: pd.DataFrame, out_dir: str, metric_name: str) -
     os.makedirs(out_dir, exist_ok=True)
     fig, ax = plt.subplots(figsize=FIGSIZE, constrained_layout=True)
 
-    for num_modalities, modality_df in plot_df.groupby("num_modalities"):
+    for modality_idx, (num_modalities, modality_df) in enumerate(plot_df.groupby("num_modalities")):
         modality = str(num_modalities)
         modality_df = modality_df.sort_values("alpha")
-        color = MODALITY_COLORS[modality]
+        line_style = get_line_style(f"{modality} M", index=modality_idx)
         ax.plot(
             modality_df["alpha"],
             modality_df[mean_plot_col],
-            color=color,
-            linestyle=MODALITY_LINESTYLES[modality],
-            marker=MODALITY_MARKERS[modality],
-            markersize=8,
             markeredgecolor="white",
             markeredgewidth=0.8,
-            linewidth=3.0,
             alpha=0.9,
             label=f"{modality} M",
+            **line_style,
         )
         if modality_df[std_plot_col].notna().any():
             ax.fill_between(
                 modality_df["alpha"],
                 modality_df[mean_plot_col] - modality_df[std_plot_col],
                 modality_df[mean_plot_col] + modality_df[std_plot_col],
-                color=color,
+                color=line_style["color"],
                 alpha=0.10,
                 linewidth=0,
             )
@@ -332,15 +308,12 @@ def _plot_metric_alpha_sweep(df: pd.DataFrame, out_dir: str, metric_name: str) -
     ax.set_xscale("log")
     ax.set_xticks(alpha_ticks)
     ax.set_xticklabels(alpha_labels)
-    ax.set_title(METRIC_TITLES[metric_name], fontsize=TITLE_FONTSIZE, pad=10)
-    ax.set_xlabel(r"$\alpha$", fontsize=AXIS_LABEL_FONTSIZE)
-    ax.set_ylabel("Accuracy (%)", fontsize=AXIS_LABEL_FONTSIZE)
+    _add_alpha_reference_line(ax)
+    ax.set_title(METRIC_TITLES[metric_name], pad=10)
+    ax.set_xlabel(r"$\alpha$")
+    ax.set_ylabel("Accuracy (%)")
     ax.set_ylim(50 if metric_name in ["u2s_acc", "s2u_acc"] else 60, 80 if metric_name in ["u2s_acc", "s2u_acc"] else 95)
-    ax.tick_params(axis="both", labelsize=TICK_LABEL_FONTSIZE)
-    ax.grid(True, alpha=0.18, linewidth=0.7)
-    ax.spines["top"].set_visible(False)
-    ax.spines["right"].set_visible(False)
-    ax.legend(frameon=False, fontsize=LEGEND_FONTSIZE, loc="best")
+    ax.legend(frameon=False, loc="best")
 
     out_path = os.path.join(out_dir, f"{metric_name}_alpha_sweep.pdf")
     fig.savefig(out_path, bbox_inches="tight")
@@ -365,29 +338,25 @@ def _plot_delta_alpha_sweep(df: pd.DataFrame, out_dir: str, delta_name: str) -> 
     os.makedirs(out_dir, exist_ok=True)
     fig, ax = plt.subplots(figsize=FIGSIZE, constrained_layout=True)
 
-    for num_modalities, modality_df in plot_df.groupby("num_modalities"):
+    for modality_idx, (num_modalities, modality_df) in enumerate(plot_df.groupby("num_modalities")):
         modality = str(num_modalities)
         modality_df = modality_df.sort_values("alpha")
-        color = MODALITY_COLORS[modality]
+        line_style = get_line_style(f"{modality} M", index=modality_idx)
         ax.plot(
             modality_df["alpha"],
             modality_df[f"{delta_name}_mean"],
-            color=color,
-            linestyle=MODALITY_LINESTYLES[modality],
-            marker=MODALITY_MARKERS[modality],
-            markersize=8,
             markeredgecolor="white",
             markeredgewidth=0.8,
-            linewidth=3.0,
             alpha=0.9,
             label=f"{modality} M",
+            **line_style,
         )
         if modality_df[f"{delta_name}_std"].notna().any():
             ax.fill_between(
                 modality_df["alpha"],
                 modality_df[f"{delta_name}_mean"] - modality_df[f"{delta_name}_std"],
                 modality_df[f"{delta_name}_mean"] + modality_df[f"{delta_name}_std"],
-                color=color,
+                color=line_style["color"],
                 alpha=0.10,
                 linewidth=0,
             )
@@ -401,15 +370,12 @@ def _plot_delta_alpha_sweep(df: pd.DataFrame, out_dir: str, delta_name: str) -> 
     ax.set_xscale("log")
     ax.set_xticks(alpha_ticks)
     ax.set_xticklabels(alpha_labels)
-    ax.set_title(METRIC_TITLES[delta_name], fontsize=TITLE_FONTSIZE, pad=10)
-    ax.set_xlabel(r"$\alpha$", fontsize=AXIS_LABEL_FONTSIZE)
-    ax.set_ylabel("Accuracy margin (%)", fontsize=AXIS_LABEL_FONTSIZE)
+    _add_alpha_reference_line(ax)
+    ax.set_title(METRIC_TITLES[delta_name], pad=10)
+    ax.set_xlabel(r"$\alpha$")
+    ax.set_ylabel("Accuracy margin (%)")
     ax.set_ylim(0, y_max * 1.12)
-    ax.tick_params(axis="both", labelsize=TICK_LABEL_FONTSIZE)
-    ax.grid(True, alpha=0.18, linewidth=0.7)
-    ax.spines["top"].set_visible(False)
-    ax.spines["right"].set_visible(False)
-    ax.legend(frameon=False, fontsize=LEGEND_FONTSIZE, loc="best")
+    ax.legend(frameon=False, loc="best")
 
     out_path = os.path.join(out_dir, f"{delta_name}_alpha_sweep.pdf")
     fig.savefig(out_path, bbox_inches="tight")

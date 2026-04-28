@@ -27,10 +27,12 @@ def main():
     
     parser = argparse.ArgumentParser(description="Train RePercENT model on the IRFL dataset")
     parser.add_argument('--datasets_path', type=str, default="../../data/irfl/datasets/", help='Path to the directory containing the IRFL dataset tensors wrt to this script')
-    parser.add_argument('--model_type', type=str, choices=['repercent', 'gmlp', 'gru'], default='gru', help='Type of model to train, for now only repercent is implemented')
-    parser.add_argument('--comp_mod', type=int, choices=[1, 2, 3], default= 3, help='Which modality to compute similarities for (1 for captions, 2 for definitions, 3 for adding \
+    parser.add_argument('--model_type', type=str, choices=['repercent', 'gmlp', 'gru'], default='repercent', help='Type of model to train, for now only repercent is implemented')
+    parser.add_argument('--comp_mod', type=int, choices=[1, 2, 3], default= 1, help='Which modality to compute similarities for (1 for captions, 2 for definitions, 3 for adding \
                                                                                     the similarities between images- captions and images - definitions and then comparing the metrics). \
                                                                                     Note that 2 and 3 is only relevant for the 3-modality setting')
+    parser.add_argument('--component', type=str, choices=['shared', 'unique', 'both'], default='both',
+                        help='Which component to assess (shared, unique, or both for shared concatenated with unique).')
     # Define number of splits and seeds
     parser.add_argument('--base_seed', type=int, default= 2, help='Base seed for reproducibility')
     args = parser.parse_args()
@@ -106,7 +108,7 @@ def main():
         # Evaluate on test set
         test_loader = DataLoader(test_dataset, batch_size= 32, shuffle=False, generator= torch.Generator().manual_seed(seed_idx))
         
-        temp_metrics = evaluate_model(model, test_loader, device, M= M, comp_mod= args.comp_mod)
+        temp_metrics = evaluate_model(model, test_loader, device, M= M, comp_mod= args.comp_mod, component= args.component)
         
         # Store results for this seed
         complete_report[f"seed_{temp_seed}"] = temp_metrics
@@ -137,11 +139,13 @@ def main():
 
     match args.comp_mod:
         case 1:
-            name = f"{args.model_type}_evaluation_images_vs_captions"
+            name = f"{args.model_type}_evaluation_images_vs_captions_{args.component}"
         case 2:
-            name = f"{args.model_type}_evaluation_images_vs_definitions"
+            name = f"{args.model_type}_evaluation_images_vs_definitions_{args.component}"
         case 3:
-            name = f"{args.model_type}_evaluation_images_vs_both"
+            name = f"{args.model_type}_evaluation_images_vs_both_{args.component}"
+    if args.component != "shared":
+        name = f"{name}_{args.component}"
             
     wandb.init(
         project= f"irfl_{M}m_posthoc_analysis",

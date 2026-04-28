@@ -1,0 +1,111 @@
+panel,method,drop_rate,metric,mean,std,n
+"Panel A: molecular available, drop WSI",Concat mean impute,0.0,balanced_accuracy,0.632205389241665,1.1214946133455537e-16,50
+"Panel A: molecular available, drop WSI",Concat mean impute,0.1,balanced_accuracy,0.6154643856196141,0.004686766807255023,50
+"Panel A: molecular available, drop WSI",Concat mean impute,0.2,balanced_accuracy,0.5973821035489884,0.007739382665458231,50
+"Panel A: molecular available, drop WSI",Concat mean impute,0.30000000000000004,balanced_accuracy,0.5783660860227828,0.007217194284345806,50
+"Panel A: molecular available, drop WSI",Concat mean impute,0.4,balanced_accuracy,0.5612920286630242,0.007939617544811957,50
+"Panel A: molecular available, drop WSI",Concat mean impute,0.5,balanced_accuracy,0.546068252576869,0.009465054889157918,50
+"Panel A: molecular available, drop WSI",Concat mean impute,0.6000000000000001,balanced_accuracy,0.5264620895453497,0.00750109039772948,50
+"Panel A: molecular available, drop WSI",Concat mean impute,0.7000000000000001,balanced_accuracy,0.5093698185023503,0.008096184813874406,50
+"Panel A: molecular available, drop WSI",Concat mean impute,0.8,balanced_accuracy,0.49182477551639125,0.006675937467136356,50
+"Panel A: molecular available, drop WSI",Concat mean impute,0.9,balanced_accuracy,0.4764244823594668,0.005028551584536962,50
+"Panel A: molecular available, drop WSI",Concat mean impute,1.0,balanced_accuracy,0.4575701002331741,0.0,50
+"Panel A: molecular available, drop WSI",HONeYBEE raw late,0.0,balanced_accuracy,0.6511761075016034,0.0,50
+"Panel A: molecular available, drop WSI",HONeYBEE raw late,0.1,balanced_accuracy,0.6353349513070456,0.0047157811943864345,50
+"Panel A: molecular available, drop WSI",HONeYBEE raw late,0.2,balanced_accuracy,0.618243144770105,0.007338900420638943,50
+"Panel A: molecular available, drop WSI",HONeYBEE raw late,0.30000000000000004,balanced_accuracy,0.6013442942959919,0.007237128349460325,50
+"Panel A: molecular available, drop WSI",HONeYBEE raw late,0.4,balanced_accuracy,0.5844559520207124,0.007971945584749706,50
+"Panel A: molecular available, drop WSI",HONeYBEE raw late,0.5,balanced_accuracy,0.5700984478671021,0.009845645186304684,50
+"Panel A: molecular available, drop WSI",HONeYBEE raw late,0.6000000000000001,balanced_accuracy,0.5535380731564321,0.006948599633222375,50
+"Panel A: molecular available, drop WSI",HONeYBEE raw late,0.7000000000000001,balanced_accuracy,0.5360898779699257,0.0075556170466832585,50
+"Panel A: molecular available, drop WSI",HONeYBEE raw late,0.8,balanced_accuracy,0.5202487790321092,0.007350639089273528,50
+"Panel A: molecular available, drop WSI",HONeYBEE raw late,0.9,balanced_accuracy,0.5052082627666676,0.004616713223510523,50
+"Panel A: molecular available, drop WSI",HONeYBEE raw late,1.0,balanced_accuracy,0.4882791549168929,0.0,50
+"Panel A: molecular available, drop WSI",Masked fusion,0.0,balanced_accuracy,0.6317402729625953,1.1214946133455537e-16,50
+"Panel A: molecular available, drop WSI",Masked fusion,0.1,balanced_accuracy,0.5870062855716188,0.005292953397294828,50
+"Panel A: molecular available, drop WSI",Masked fusion,0.2,balanced_accuracy,0.5416030612190041,0.009167601311298314,50
+"Panel A: molecular available, drop WSI",Masked fusion,0.30000000000000004,balanced_accuracy,0.49824225336287364,0.009704520852701582,50
+"Panel A: molecular available, drop WSI",Masked fusion,0.4,balanced_accuracy,0.4526223429593719,0.008802535174703002,50
+"Panel A: molecular available, drop WSI",Masked fusion,0.5,balanced_accuracy,0.4100714979017897,0.012414079247165224,50
+"Panel A: molecular available, drop WSI",Masked fusion,0.6000000000000001,balanced_accuracy,0.3628909031081777,0.009461114186820111,50
+"Panel A: molecular available, drop WSI",Masked fusion,0.7000000000000001,balanced_accuracy,0.3190712816074257,0.009638140104011017,50
+"Panel A: molecular available, drop WSI",Masked fusion,0.8,balanced_accuracy,0.27647742326416064,0.009108079291863615,50
+"Panel A: molecular available, drop WSI",Masked fusion,0.9,balanced_accuracy,0.23184832714311532,0.006145016376570609,50
+"Panel A: molecular available, drop WSI",Masked fusion,1.0,balanced_accuracy,0.18621064977715224,0.0,50
+"Panel A: molecular available, drop WSI",Modality dropout fusion,0.0,balanced_accuracy,0.6999197848120425,0.0032316452605083974,50
+"Panel A: molecular available, drop WSI",Modality dropout fusion,0.1,balanced_accuracy,0.683316780483092,0.0051842671169255415,50
+"Panel A: molecular available, drop WSI",Modality dropout fusion,0.2,balanced_accuracy,0.66715133187482,0.0070283428900062206,50
+"Panel A: molecular available, drop WSI",Modality dropout fusion,0.30000000000000004,balanced_accuracy,0.6493810994325794,0.00890220160522019,50
+"Panel A: molecular available, drop WSI",Modality dropout fusion,0.4,balanced_accuracy,0.6325920406302606,0.00806044900980972,50
+"Panel A: molecular available, drop WSI",Modality dropout fusion,0.5,balanced_accuracy,0.6182658979112451,0.009959620075601732,50
+"Panel A: molecular available, drop WSI",Modality dropout fusion,0.6000000000000001,balanced_accuracy,0.6017729392687243,0.00801625058257755,50
+"Panel A: molecular available, drop WSI",Modality dropout fusion,0.7000000000000001,balanced_accuracy,0.5850593746074982,0.007607107905290183,50
+"Panel A: molecular available, drop WSI",Modality dropout fusion,0.8,balanced_accuracy,0.568751549286712,0.007198664866982366,50
+"Panel A: molecular available, drop WSI",Modality dropout fusion,0.9,balanced_accuracy,0.5535773636852728,0.006276751454844182,50
+"Panel A: molecular available, drop WSI",Modality dropout fusion,1.0,balanced_accuracy,0.5360249873999642,0.004696589025289902,50
+"Panel A: molecular available, drop WSI",RePercENT,0.0,balanced_accuracy,0.7447273523354785,0.006804724356889434,50
+"Panel A: molecular available, drop WSI",RePercENT,0.1,balanced_accuracy,0.7377453726490547,0.008475814961205728,50
+"Panel A: molecular available, drop WSI",RePercENT,0.2,balanced_accuracy,0.7311396740885883,0.00937754334660994,50
+"Panel A: molecular available, drop WSI",RePercENT,0.30000000000000004,balanced_accuracy,0.7240299444433623,0.009560932802134912,50
+"Panel A: molecular available, drop WSI",RePercENT,0.4,balanced_accuracy,0.715243198872702,0.010026427009935092,50
+"Panel A: molecular available, drop WSI",RePercENT,0.5,balanced_accuracy,0.7099278497175722,0.011527788595740234,50
+"Panel A: molecular available, drop WSI",RePercENT,0.6000000000000001,balanced_accuracy,0.7046835000131688,0.011625872867088384,50
+"Panel A: molecular available, drop WSI",RePercENT,0.7000000000000001,balanced_accuracy,0.6987710334297631,0.01250887117487236,50
+"Panel A: molecular available, drop WSI",RePercENT,0.8,balanced_accuracy,0.6901298340622053,0.010939303933673004,50
+"Panel A: molecular available, drop WSI",RePercENT,0.9,balanced_accuracy,0.6828100615296141,0.01125066877732221,50
+"Panel A: molecular available, drop WSI",RePercENT,1.0,balanced_accuracy,0.6769667212460635,0.011104329560168578,50
+"Panel B: WSI available, drop molecular",Concat mean impute,0.0,balanced_accuracy,0.632205389241665,1.1214946133455537e-16,50
+"Panel B: WSI available, drop molecular",Concat mean impute,0.1,balanced_accuracy,0.5930080549268225,0.005810878689862918,50
+"Panel B: WSI available, drop molecular",Concat mean impute,0.2,balanced_accuracy,0.5551695799089299,0.009377791353326665,50
+"Panel B: WSI available, drop molecular",Concat mean impute,0.30000000000000004,balanced_accuracy,0.5187152813649272,0.009417333083838825,50
+"Panel B: WSI available, drop molecular",Concat mean impute,0.4,balanced_accuracy,0.4796713567380748,0.010649956321778883,50
+"Panel B: WSI available, drop molecular",Concat mean impute,0.5,balanced_accuracy,0.44131874944073357,0.01171542783835558,50
+"Panel B: WSI available, drop molecular",Concat mean impute,0.6000000000000001,balanced_accuracy,0.39676342334422043,0.012748924766031908,50
+"Panel B: WSI available, drop molecular",Concat mean impute,0.7000000000000001,balanced_accuracy,0.36117181926262826,0.009005115581926463,50
+"Panel B: WSI available, drop molecular",Concat mean impute,0.8,balanced_accuracy,0.3251941025911587,0.007968139620335758,50
+"Panel B: WSI available, drop molecular",Concat mean impute,0.9,balanced_accuracy,0.2857075168857661,0.007007193786635046,50
+"Panel B: WSI available, drop molecular",Concat mean impute,1.0,balanced_accuracy,0.24679639166025072,2.803736533363884e-17,50
+"Panel B: WSI available, drop molecular",HONeYBEE raw late,0.0,balanced_accuracy,0.6511761075016034,0.0,50
+"Panel B: WSI available, drop molecular",HONeYBEE raw late,0.1,balanced_accuracy,0.6256383086275655,0.006156120279302597,50
+"Panel B: WSI available, drop molecular",HONeYBEE raw late,0.2,balanced_accuracy,0.5991863667611862,0.008155035469308116,50
+"Panel B: WSI available, drop molecular",HONeYBEE raw late,0.30000000000000004,balanced_accuracy,0.5753940905059101,0.008148677159675282,50
+"Panel B: WSI available, drop molecular",HONeYBEE raw late,0.4,balanced_accuracy,0.5493332630742317,0.008346255486267464,50
+"Panel B: WSI available, drop molecular",HONeYBEE raw late,0.5,balanced_accuracy,0.5235941342387935,0.010121457296929096,50
+"Panel B: WSI available, drop molecular",HONeYBEE raw late,0.6000000000000001,balanced_accuracy,0.49524520499347746,0.011624328772704815,50
+"Panel B: WSI available, drop molecular",HONeYBEE raw late,0.7000000000000001,balanced_accuracy,0.47043206611530974,0.00918691877717592,50
+"Panel B: WSI available, drop molecular",HONeYBEE raw late,0.8,balanced_accuracy,0.4468121172507301,0.008164734388109537,50
+"Panel B: WSI available, drop molecular",HONeYBEE raw late,0.9,balanced_accuracy,0.41919798656737867,0.006050297132919676,50
+"Panel B: WSI available, drop molecular",HONeYBEE raw late,1.0,balanced_accuracy,0.3935474789010056,0.0,50
+"Panel B: WSI available, drop molecular",Masked fusion,0.0,balanced_accuracy,0.6317402729625953,1.1214946133455537e-16,50
+"Panel B: WSI available, drop molecular",Masked fusion,0.1,balanced_accuracy,0.5921632658586802,0.005589429223837764,50
+"Panel B: WSI available, drop molecular",Masked fusion,0.2,balanced_accuracy,0.5506500584995908,0.008956045866486965,50
+"Panel B: WSI available, drop molecular",Masked fusion,0.30000000000000004,balanced_accuracy,0.5152900118363117,0.009157436847179375,50
+"Panel B: WSI available, drop molecular",Masked fusion,0.4,balanced_accuracy,0.47303915575641947,0.009701958930791224,50
+"Panel B: WSI available, drop molecular",Masked fusion,0.5,balanced_accuracy,0.43374177564714544,0.012990523010955374,50
+"Panel B: WSI available, drop molecular",Masked fusion,0.6000000000000001,balanced_accuracy,0.3924364866843961,0.011904550526149768,50
+"Panel B: WSI available, drop molecular",Masked fusion,0.7000000000000001,balanced_accuracy,0.35289489703125243,0.009222680371929779,50
+"Panel B: WSI available, drop molecular",Masked fusion,0.8,balanced_accuracy,0.3152508099604086,0.00927969194587547,50
+"Panel B: WSI available, drop molecular",Masked fusion,0.9,balanced_accuracy,0.2740373277220567,0.006226673103436833,50
+"Panel B: WSI available, drop molecular",Masked fusion,1.0,balanced_accuracy,0.23393483616681504,0.0,50
+"Panel B: WSI available, drop molecular",Modality dropout fusion,0.0,balanced_accuracy,0.6999197848120425,0.0032316452605083974,50
+"Panel B: WSI available, drop molecular",Modality dropout fusion,0.1,balanced_accuracy,0.6725236318217043,0.006419078356347441,50
+"Panel B: WSI available, drop molecular",Modality dropout fusion,0.2,balanced_accuracy,0.6436758953996133,0.008512074570073278,50
+"Panel B: WSI available, drop molecular",Modality dropout fusion,0.30000000000000004,balanced_accuracy,0.6186731864181835,0.008632533138753118,50
+"Panel B: WSI available, drop molecular",Modality dropout fusion,0.4,balanced_accuracy,0.5908191768052502,0.008953289779560258,50
+"Panel B: WSI available, drop molecular",Modality dropout fusion,0.5,balanced_accuracy,0.5607105084948042,0.01092775271855658,50
+"Panel B: WSI available, drop molecular",Modality dropout fusion,0.6000000000000001,balanced_accuracy,0.5316648200320152,0.010416361941886833,50
+"Panel B: WSI available, drop molecular",Modality dropout fusion,0.7000000000000001,balanced_accuracy,0.5055882212678499,0.009232193192283909,50
+"Panel B: WSI available, drop molecular",Modality dropout fusion,0.8,balanced_accuracy,0.4797069913380127,0.009027400631745943,50
+"Panel B: WSI available, drop molecular",Modality dropout fusion,0.9,balanced_accuracy,0.4499081779934766,0.007925662310397511,50
+"Panel B: WSI available, drop molecular",Modality dropout fusion,1.0,balanced_accuracy,0.42206773384868,0.004628904527889088,50
+"Panel B: WSI available, drop molecular",RePercENT,0.0,balanced_accuracy,0.7447273523354785,0.006804724356889434,50
+"Panel B: WSI available, drop molecular",RePercENT,0.1,balanced_accuracy,0.7138892437294129,0.008897774367961247,50
+"Panel B: WSI available, drop molecular",RePercENT,0.2,balanced_accuracy,0.6799893660829727,0.009530470342986822,50
+"Panel B: WSI available, drop molecular",RePercENT,0.30000000000000004,balanced_accuracy,0.6476350274052203,0.009411253008374249,50
+"Panel B: WSI available, drop molecular",RePercENT,0.4,balanced_accuracy,0.6163554625833059,0.009603610698416707,50
+"Panel B: WSI available, drop molecular",RePercENT,0.5,balanced_accuracy,0.5837230123292595,0.009409951794369648,50
+"Panel B: WSI available, drop molecular",RePercENT,0.6000000000000001,balanced_accuracy,0.5502281628387304,0.011909529271807115,50
+"Panel B: WSI available, drop molecular",RePercENT,0.7000000000000001,balanced_accuracy,0.5188255224856914,0.010150259662251786,50
+"Panel B: WSI available, drop molecular",RePercENT,0.8,balanced_accuracy,0.4867294180248933,0.011937991845158182,50
+"Panel B: WSI available, drop molecular",RePercENT,0.9,balanced_accuracy,0.4531232368747554,0.008931121068145626,50
+"Panel B: WSI available, drop molecular",RePercENT,1.0,balanced_accuracy,0.42196520635554097,0.008824160260900573,50

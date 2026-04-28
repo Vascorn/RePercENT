@@ -11,6 +11,8 @@ import numpy as np
 from einops import rearrange
 
 
+ComponentName = Literal["shared", "unique", "both"]
+
 
 def test_fwd(x, model, device, M= 3):
     images, texts, text_mask = x["images"], x["texts"], x["pad_masks"]
@@ -29,50 +31,59 @@ def test_fwd(x, model, device, M= 3):
     
     return outputs
 
-def calc_batch_similarities(outputs, distractors, device, comp_mod= 1):
+
+def select_component(outputs, mod_i, mod_j, component: ComponentName):
+    if component == "shared":
+        return outputs['S_view'][:, mod_i, mod_j]
+    if component == "unique":
+        return outputs['U'][:, mod_i, mod_j]
+    if component == "both":
+        return torch.cat([outputs['S_view'][:, mod_i, mod_j], outputs['U'][:, mod_i, mod_j]], dim=-1)
+    raise ValueError(f"Unsupported component: {component}")
+
+
+def calc_batch_similarities(outputs, distractors, device, comp_mod= 1, component: ComponentName = "shared"):
     """
     Args:
         outputs: (B, D) tensor of model outputs for the correct match
         distractors: (B, K, D) tensor of model outputs for the K distractors
         comp_mod: int, which modality to compute similarities for (1 for captions, 2 for definitions, 3 for both). 
         Note that 2 and 3 are only relevant for the 3-modality setting, for the 2-modality setting.
+        component: which component to compare ("shared", "unique", or "both" for shared concatenated with unique).
     Returns:
         pos_sim: (B, 4) tensor of cosine similarities, at position 0 is the similarity for the correct match. The rest is for the distractors.
     """
     # Ensure inputs are on the same device
-    # shared_text: [B, D]
     if comp_mod < 3:
-        shared_text = outputs['S_view'][:, comp_mod, 0]
-        shared_text = F.normalize(shared_text, dim=-1)
+        query = select_component(outputs, comp_mod, 0, component)
+        query = F.normalize(query, dim=-1)
 
-        # shared_image_answers: [B, D]
-        shared_image_answers = outputs['S_view'][:, 0, comp_mod]
-        shared_image_answers = F.normalize(shared_image_answers, dim=-1)
+        image_answers = select_component(outputs, 0, comp_mod, component)
+        image_answers = F.normalize(image_answers, dim=-1)
 
-        # shared_image_distractors: [B, K, D]
-        shared_image_distractors = distractors
-        shared_image_distractors = F.normalize(shared_image_distractors, dim=-1)
+        image_distractors = distractors
+        image_distractors = F.normalize(image_distractors, dim=-1)
 
         # answer_sim: [B]
-        answer_sim = (shared_text * shared_image_answers).sum(dim=-1)
+        answer_sim = (query * image_answers).sum(dim=-1)
 
 
         # distractor_sims: [B, K]
-        # einsum computes dot(shared_text[b], shared_image_distractors[b, k]) for all b,k
-        distractor_sims = torch.einsum('bd,bkd->bk', shared_text, shared_image_distractors)
+        # einsum computes dot(query[b], image_distractors[b, k]) for all b,k
+        distractor_sims = torch.einsum('bd,bkd->bk', query, image_distractors)
     else:
         for i in range(1, 3):
-            shared_text = outputs['S_view'][:, i, 0]
-            shared_text = F.normalize(shared_text, dim=-1)
+            query = select_component(outputs, i, 0, component)
+            query = F.normalize(query, dim=-1)
 
-            shared_image_answers = outputs['S_view'][:, 0, i]
-            shared_image_answers = F.normalize(shared_image_answers, dim=-1)
+            image_answers = select_component(outputs, 0, i, component)
+            image_answers = F.normalize(image_answers, dim=-1)
 
-            shared_image_distractors = distractors[i - 1] # distractors is a list of two tensors in this case
-            shared_image_distractors = F.normalize(shared_image_distractors, dim=-1)
+            image_distractors = distractors[i - 1] # distractors is a list of two tensors in this case
+            image_distractors = F.normalize(image_distractors, dim=-1)
 
-            answer_sim_i = (shared_text * shared_image_answers).sum(dim=-1)
-            distractor_sims_i = torch.einsum('bd,bkd->bk', shared_text, shared_image_distractors)
+            answer_sim_i = (query * image_answers).sum(dim=-1)
+            distractor_sims_i = torch.einsum('bd,bkd->bk', query, image_distractors)
 
             if i == 1:
                 answer_sim = answer_sim_i
@@ -89,8 +100,36 @@ def calc_batch_similarities(outputs, distractors, device, comp_mod= 1):
     return pos_sim
 
 
+def encode_image_distractors(model, distr_flat, batch_size, num_distractors, comp_mod, component: ComponentName):
+    if hasattr(model, "disenEncoders"): # This is the RePercENT case
+        image_components = model.disenEncoders[0](distr_flat)
+        shared_flat = model.get_slot(image_components, 1, f"S_1{comp_mod + 1}")
+        if component == "shared":
+            out_distractors_flat = shared_flat
+        else:
+            unique_flat = model.get_slot(image_components, 1, f"U_1{comp_mod + 1}")
+            out_distractors_flat = unique_flat if component == "unique" else torch.cat([shared_flat, unique_flat], dim=-1)
 
-def extract_all_sims(model, test_loader, device, M= 3, comp_mod= 1):
+    elif hasattr(model, "sharedEncoders"): # This is the general JointOpt case
+        shared_key = f"S_1{comp_mod + 1}"
+        shared_flat = model.encode_modality(model.sharedEncoders[shared_key], \
+                    model.sharedProjh[shared_key], distr_flat, None)
+        if component == "shared":
+            out_distractors_flat = shared_flat
+        else:
+            unique_key = f"U_1{comp_mod + 1}"
+            unique_flat = model.encode_modality(model.uniqueEncoders[unique_key], \
+                        model.uniqueProjh[unique_key], distr_flat, None)
+            out_distractors_flat = unique_flat if component == "unique" else torch.cat([shared_flat, unique_flat], dim=-1)
+
+    else:
+        raise ValueError("Expected a RePercENT or JointOpt-style model with component encoders.")
+
+    return rearrange(out_distractors_flat, '(b n) ... -> b n ...', b=batch_size, n=num_distractors)
+
+
+
+def extract_all_sims(model, test_loader, device, M= 3, comp_mod= 1, component: ComponentName = "shared"):
     total_sims = {"overall": [], "metaphor": [], "idiom": [], "simile": []}
     model.eval()
     with torch.inference_mode():
@@ -106,33 +145,15 @@ def extract_all_sims(model, test_loader, device, M= 3, comp_mod= 1):
 
             B, N, S, D = distractors.shape
             distr_flat = rearrange(distractors, 'b n s d -> (b n) s d')
-            if hasattr(model, "disenEncoders"): # This is the RePercENT case
-                if comp_mod < 3:
-                    out_distractors_flat = model.get_slot(model.disenEncoders[0](distr_flat), 1, f"S_1{comp_mod + 1}")
-                    out_distractors = rearrange(out_distractors_flat, '(b n) ... -> b n ...', b=B, n=N)
-                else:
-                    out_distractors_flat_2 = model.get_slot(model.disenEncoders[0](distr_flat), 1, f"S_12") # image - caption shared
-                    out_distractors_flat_3 = model.get_slot(model.disenEncoders[0](distr_flat), 1, f"S_13") # image - definition shared
-                    out_distractors_2 = rearrange(out_distractors_flat_2, '(b n) ... -> b n ...', b=B, n=N)
-                    out_distractors_3 = rearrange(out_distractors_flat_3, '(b n) ... -> b n ...', b=B, n=N)
-                    out_distractors = [out_distractors_2, out_distractors_3]
+            if comp_mod < 3:
+                out_distractors = encode_image_distractors(model, distr_flat, B, N, comp_mod, component)
+            else:
+                out_distractors = [
+                    encode_image_distractors(model, distr_flat, B, N, i, component)
+                    for i in range(1, 3)
+                ]
 
-            elif hasattr(model, "sharedEncoders"): # This is the general JointOpt case
-                if comp_mod < 3:
-                    out_distractors_flat = model.encode_modality(model.sharedEncoders[f"S_1{comp_mod + 1}"], \
-                                model.sharedProjh[f"S_1{comp_mod + 1}"],distr_flat, None)
-
-                    out_distractors = rearrange(out_distractors_flat, '(b n) ... -> b n ...', b=B, n=N)
-                else:
-                    out_distractors_flat_2 = model.encode_modality(model.sharedEncoders[f"S_12"], \
-                                    model.sharedProjh[f"S_12"],distr_flat, None)
-                    out_distractors_flat_3 = model.encode_modality(model.sharedEncoders[f"S_13"], \
-                                    model.sharedProjh[f"S_13"],distr_flat, None)
-                    out_distractors_2 = rearrange(out_distractors_flat_2, '(b n) ... -> b n ...', b=B, n=N)
-                    out_distractors_3 = rearrange(out_distractors_flat_3, '(b n) ... -> b n ...', b=B, n=N)
-                    out_distractors = [out_distractors_2, out_distractors_3]
-
-            sims = calc_batch_similarities(outputs, out_distractors, device, comp_mod= comp_mod)
+            sims = calc_batch_similarities(outputs, out_distractors, device, comp_mod= comp_mod, component= component)
             total_sims["overall"] += sims.cpu().numpy().tolist()
             ftypes = out["figurative_type"]
             
@@ -144,8 +165,8 @@ def extract_all_sims(model, test_loader, device, M= 3, comp_mod= 1):
 
 
 
-def evaluate_model(model, test_loader, device, M= 3, comp_mod= 1):
-    total_sims = extract_all_sims(model, test_loader, device, M= M, comp_mod= comp_mod)
+def evaluate_model(model, test_loader, device, M= 3, comp_mod= 1, component: ComponentName = "shared"):
+    total_sims = extract_all_sims(model, test_loader, device, M= M, comp_mod= comp_mod, component= component)
 
     metrics = {}
     for ftype in total_sims.keys():

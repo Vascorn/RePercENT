@@ -35,7 +35,7 @@ def main():
     # Define number of splits and seeds
     parser.add_argument('--k1', type=int, default= 3, help='Number of different train/test splits')
     parser.add_argument('--base_seed', type=int, default=2, help='Base seed for reproducibility')
-    parser.add_argument('--alpha_values', nargs='+', type=float, default=[1.0], help='Values of alpha to iterate over')
+    parser.add_argument('--alpha_values', nargs='+', type=float, default=[10.0, 100.0], help='Values of alpha to iterate over')
     parser.add_argument('--M_values', nargs='+', type=int, default=[5], help='Numbers of modalities to iterate over')
 
     args = parser.parse_args()
@@ -72,7 +72,7 @@ def main():
 
         for alpha in args.alpha_values: # alpha values to iterate over
        
-            split_seed = args.base_seed + 10_000 + 1
+            split_seed = args.base_seed + 10_000 + 0
             
             # deterministic split
             train_dataset, test_dataset, val_dataset = split_dataset_seeded(dataset, \
@@ -81,7 +81,7 @@ def main():
                                                                             seed=split_seed)
 
 
-            train_seed = args.base_seed + 100 * 1
+            train_seed = args.base_seed + 100 * 0
             set_seed(train_seed)
             generator = torch.Generator().manual_seed(train_seed)
             # dataloaders
@@ -91,7 +91,7 @@ def main():
             run = wandb.init(
                 project= "repercent_alpha_ablation_synthetic",
                 group=group_name,
-                name=f"{group_name}_M{M}_alpha{alpha}",
+                name=f"{group_name}_M{M}_alpha{alpha}_split{2}",
                 config={
                     "k1": args.k1, "base_seed": args.base_seed,
                     "model_type": args.model_type,
@@ -126,11 +126,11 @@ def main():
             )
             
             # run key for logging
-            run_key = f"split{1}"
+            run_key = f"split{0}"
 
             # Logging identifiers
             wandb.log({
-                "meta/split_idx": 1,
+                "meta/split_idx": 0,
                 "meta/split_seed": split_seed,
                 "meta/train_seed": train_seed,
             })

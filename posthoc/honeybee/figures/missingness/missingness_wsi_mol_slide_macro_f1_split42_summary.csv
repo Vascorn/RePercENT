@@ -1,0 +1,111 @@
+panel,method,drop_rate,metric,mean,std,n
+"Panel A: molecular available, drop WSI",Early fusion + mask,0.0,macro_f1,0.6211056543692102,0.0,50
+"Panel A: molecular available, drop WSI",Early fusion + mask,0.1,macro_f1,0.5724679578560737,0.005291169731234741,50
+"Panel A: molecular available, drop WSI",Early fusion + mask,0.2,macro_f1,0.5270712332669852,0.009381079530080638,50
+"Panel A: molecular available, drop WSI",Early fusion + mask,0.30000000000000004,macro_f1,0.4851625939900871,0.009938988118940336,50
+"Panel A: molecular available, drop WSI",Early fusion + mask,0.4,macro_f1,0.44022998596171453,0.010408847974327506,50
+"Panel A: molecular available, drop WSI",Early fusion + mask,0.5,macro_f1,0.39786593429422257,0.013418623769573795,50
+"Panel A: molecular available, drop WSI",Early fusion + mask,0.6000000000000001,macro_f1,0.34647363729707853,0.011428729644625357,50
+"Panel A: molecular available, drop WSI",Early fusion + mask,0.7000000000000001,macro_f1,0.2944201193145888,0.012745208833821495,50
+"Panel A: molecular available, drop WSI",Early fusion + mask,0.8,macro_f1,0.23887658155681105,0.013236205767504897,50
+"Panel A: molecular available, drop WSI",Early fusion + mask,0.9,macro_f1,0.17335715257545453,0.01066048689248509,50
+"Panel A: molecular available, drop WSI",Early fusion + mask,1.0,macro_f1,0.09552725978286437,1.401868266681942e-17,50
+"Panel A: molecular available, drop WSI",Early fusion + mean imputation,0.0,macro_f1,0.6217337936272808,0.0,50
+"Panel A: molecular available, drop WSI",Early fusion + mean imputation,0.1,macro_f1,0.600998172460389,0.004694597116195823,50
+"Panel A: molecular available, drop WSI",Early fusion + mean imputation,0.2,macro_f1,0.5795268252645629,0.0082190806309389,50
+"Panel A: molecular available, drop WSI",Early fusion + mean imputation,0.30000000000000004,macro_f1,0.5563843837780486,0.00815410590592505,50
+"Panel A: molecular available, drop WSI",Early fusion + mean imputation,0.4,macro_f1,0.5350452171029498,0.008663478084798202,50
+"Panel A: molecular available, drop WSI",Early fusion + mean imputation,0.5,macro_f1,0.5152192383735913,0.01027049613805834,50
+"Panel A: molecular available, drop WSI",Early fusion + mean imputation,0.6000000000000001,macro_f1,0.48937594760295583,0.008872127198509463,50
+"Panel A: molecular available, drop WSI",Early fusion + mean imputation,0.7000000000000001,macro_f1,0.4653394211976869,0.009592837952583423,50
+"Panel A: molecular available, drop WSI",Early fusion + mean imputation,0.8,macro_f1,0.43955067176402585,0.007917717111355438,50
+"Panel A: molecular available, drop WSI",Early fusion + mean imputation,0.9,macro_f1,0.4151528289496209,0.007096954003524412,50
+"Panel A: molecular available, drop WSI",Early fusion + mean imputation,1.0,macro_f1,0.38374487624738474,0.0,50
+"Panel A: molecular available, drop WSI",Early fusion + modality dropout,0.0,macro_f1,0.691088813498024,0.0031865925642198902,50
+"Panel A: molecular available, drop WSI",Early fusion + modality dropout,0.1,macro_f1,0.6721197710771648,0.0053105133789245465,50
+"Panel A: molecular available, drop WSI",Early fusion + modality dropout,0.2,macro_f1,0.6539726076160153,0.007475885554665794,50
+"Panel A: molecular available, drop WSI",Early fusion + modality dropout,0.30000000000000004,macro_f1,0.6336086487765473,0.009351777819652242,50
+"Panel A: molecular available, drop WSI",Early fusion + modality dropout,0.4,macro_f1,0.6142394106339286,0.008271080646128196,50
+"Panel A: molecular available, drop WSI",Early fusion + modality dropout,0.5,macro_f1,0.5970395528530181,0.010231711822345519,50
+"Panel A: molecular available, drop WSI",Early fusion + modality dropout,0.6000000000000001,macro_f1,0.5771529227153802,0.008536162259422834,50
+"Panel A: molecular available, drop WSI",Early fusion + modality dropout,0.7000000000000001,macro_f1,0.5571293652381915,0.00894128495712612,50
+"Panel A: molecular available, drop WSI",Early fusion + modality dropout,0.8,macro_f1,0.5364093326072878,0.008043990716168584,50
+"Panel A: molecular available, drop WSI",Early fusion + modality dropout,0.9,macro_f1,0.5173411052416558,0.007604858063858641,50
+"Panel A: molecular available, drop WSI",Early fusion + modality dropout,1.0,macro_f1,0.49447266457209965,0.006345775342259726,50
+"Panel A: molecular available, drop WSI",Late fusion + averaging,0.0,macro_f1,0.64012646397466,0.0,50
+"Panel A: molecular available, drop WSI",Late fusion + averaging,0.1,macro_f1,0.6216518992822315,0.004818679462817522,50
+"Panel A: molecular available, drop WSI",Late fusion + averaging,0.2,macro_f1,0.6021365239661852,0.008120769406876518,50
+"Panel A: molecular available, drop WSI",Late fusion + averaging,0.30000000000000004,macro_f1,0.5822276020343221,0.008012976824579736,50
+"Panel A: molecular available, drop WSI",Late fusion + averaging,0.4,macro_f1,0.5623611771155705,0.008482263286309152,50
+"Panel A: molecular available, drop WSI",Late fusion + averaging,0.5,macro_f1,0.5446273295485979,0.010471642688362313,50
+"Panel A: molecular available, drop WSI",Late fusion + averaging,0.6000000000000001,macro_f1,0.5247275776873932,0.007811819970276682,50
+"Panel A: molecular available, drop WSI",Late fusion + averaging,0.7000000000000001,macro_f1,0.5028153804869637,0.00854522315348724,50
+"Panel A: molecular available, drop WSI",Late fusion + averaging,0.8,macro_f1,0.4822264986205064,0.008377518142997295,50
+"Panel A: molecular available, drop WSI",Late fusion + averaging,0.9,macro_f1,0.46259481261420654,0.005976913518965962,50
+"Panel A: molecular available, drop WSI",Late fusion + averaging,1.0,macro_f1,0.43944645924444836,0.0,50
+"Panel A: molecular available, drop WSI",RePercENT,0.0,macro_f1,0.7394023009095898,0.007341158573891025,50
+"Panel A: molecular available, drop WSI",RePercENT,0.1,macro_f1,0.7305986569634019,0.008824525300176831,50
+"Panel A: molecular available, drop WSI",RePercENT,0.2,macro_f1,0.7223093740046675,0.009952545222554269,50
+"Panel A: molecular available, drop WSI",RePercENT,0.30000000000000004,macro_f1,0.7136681373229634,0.009802042335288422,50
+"Panel A: molecular available, drop WSI",RePercENT,0.4,macro_f1,0.7030836090262096,0.010319098265073906,50
+"Panel A: molecular available, drop WSI",RePercENT,0.5,macro_f1,0.6955882114963694,0.011905031508111185,50
+"Panel A: molecular available, drop WSI",RePercENT,0.6000000000000001,macro_f1,0.6885931158195624,0.011782076938256118,50
+"Panel A: molecular available, drop WSI",RePercENT,0.7000000000000001,macro_f1,0.6802343030344653,0.01266829121892458,50
+"Panel A: molecular available, drop WSI",RePercENT,0.8,macro_f1,0.6699401699176327,0.010797906155711951,50
+"Panel A: molecular available, drop WSI",RePercENT,0.9,macro_f1,0.660351942944056,0.011343258438808318,50
+"Panel A: molecular available, drop WSI",RePercENT,1.0,macro_f1,0.6521658703834219,0.011407406382947207,50
+"Panel B: WSI available, drop molecular",Early fusion + mask,0.0,macro_f1,0.6211056543692102,0.0,50
+"Panel B: WSI available, drop molecular",Early fusion + mask,0.1,macro_f1,0.5876577634909832,0.005425146978917628,50
+"Panel B: WSI available, drop molecular",Early fusion + mask,0.2,macro_f1,0.551802417411284,0.008677197795659264,50
+"Panel B: WSI available, drop molecular",Early fusion + mask,0.30000000000000004,macro_f1,0.5213175213578006,0.009145980019188779,50
+"Panel B: WSI available, drop molecular",Early fusion + mask,0.4,macro_f1,0.48219004444019625,0.010328390337955337,50
+"Panel B: WSI available, drop molecular",Early fusion + mask,0.5,macro_f1,0.44386576641972736,0.013976212011789958,50
+"Panel B: WSI available, drop molecular",Early fusion + mask,0.6000000000000001,macro_f1,0.3991746444033929,0.01393992623998938,50
+"Panel B: WSI available, drop molecular",Early fusion + mask,0.7000000000000001,macro_f1,0.35226117644902905,0.012231342436011462,50
+"Panel B: WSI available, drop molecular",Early fusion + mask,0.8,macro_f1,0.302848888253667,0.013024103869339247,50
+"Panel B: WSI available, drop molecular",Early fusion + mask,0.9,macro_f1,0.23942953979532594,0.009748031261540021,50
+"Panel B: WSI available, drop molecular",Early fusion + mask,1.0,macro_f1,0.16735238316776183,0.0,50
+"Panel B: WSI available, drop molecular",Early fusion + mean imputation,0.0,macro_f1,0.6217337936272808,0.0,50
+"Panel B: WSI available, drop molecular",Early fusion + mean imputation,0.1,macro_f1,0.5860965755754024,0.005367022778725195,50
+"Panel B: WSI available, drop molecular",Early fusion + mean imputation,0.2,macro_f1,0.5535520534948906,0.00880253943174237,50
+"Panel B: WSI available, drop molecular",Early fusion + mean imputation,0.30000000000000004,macro_f1,0.522066017187322,0.00884379488579766,50
+"Panel B: WSI available, drop molecular",Early fusion + mean imputation,0.4,macro_f1,0.4858015362442584,0.01074163050208139,50
+"Panel B: WSI available, drop molecular",Early fusion + mean imputation,0.5,macro_f1,0.4477735502741465,0.012281332000874496,50
+"Panel B: WSI available, drop molecular",Early fusion + mean imputation,0.6000000000000001,macro_f1,0.39994820672851605,0.014469008951078534,50
+"Panel B: WSI available, drop molecular",Early fusion + mean imputation,0.7000000000000001,macro_f1,0.3570116528668257,0.010579533958028582,50
+"Panel B: WSI available, drop molecular",Early fusion + mean imputation,0.8,macro_f1,0.3073231731845381,0.011155722087232882,50
+"Panel B: WSI available, drop molecular",Early fusion + mean imputation,0.9,macro_f1,0.24488931142555947,0.010096085827328148,50
+"Panel B: WSI available, drop molecular",Early fusion + mean imputation,1.0,macro_f1,0.17304488236549315,0.0,50
+"Panel B: WSI available, drop molecular",Early fusion + modality dropout,0.0,macro_f1,0.691088813498024,0.0031865925642198902,50
+"Panel B: WSI available, drop molecular",Early fusion + modality dropout,0.1,macro_f1,0.6665474877891217,0.006138131681809639,50
+"Panel B: WSI available, drop molecular",Early fusion + modality dropout,0.2,macro_f1,0.6407581832151721,0.00830175936963539,50
+"Panel B: WSI available, drop molecular",Early fusion + modality dropout,0.30000000000000004,macro_f1,0.6179187588568206,0.008563412209486827,50
+"Panel B: WSI available, drop molecular",Early fusion + modality dropout,0.4,macro_f1,0.5919542047289238,0.009155171246173205,50
+"Panel B: WSI available, drop molecular",Early fusion + modality dropout,0.5,macro_f1,0.5631233305588335,0.01114294200978712,50
+"Panel B: WSI available, drop molecular",Early fusion + modality dropout,0.6000000000000001,macro_f1,0.5345483783644275,0.010705327585965659,50
+"Panel B: WSI available, drop molecular",Early fusion + modality dropout,0.7000000000000001,macro_f1,0.5087193567044784,0.009666286877749624,50
+"Panel B: WSI available, drop molecular",Early fusion + modality dropout,0.8,macro_f1,0.48218167753965496,0.00951565846168992,50
+"Panel B: WSI available, drop molecular",Early fusion + modality dropout,0.9,macro_f1,0.4506529779765826,0.00876692634423311,50
+"Panel B: WSI available, drop molecular",Early fusion + modality dropout,1.0,macro_f1,0.420087635787236,0.005386764383633903,50
+"Panel B: WSI available, drop molecular",Late fusion + averaging,0.0,macro_f1,0.64012646397466,0.0,50
+"Panel B: WSI available, drop molecular",Late fusion + averaging,0.1,macro_f1,0.6178398090584013,0.005911850697332459,50
+"Panel B: WSI available, drop molecular",Late fusion + averaging,0.2,macro_f1,0.5946411919629683,0.007898879008435491,50
+"Panel B: WSI available, drop molecular",Late fusion + averaging,0.30000000000000004,macro_f1,0.5733892213832794,0.007864607452883232,50
+"Panel B: WSI available, drop molecular",Late fusion + averaging,0.4,macro_f1,0.5495684266375522,0.008502840950991396,50
+"Panel B: WSI available, drop molecular",Late fusion + averaging,0.5,macro_f1,0.5253342436939046,0.01014647831089394,50
+"Panel B: WSI available, drop molecular",Late fusion + averaging,0.6000000000000001,macro_f1,0.4977576242770256,0.011770766337959124,50
+"Panel B: WSI available, drop molecular",Late fusion + averaging,0.7000000000000001,macro_f1,0.4733666390958213,0.009490880401945625,50
+"Panel B: WSI available, drop molecular",Late fusion + averaging,0.8,macro_f1,0.44903490221509806,0.008463591960723604,50
+"Panel B: WSI available, drop molecular",Late fusion + averaging,0.9,macro_f1,0.41994167354135625,0.006406725647741068,50
+"Panel B: WSI available, drop molecular",Late fusion + averaging,1.0,macro_f1,0.3916499119231191,5.607473066727768e-17,50
+"Panel B: WSI available, drop molecular",RePercENT,0.0,macro_f1,0.7394023009095898,0.007341158573891025,50
+"Panel B: WSI available, drop molecular",RePercENT,0.1,macro_f1,0.7093022682827264,0.009134137976993665,50
+"Panel B: WSI available, drop molecular",RePercENT,0.2,macro_f1,0.6760244567001233,0.009645604557158072,50
+"Panel B: WSI available, drop molecular",RePercENT,0.30000000000000004,macro_f1,0.6442023485940186,0.009347205132096742,50
+"Panel B: WSI available, drop molecular",RePercENT,0.4,macro_f1,0.6135393773218231,0.009842073732048573,50
+"Panel B: WSI available, drop molecular",RePercENT,0.5,macro_f1,0.5811487909652018,0.009387513106733247,50
+"Panel B: WSI available, drop molecular",RePercENT,0.6000000000000001,macro_f1,0.5479105937351272,0.012094555013323828,50
+"Panel B: WSI available, drop molecular",RePercENT,0.7000000000000001,macro_f1,0.516299807986938,0.010313603413533594,50
+"Panel B: WSI available, drop molecular",RePercENT,0.8,macro_f1,0.4843518907809388,0.012118825905523517,50
+"Panel B: WSI available, drop molecular",RePercENT,0.9,macro_f1,0.45054109044697044,0.009264874471376678,50
+"Panel B: WSI available, drop molecular",RePercENT,1.0,macro_f1,0.41877281471030015,0.009288710849227935,50

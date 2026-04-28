@@ -99,7 +99,7 @@ def _plot_pair_umaps(pair_data, output_path, random_state, use_palette=False, sh
     n_panels = len(panels)
     n_cols = 3
     n_rows = int(np.ceil(n_panels / n_cols))
-    fig, axes = plt.subplots(n_rows, n_cols, figsize=(5.5 * n_cols, 4.8 * n_rows))
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(5.5 * n_cols, 4.2 * n_rows))
     axes = np.atleast_1d(axes).ravel()
 
     all_cancer_types = sorted({label for pair in pair_data for label in pair["labels"]})
@@ -121,8 +121,8 @@ def _plot_pair_umaps(pair_data, output_path, random_state, use_palette=False, sh
             )
 
         ax.set_title(panel["title"])
-        ax.set_xlabel("UMAP 1")
-        ax.set_ylabel("UMAP 2")
+        ax.set_xlabel("TSNE 1")
+        ax.set_ylabel("TSNE 2")
 
     for ax in axes[n_panels:]:
         ax.axis("off")
@@ -131,7 +131,7 @@ def _plot_pair_umaps(pair_data, output_path, random_state, use_palette=False, sh
         Line2D([], [], linestyle="", marker="o", markersize=6, color=color_map[cancer_type], label=cancer_type)
         for cancer_type in all_cancer_types
     ]
-    fig.legend(legend_handles, all_cancer_types, title="Cancer type", loc="center left", bbox_to_anchor=(1.01, 0.5))
+    fig.legend(legend_handles, all_cancer_types, title="Cancer type", loc="center left", bbox_to_anchor=(0.86, 0.5))
     fig.tight_layout(rect=(0.0, 0.0, 0.86, 1.0))
     fig.savefig(output_path, dpi=180, bbox_inches="tight")
     plt.close(fig)
@@ -166,12 +166,12 @@ def _plot_pair_distance_heatmaps(pair_data, output_path, heatmap_vmax, heatmap_v
     axes = np.atleast_1d(axes).ravel()
 
     cancer_types = sorted({label for pair in pair_data for label in pair["labels"]})
+    cancer_type_labels_short = [ct.replace("TCGA-", "") for ct in cancer_types]
     heatmap_kwargs = {
         "cmap": "coolwarm",
         "square": True,
-        "xticklabels": cancer_types,
-        "yticklabels": cancer_types,
-        "linewidths": 0.2,
+        "xticklabels": cancer_type_labels_short,
+        "yticklabels": cancer_type_labels_short,
         "linecolor": "white",
         "vmin": heatmap_vmin,
         "vmax": heatmap_vmax
@@ -181,10 +181,10 @@ def _plot_pair_distance_heatmaps(pair_data, output_path, heatmap_vmax, heatmap_v
         distances = _compute_pair_distance_matrix(pair, cancer_types, shared_direction)
         sns.heatmap(distances, ax=ax, cbar=True, **heatmap_kwargs)
         ax.set_title(_pair_direction_title(pair, shared_direction))
-        ax.set_xlabel("Cancer type")
-        ax.set_ylabel("Cancer type")
-        ax.tick_params(axis="x", rotation=90, labelsize=8)
-        ax.tick_params(axis="y", rotation=0, labelsize=8)
+        ax.set_xlabel("", fontsize=13)
+        ax.set_ylabel("", fontsize=13)
+        ax.tick_params(axis="x", rotation=90)
+        ax.tick_params(axis="y", rotation=0)
 
     for ax in axes[n_pairs:]:
         ax.axis("off")

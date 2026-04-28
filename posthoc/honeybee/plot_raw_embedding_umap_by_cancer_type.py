@@ -100,7 +100,7 @@ def _plot_raw_umaps(modality_data, output_path, random_state, use_palette=False)
     n_modalities = len(modality_data)
     n_cols = 2
     n_rows = int(np.ceil(n_modalities / n_cols))
-    fig, axes = plt.subplots(n_rows, n_cols, figsize=(5.5 * n_cols, 4.8 * n_rows))
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(5.5 * n_cols, 4.2 * n_rows))
     axes = np.atleast_1d(axes).ravel()
 
     all_cancer_types = sorted({label for item in modality_data for label in item["labels"]})
@@ -122,8 +122,8 @@ def _plot_raw_umaps(modality_data, output_path, random_state, use_palette=False)
             )
 
         ax.set_title(get_honeybee_modality_short_name(item["modality"]))
-        ax.set_xlabel("UMAP 1")
-        ax.set_ylabel("UMAP 2")
+        ax.set_xlabel("TSNE 1")
+        ax.set_ylabel("TSNE 2")
 
     for ax in axes[n_modalities:]:
         ax.axis("off")
@@ -132,7 +132,7 @@ def _plot_raw_umaps(modality_data, output_path, random_state, use_palette=False)
         Line2D([], [], linestyle="", marker="o", markersize=6, color=color_map[cancer_type], label=cancer_type)
         for cancer_type in all_cancer_types
     ]
-    fig.legend(legend_handles, all_cancer_types, title="Cancer type", loc="center left", bbox_to_anchor=(1.01, 0.5))
+    fig.legend(legend_handles, all_cancer_types, title="Cancer type", loc="center left", bbox_to_anchor=(0.85, 0.5))
     fig.tight_layout(rect=(0.0, 0.0, 0.86, 1.0))
     fig.savefig(output_path, dpi=180, bbox_inches="tight")
     plt.close(fig)
