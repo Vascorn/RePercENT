@@ -525,6 +525,8 @@ def main():
      #Example of accessing a batch of data
     # NOTE: The "patch" yields a 2D padding mask of shape (num_slide, num_patches) while the "slide" mode yields a 1D padding mask of shape (num_slide,)
     loader = torch.utils.data.DataLoader(dataset, batch_size= 1, shuffle=True)
+    print(f"dataset length: {len(dataset)}")
+    
     for batch in loader:
         print(f"Batch patient IDs: {batch['patient_id']}")
         print(f"Batch cancer types: {batch['cancer_type']}")

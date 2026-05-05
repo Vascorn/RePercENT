@@ -18,9 +18,66 @@ import argparse
 import wandb
 from src.utils.helpers import set_seed
 import numpy as np
+from torch.profiler import profile, ProfilerActivity
+import time
 
+def calculate_flops(model, loader, device, M= 3):
+    model.eval()
 
+    # Grab one batch and calculate FLOPs using PyTorch profiler
+    X_batch = next(iter(loader))
+    x = X_batch["x"]
+    images, texts, text_mask = x["images"], x["texts"], x["pad_masks"]
+    
+    X = [images.to(device), texts.to(device)]
+    X_cross_masks = [None, text_mask.bool().to(device)] 
 
+    if M == 3:
+        defs, defs_mask = x["definitions"], x["definitions_mask"]
+    
+        X.append(defs.to(device))
+        X_cross_masks.append(defs_mask.bool().to(device))
+
+    activities = [ProfilerActivity.CPU]
+    if torch.cuda.is_available():
+        activities.append(ProfilerActivity.CUDA)
+
+    with profile(
+        activities=activities,
+        record_shapes=True,
+        with_flops=True,
+        profile_memory=False,
+    ) as prof:
+        with torch.no_grad():
+            model(X, mask = X_cross_masks)
+    if torch.cuda.is_available():
+        torch.cuda.synchronize()
+    model.eval()
+
+    # Warmup
+    for _ in range(20):
+        with torch.inference_mode():
+            _ = model(X, mask = X_cross_masks)
+
+    torch.cuda.synchronize()
+    start = time.perf_counter()
+
+    for _ in range(100):
+        with torch.inference_mode():
+            _ = model(X, mask = X_cross_masks)
+
+    torch.cuda.synchronize()
+    end = time.perf_counter()
+
+    latency_ms = (end - start) * 1000 / 100
+    print(f"Average latency: {latency_ms:.3f} ms")
+
+    # Aggregate FLOPs over all ops
+    total_flops = sum(evt.flops for evt in prof.key_averages() if evt.flops is not None)
+    print(f"Estimated FLOPs: {total_flops / 1e6:.2f} MFLOPs")
+    print(prof.key_averages().table(sort_by="flops", row_limit=15))
+
+    return total_flops
 
 
 def main():
@@ -31,7 +88,7 @@ def main():
     parser.add_argument('--comp_mod', type=int, choices=[1, 2, 3], default= 1, help='Which modality to compute similarities for (1 for captions, 2 for definitions, 3 for adding \
                                                                                     the similarities between images- captions and images - definitions and then comparing the metrics). \
                                                                                     Note that 2 and 3 is only relevant for the 3-modality setting')
-    parser.add_argument('--component', type=str, choices=['shared', 'unique', 'both'], default='both',
+    parser.add_argument('--component', type=str, choices=['shared', 'unique', 'both'], default='shared',
                         help='Which component to assess (shared, unique, or both for shared concatenated with unique).')
     # Define number of splits and seeds
     parser.add_argument('--base_seed', type=int, default= 2, help='Base seed for reproducibility')
@@ -167,6 +224,12 @@ def main():
             )
 
     wandb.log({"Evaluation Summary": summary_table})
+    # Log model parameters and flops as well
+    model_params = sum(p.numel() for p in model.parameters())
+    model_flops = calculate_flops(model, test_loader, device, M= M)
+    print(f"Model parameters: {model_params}")
+    print(f"Model flops: {model_flops}")
+    wandb.log({"model_params": model_params, "model_flops": model_flops})
     wandb.finish()
 
 if __name__ == "__main__":

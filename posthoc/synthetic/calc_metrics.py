@@ -181,7 +181,7 @@ def _plot_summary_pairwise_confusion_matrices(mean_acc, std_acc, M, components):
                         f"{mean_mat[r_idx, c_idx]:.2f}",
                         ha="center",
                         va="center",
-                        fontsize=9,
+                        fontsize=11,
                         fontweight="semibold",
                         color=text_color,
                     )
@@ -191,7 +191,7 @@ def _plot_summary_pairwise_confusion_matrices(mean_acc, std_acc, M, components):
                         rf"$\pm$ {std_mat[r_idx, c_idx]:.2f}",
                         ha="center",
                         va="center",
-                        fontsize=8.2,
+                        fontsize=8.5,
                         color=text_color,
                     )
 
@@ -210,9 +210,9 @@ def _plot_summary_pairwise_confusion_matrices(mean_acc, std_acc, M, components):
         norm = plt.Normalize(vmin=50, vmax=100)
         sm = plt.cm.ScalarMappable(cmap="PuBu", norm=norm)
         sm.set_array([])
-        cbar = fig.colorbar(sm, ax=axes[:len(pairs)], shrink=0.82, pad=0.015)
-        cbar.set_label("Linear probe accuracy (%)", labelpad=8)
-        cbar.ax.tick_params(labelsize=9, length=3)
+        cbar = fig.colorbar(sm, ax=axes[:len(pairs)], shrink=0.72, pad=0.015)
+        cbar.set_label("Linear probe accuracy (%)", labelpad=8, fontsize=12)
+        cbar.ax.tick_params(labelsize=12, length=3)
 
     return fig
 

@@ -461,12 +461,12 @@ def _plot_missingness(summary_rows, output_stem, metric_name):
         (
             "panel_a",
             "Panel A: molecular available, drop WSI",
-            "",
+            "Robustness to missing WSI data",
         ),
         (
             "panel_b",
             "Panel B: WSI available, drop molecular",
-            "",
+            "Robustness to missing Molecular data",
         ),
     ]
     y_label = "Balanced accuracy" if metric_name == "balanced_accuracy" else "Macro-F1"
@@ -535,7 +535,7 @@ def _plot_missingness(summary_rows, output_stem, metric_name):
         ax.set_ylim(y_min, y_max)
         ax.grid(True, alpha=0.25)
         ax.legend(loc="lower left", frameon=True, framealpha=0.9, edgecolor="none")
-
+        
         output_path = f"{output_stem}_{panel_key}.pdf"
         fig.tight_layout()
         fig.savefig(output_path, dpi=300, bbox_inches="tight")

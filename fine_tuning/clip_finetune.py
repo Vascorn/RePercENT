@@ -275,7 +275,7 @@ def main():
         tokenizer = clip.get_tokenizer(args.clip_model)
         # Assume you have a DataFrame `train_df` with columns "uuid" (image filename) and "phrase" (text)
         train_dataset = CLIP_ft_dataset(train_df, preprocess_func, tokenizer=tokenizer)
-        train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
+        train_loader = DataLoader(train_dataset, batch_size=256, shuffle=True)
 
         device = "cuda" if torch.cuda.is_available() else "cpu"
         finetuned_model = finetune_clip(

@@ -9,11 +9,11 @@ PAPER_PLOT_RC = {
     "font.family": "serif",
     "font.serif": ["Times New Roman", "Times", "STIXGeneral", "DejaVu Serif"],
     "font.size": 16,
-    "axes.titlesize": 15,
-    "axes.labelsize": 15,
-    "xtick.labelsize": 14,
-    "ytick.labelsize": 14,
-    "legend.fontsize": 12,
+    "axes.titlesize": 18,
+    "axes.labelsize": 18,
+    "xtick.labelsize": 15,
+    "ytick.labelsize": 15,
+    "legend.fontsize": 13,
     "figure.titlesize": 15,
     "mathtext.fontset": "stix",
     "pdf.fonttype": 42,
@@ -48,9 +48,9 @@ percent_formatter = mticker.FuncFormatter(lambda x, _: f"{x:.0%}")
 
 DEFAULT_COLOR_CYCLE = [
     "#0072B2",  # blue
-    "#CC79A7",  # reddish purple
-    "#009E73",  # green
-    "#D55E00",  # orange
+    "#E85234",  # reddish purple
+    "#6F9B3C",  # green
+    "#B57EDC",  # orange
     "#E69F00",  # sky blue
     "#F0E442",  # yellow
     "#6E6E6E",  # black
@@ -79,8 +79,8 @@ def get_color(label, index=None, overrides=None):
 
 def get_line_style(label, index=None, overrides=None):
     style = get_plot_style(label, index=index, overrides=overrides)
-    style.setdefault("linewidth", 3.5)
-    style.setdefault("markersize", 8.0)
+    style.setdefault("linewidth", 3.0)
+    style.setdefault("markersize", 11.0)
     return style
 
 

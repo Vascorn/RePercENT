@@ -6,8 +6,8 @@ wandb:
 repercent:
   checkpoints:
     
-    - "./checkpoints/irfl/2026-04-17_19-19-11_IRFL_repercent_seeds_1_seed_0/seed0/final_checkpoint.pt"
-    # - "./checkpoints/irfl/2026-03-09_13-33-04_IRFL_repercent_seeds_5_seed_0/seed0/final_checkpoint.pt"
+    # - "./checkpoints/irfl/2026-04-17_19-19-11_IRFL_repercent_seeds_1_seed_0/seed0/final_checkpoint.pt"
+    - "./checkpoints/irfl/2026-03-09_13-33-04_IRFL_repercent_seeds_5_seed_0/seed0/final_checkpoint.pt"
     - "./checkpoints/irfl/2026-03-09_13-33-04_IRFL_repercent_seeds_5_seed_1/seed1/final_checkpoint.pt"
     - "./checkpoints/irfl/2026-03-09_13-33-04_IRFL_repercent_seeds_5_seed_2/seed2/final_checkpoint.pt"
     - "./checkpoints/irfl/2026-03-09_13-33-04_IRFL_repercent_seeds_5_seed_3/seed3/final_checkpoint.pt"

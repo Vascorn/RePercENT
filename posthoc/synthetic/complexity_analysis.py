@@ -104,14 +104,14 @@ MODEL_LINESTYLES = {
     "Other": (0, (2, 1.2)),
 }
 
-TITLE_FONTSIZE = 16
-AXIS_LABEL_FONTSIZE = 18
-TICK_LABEL_FONTSIZE = 10
-ANNOTATION_FONTSIZE = 10
-LEGEND_FONTSIZE = 10
-LEGEND_TITLE_FONTSIZE = 10
-COLORBAR_LABEL_FONTSIZE = 15
-COLORBAR_TICK_FONTSIZE = 13
+TITLE_FONTSIZE = 22
+AXIS_LABEL_FONTSIZE = 22
+TICK_LABEL_FONTSIZE = 15
+ANNOTATION_FONTSIZE = 12
+LEGEND_FONTSIZE = 15
+LEGEND_TITLE_FONTSIZE = 15
+COLORBAR_LABEL_FONTSIZE = 20
+COLORBAR_TICK_FONTSIZE = 17
 COMPLEXITY_FIGSIZE = (7, 5)
 
 
@@ -251,10 +251,10 @@ def _plot_grouped_metric(
 
     cmap = plt.get_cmap(cmap_name)
     label_offsets = {
-        "RePercENT": (0, 11),
-        "gMLP": (1, 10),
+        "RePercENT": (-10, 10),
+        "gMLP": (-10, 10),
         "GRU": (10, 1),
-        "MLP": (-20, 2),
+        "MLP": (-13, 12),
         "JointOpt": (12, 11),
         "Other": (-18, -11),
     }
@@ -279,15 +279,15 @@ def _plot_grouped_metric(
                 family_df["model_params"] / 1e6,
                 color=plot_color,
                 linestyle=line_style,
-                linewidth=2.6 if is_repercent else 2.3,
+                linewidth=3.0,
                 alpha=0.9,
                 zorder=2,
             )
 
         scatter_kwargs = {
             "marker": marker,
-            "s": 100,
-            "linewidths": 1.8 if is_repercent else 1.4,
+            "s": 120,
+            "linewidths": 3.0,
             "alpha": 1.0,
             "zorder": 4,
         }
@@ -369,7 +369,7 @@ def _plot_grouped_metric(
                 markeredgewidth=1.0,
                 markersize=10,
                 color=plot_color,
-                linewidth=2.2
+                linewidth=3.0
             )
         )
         legend_labels.append(family_name)
@@ -450,7 +450,7 @@ def _plot_delta_to_ideal(df: pd.DataFrame, out_dir: str) -> None:
         vmin=10.0,
         vmax=20.0,
         cmap_name="PuBu",
-        colorbar_label=r"$\Delta_{\mathrm{model}}$ % (lower is better)",
+        colorbar_label=r"$\Delta_{\mathrm{model}}$ (lower is better)",
         annotation_suffix="",
         annotation_format=".1f",
         use_heatmap=True,
