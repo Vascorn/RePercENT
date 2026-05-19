@@ -1,4 +1,4 @@
-# Honeybee Posthoc Analysis
+# HONeYBEE Posthoc Analysis
 
 Posthoc scripts for the Honeybee experiments: cancer-type probe metrics, simple
 raw-embedding baselines, RePercENT-vs-baseline comparisons, UMAP visualizations,
