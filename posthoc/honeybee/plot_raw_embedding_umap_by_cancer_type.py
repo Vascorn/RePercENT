@@ -13,7 +13,7 @@ import torch
 from posthoc.plotting_config import apply_paper_plot_style
 from posthoc.irfl.helper_vis import reduce_d
 from posthoc.honeybee.helper_metrics import HONEYBEE_MODALITIES, get_honeybee_modality_short_name
-from posthoc.honeybee.plot_component_utils import (
+from posthoc.honeybee.plot_utils import (
     build_color_map,
     filter_split_dataset_by_cancer_types,
     sanitize_name,

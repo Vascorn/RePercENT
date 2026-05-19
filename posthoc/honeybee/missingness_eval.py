@@ -416,14 +416,17 @@ def _read_summary_csv(path):
 
 
 def _missingness_output_paths(script_dir, args):
-    output_dir = os.path.join(script_dir, "figures", "missingness")
+    figure_dir = os.path.join(script_dir, "figures", "missingness")
+    csv_dir = os.path.join(script_dir, "summary_reports", "missingess_summary")
     run_stem = f"missingness_wsi_mol_{args.wsi_embedding_mode}_{args.metric}_split{args.split_seed}"
+    csv_stem = f"wsi_mol_{args.wsi_embedding_mode}_{args.metric}_split{args.split_seed}"
     return {
-        "output_dir": output_dir,
+        "csv_dir": csv_dir,
+        "figure_dir": figure_dir,
         "run_stem": run_stem,
-        "raw_csv": os.path.join(output_dir, f"{run_stem}_raw.csv"),
-        "summary_csv": os.path.join(output_dir, f"{run_stem}_summary.csv"),
-        "figure_stem": os.path.join(output_dir, run_stem),
+        "raw_csv": os.path.join(csv_dir, f"{csv_stem}_raw.csv"),
+        "summary_csv": os.path.join(csv_dir, f"{csv_stem}_summary.csv"),
+        "figure_stem": os.path.join(figure_dir, run_stem),
     }
 
 
@@ -594,6 +597,7 @@ def main():
     parser.add_argument("--dropout_augments", type=int, default=4, help="Number of random modality-dropout copies added to complete training data")
     parser.add_argument("--modality_dropout_prob", type=float, default=0.5, help="Per-modality dropout probability for the modality-dropout fusion baseline")
     parser.add_argument("--max_seeds", type=int, default=None, help="Optional cap on RePercENT checkpoints to evaluate")
+    parser.add_argument("--log_to_wandb", action=argparse.BooleanOptionalAction, default=True, help="Whether to log results and figures to Weights & Biases")
     parser.add_argument(
         "--plot_from_summary_csv",
         action=argparse.BooleanOptionalAction,
@@ -708,43 +712,45 @@ def main():
 
     summary_rows = _summarize_rows(all_rows)
 
-    os.makedirs(output_paths["output_dir"], exist_ok=True)
+    os.makedirs(output_paths["csv_dir"], exist_ok=True)
+    os.makedirs(output_paths["figure_dir"], exist_ok=True)
     _write_csv(output_paths["raw_csv"], all_rows, ["seed", "repeat", "panel", "dropped_modality", "drop_rate", "method", "metric", "value"])
     _write_csv(output_paths["summary_csv"], summary_rows, ["panel", "method", "drop_rate", "metric", "mean", "std", "n"])
     figure_paths = _plot_missingness(summary_rows, output_paths["figure_stem"], args.metric)
 
-    wandb.init(
-        project=analysis_config["wandb"]["project"],
-        name=output_paths["run_stem"],
-        config={
-            "split_seed": args.split_seed,
-            "base_seed": args.base_seed,
-            "n_repercent_checkpoints": len(checkpoint_paths),
-            "wsi_embedding_mode": args.wsi_embedding_mode,
-            "filter_cancer_types": filter_cancer_types_label,
-            "metric": args.metric,
-            "num_drop_rates": args.num_drop_rates,
-            "num_repeats": args.num_repeats,
-            "dropout_augments": args.dropout_augments,
-            "modality_dropout_prob": args.modality_dropout_prob,
-            "feature_standardization": "none; raw foundation-model embeddings/components are used directly",
-            "concat_missing_imputation": "raw train-set modality mean",
-            "probe_class_weight": "balanced",
-            "modalities_used_for_probes": [WSI_MODALITY, MOL_MODALITY],
-            "all_model_modalities": modality_order,
-        },
-    )
-    wandb.log({
-        "missingness_summary": _build_summary_table(summary_rows)
-    })
-    wandb.save(output_paths["raw_csv"])
-    wandb.save(output_paths["summary_csv"])
-    wandb.finish()
+    if args.log_to_wandb:
+        wandb.init(
+            project=analysis_config["wandb"]["project"],
+            name=output_paths["run_stem"],
+            config={
+                "split_seed": args.split_seed,
+                "base_seed": args.base_seed,
+                "n_repercent_checkpoints": len(checkpoint_paths),
+                "wsi_embedding_mode": args.wsi_embedding_mode,
+                "filter_cancer_types": filter_cancer_types_label,
+                "metric": args.metric,
+                "num_drop_rates": args.num_drop_rates,
+                "num_repeats": args.num_repeats,
+                "dropout_augments": args.dropout_augments,
+                "modality_dropout_prob": args.modality_dropout_prob,
+                "feature_standardization": "none; raw foundation-model embeddings/components are used directly",
+                "concat_missing_imputation": "raw train-set modality mean",
+                "probe_class_weight": "balanced",
+                "modalities_used_for_probes": [WSI_MODALITY, MOL_MODALITY],
+                "all_model_modalities": modality_order,
+            },
+        )
+        wandb.log({
+            "missingness_summary": _build_summary_table(summary_rows)
+        })
+        wandb.save(output_paths["raw_csv"])
+        wandb.save(output_paths["summary_csv"])
+        wandb.finish()
 
-    print(f"Saved missingness panel A figure to {figure_paths['panel_a']}")
-    print(f"Saved missingness panel B figure to {figure_paths['panel_b']}")
-    print(f"Saved raw results to {output_paths['raw_csv']}")
-    print(f"Saved summary results to {output_paths['summary_csv']}")
+        print(f"Saved missingness panel A figure to {figure_paths['panel_a']}")
+        print(f"Saved missingness panel B figure to {figure_paths['panel_b']}")
+        print(f"Saved raw results to {output_paths['raw_csv']}")
+        print(f"Saved summary results to {output_paths['summary_csv']}")
 
 
 if __name__ == "__main__":

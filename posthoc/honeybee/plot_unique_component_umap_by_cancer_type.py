@@ -18,7 +18,7 @@ from posthoc.honeybee.helper_metrics import (
     format_honeybee_component_name,
     get_honeybee_modality_short_name,
 )
-from posthoc.honeybee.plot_component_utils import (
+from posthoc.honeybee.plot_utils import (
     build_color_map,
     compute_centroid_distance_matrix,
     load_split_features,
@@ -56,7 +56,7 @@ def _build_unique_embeddings(component_features, labels, source_modality, modali
 def _component_title(component):
     short_source = get_honeybee_modality_short_name(component["source_modality"])
     short_target = get_honeybee_modality_short_name(component["target_modality"])
-    return f"U {short_source}->{short_target}"
+    return fr"$U_{{ {short_source} \rightarrow {short_target} }}$"
 
 def _plot_unique_umaps(component_data, output_path, random_state, use_palette=False):
     n_components = len(component_data)
@@ -159,7 +159,7 @@ def main():
     script_dir = os.path.dirname(os.path.abspath(__file__))
 
     filter_cancer_types = _parse_filter_cancer_types(args.filter_cancer_types)
-    component_features, labels, _ = load_split_features(
+    component_features, labels = load_split_features(
         args,
         script_dir,
         device,

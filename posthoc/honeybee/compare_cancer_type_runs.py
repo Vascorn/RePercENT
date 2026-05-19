@@ -1,6 +1,5 @@
 import argparse
 import csv
-import json
 import os
 import re
 import sys
@@ -11,13 +10,35 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')
 import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
-import wandb
 
 from posthoc.plotting_config import apply_paper_plot_style
 from posthoc.honeybee.helper_metrics import HONEYBEE_MODALITIES, get_honeybee_modality_short_name
-from training.main_honeybee import DEFAULT_FILTER_CANCER_TYPES, _parse_filter_cancer_types
 
 apply_paper_plot_style()
+
+
+DEFAULT_FILTER_CANCER_TYPES = [
+    'TCGA-BRCA',
+    'TCGA-COAD',
+    'TCGA-GBM',
+    'TCGA-HNSC',
+    'TCGA-KIRC',
+    'TCGA-LGG',
+    'TCGA-LUAD',
+    'TCGA-LUSC',
+    'TCGA-OV',
+    'TCGA-PRAD',
+]
+
+
+def _parse_filter_cancer_types(filter_cancer_types):
+    if filter_cancer_types is None:
+        return None
+
+    cancer_types = []
+    for item in filter_cancer_types:
+        cancer_types.extend(cancer_type.strip() for cancer_type in item.split(',') if cancer_type.strip())
+    return cancer_types or None
 
 
 def _sanitize_name(value):
@@ -38,79 +59,61 @@ def _extract_float(value):
     return float(match.group(0)) if match else np.nan
 
 
-def _load_table_from_json(path):
-    with open(path, 'r') as f:
-        payload = json.load(f)
-    return payload['columns'], payload['data']
+def _format_summary_csv_cell(mean, std=None):
+    mean_value = _extract_float(mean)
+    if np.isnan(mean_value):
+        return 'N/A'
+
+    std_value = _extract_float(std)
+    if std is None or np.isnan(std_value):
+        return f'{mean_value:.4f}'
+    return f'{mean_value:.4f} ± {std_value:.4f}'
 
 
-def _build_run_path(entity, project, run_name):
-    entity = str(entity).strip()
-    project = str(project).strip()
-    run_name = str(run_name).strip()
-    if not entity or not project or not run_name:
-        raise ValueError('Entity, project, and run name must all be provided.')
-    return f'{entity}/{project}/{run_name}'
-
-
-def _artifact_matches_table_key(artifact, table_key):
-    name = str(getattr(artifact, 'name', ''))
-    aliases = [str(alias) for alias in getattr(artifact, 'aliases', [])]
-    return table_key in name or any(table_key in alias for alias in aliases)
-
-
-def _download_wandb_table(entity, project, run_name, table_key):
-    api = wandb.Api()
-    run = api.run(_build_run_path(entity, project, run_name))
-
-    matching_artifact = None
-    for artifact in run.logged_artifacts():
-        if _artifact_matches_table_key(artifact, table_key):
-            matching_artifact = artifact
-            break
-
-    if matching_artifact is None:
-        available = [str(getattr(artifact, 'name', '')) for artifact in run.logged_artifacts()]
-        raise KeyError(
-            f"Run {run.path} does not have a logged artifact for table key {table_key!r}. "
-            f"Available artifacts: {available}"
-        )
-
-    table = matching_artifact.get(table_key)
-    dataframe = table.get_dataframe()
-    return list(dataframe.columns), dataframe.values.tolist()
-
-
-def _load_table(table_json_path=None, entity=None, project=None, run_name=None, table_key='cancer_type_component_summary'):
-    if table_json_path is not None:
-        return _load_table_from_json(table_json_path)
-    if run_name is not None:
-        return _download_wandb_table(entity, project, run_name, table_key)
-    raise ValueError('Either a local table JSON path or entity/project/run_name must be provided.')
-
-
-def _table_to_metric_maps(columns, rows):
-    if 'component' not in columns:
-        raise ValueError(f"Expected a 'component' column, but got columns: {columns}")
-
-    component_idx = columns.index('component')
-    metric_columns = [column for column in columns if column not in {'component', 'overall'}]
-    metric_indices = {column: columns.index(column) for column in metric_columns}
+def _load_summary_csv(path):
+    if not os.path.exists(path):
+        raise FileNotFoundError(f'Could not find summary CSV: {path}')
 
     metrics = {}
     raw_metrics = {}
-    for row in rows:
-        component_name = str(row[component_idx])
-        metrics[component_name] = {
-            cancer_type: _extract_float(row[idx])
-            for cancer_type, idx in metric_indices.items()
-        }
-        raw_metrics[component_name] = {
-            cancer_type: row[idx]
-            for cancer_type, idx in metric_indices.items()
-        }
+    cancer_types = []
+    seen_entries = set()
 
-    return metrics, raw_metrics, metric_columns
+    with open(path, newline='') as f:
+        reader = csv.DictReader(f)
+        fieldnames = reader.fieldnames or []
+        required_columns = {'component', 'eval', 'mean'}
+        missing_columns = sorted(required_columns - set(fieldnames))
+        if missing_columns:
+            raise ValueError(
+                f'Summary CSV {path} is missing required columns {missing_columns}. '
+                f'Found columns: {fieldnames}'
+            )
+
+        for row_idx, row in enumerate(reader, start=2):
+            component_name = str(row.get('component', '')).strip()
+            eval_name = str(row.get('eval', '')).strip()
+            if not component_name or not eval_name:
+                raise ValueError(f'Summary CSV {path} has an empty component/eval entry on line {row_idx}.')
+
+            entry_key = (component_name, eval_name)
+            if entry_key in seen_entries:
+                raise ValueError(f'Summary CSV {path} contains duplicate entry {entry_key!r}.')
+            seen_entries.add(entry_key)
+
+            if eval_name == 'overall':
+                continue
+
+            if eval_name not in cancer_types:
+                cancer_types.append(eval_name)
+
+            metrics.setdefault(component_name, {})[eval_name] = _extract_float(row.get('mean'))
+            raw_metrics.setdefault(component_name, {})[eval_name] = _format_summary_csv_cell(
+                row.get('mean'),
+                row.get('std'),
+            )
+
+    return metrics, raw_metrics, cancer_types
 
 
 def _resolve_selected_cancer_types(disent_cancer_types, baseline_cancer_types, requested_cancer_types=None):
@@ -131,24 +134,28 @@ def _resolve_selected_cancer_types(disent_cancer_types, baseline_cancer_types, r
     return selected_cancer_types
 
 
-def _resolve_table_json_path(table_json_paths, table_keys, table_idx, label):
-    if table_json_paths is None:
-        return None
+def _default_summary_csv_path(summary_dir, model_name, table_key):
+    return os.path.join(summary_dir, f'{model_name}_{table_key}.csv')
 
-    if len(table_json_paths) == 1:
+
+def _resolve_summary_csv_path(summary_csv_paths, table_keys, table_idx, label, summary_dir, model_name, table_key):
+    if summary_csv_paths is None:
+        return _default_summary_csv_path(summary_dir, model_name, table_key)
+
+    if len(summary_csv_paths) == 1:
         if len(table_keys) > 1:
             raise ValueError(
-                f'Only one {label} table JSON was provided for multiple table keys: {table_keys}. '
-                f'Provide one JSON path per table key, in the same order.'
+                f'Only one {label} summary CSV was provided for multiple table keys: {table_keys}. '
+                f'Provide one CSV path per table key, in the same order.'
             )
-        return table_json_paths[0]
+        return summary_csv_paths[0]
 
-    if len(table_json_paths) != len(table_keys):
+    if len(summary_csv_paths) != len(table_keys):
         raise ValueError(
-            f'Expected {len(table_keys)} {label} table JSON paths, one for each table key, '
-            f'but got {len(table_json_paths)}: {table_json_paths}'
+            f'Expected {len(table_keys)} {label} summary CSV paths, one for each table key, '
+            f'but got {len(summary_csv_paths)}: {summary_csv_paths}'
         )
-    return table_json_paths[table_idx]
+    return summary_csv_paths[table_idx]
 
 
 def _metric_label_for_table(table_key):
@@ -411,13 +418,27 @@ def _plot_delta_heatmap(delta, component_rows, cancer_types, modality_name, outp
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Compare Honeybee cancer-type tables from two W&B runs and plot modality-specific delta heatmaps.')
-    parser.add_argument('--entity', type=str, default='vasiliki-rizou-epfl', help='W&B entity for both runs')
-    parser.add_argument('--project', type=str, default='honeybee-posthoc', help='W&B project for both runs')
-    parser.add_argument('--disent-run-name', type=str, default='79n0aozu', help='W&B run name or id for the disentanglement model')
-    parser.add_argument('--baseline-run-name', type=str, default='6yac6zpm', help='W&B run name or id for the simple baseline model')
-    parser.add_argument('--disent-table-json', type=str, nargs='+', default=None, help='Optional local path(s) to disentanglement table JSONs, one per table key')
-    parser.add_argument('--baseline-table-json', type=str, nargs='+', default=None, help='Optional local path(s) to simple baseline table JSONs, one per table key')
+    parser = argparse.ArgumentParser(description='Compare Honeybee cancer-type summary CSVs and plot modality-specific delta heatmaps.')
+    parser.add_argument(
+        '--summary-dir',
+        type=str,
+        default=None,
+        help='Directory containing local summary CSVs. Defaults to summary_reports/cancer_type_component_summary next to this script.',
+    )
+    parser.add_argument(
+        '--disent-summary-csv',
+        type=str,
+        nargs='+',
+        default=None,
+        help='Optional path(s) to disentanglement summary CSVs, one per table key. Defaults to repercent_<table_key>.csv in --summary-dir.',
+    )
+    parser.add_argument(
+        '--baseline-summary-csv',
+        type=str,
+        nargs='+',
+        default=None,
+        help='Optional path(s) to simple baseline summary CSVs, one per table key. Defaults to simple_baselines_<table_key>.csv in --summary-dir.',
+    )
     parser.add_argument(
         '--table-key',
         '--table-keys',
@@ -425,46 +446,38 @@ def main():
         nargs='+',
         default=['cancer_type_component_summary'],
         dest='table_keys',
-        help='One or more W&B summary keys to compare, e.g. cancer_type_component_summary survival_analysis_component_summary',
+        help='One or more local summary table keys to compare, e.g. cancer_type_component_summary.',
     )
     parser.add_argument('--filter_cancer_types', nargs='+', default=DEFAULT_FILTER_CANCER_TYPES, help='Optional cancer type columns to compare, e.g. --filter_cancer_types TCGA-BRCA TCGA-LUAD or TCGA-BRCA,TCGA-LUAD. Should match training.')
     args = parser.parse_args()
 
     script_dir = os.path.dirname(os.path.abspath(__file__))
+    summary_dir = args.summary_dir or os.path.join(script_dir, 'summary_reports', 'cancer_type_component_summary')
 
     table_keys = _normalize_cli_values(args.table_keys)
     filter_cancer_types = _parse_filter_cancer_types(args.filter_cancer_types)
     for table_idx, table_key in enumerate(table_keys):
-        disent_table_json = _resolve_table_json_path(
-            args.disent_table_json,
+        disent_summary_csv = _resolve_summary_csv_path(
+            args.disent_summary_csv,
             table_keys,
             table_idx,
             'disentanglement',
+            summary_dir,
+            'repercent',
+            table_key,
         )
-        baseline_table_json = _resolve_table_json_path(
-            args.baseline_table_json,
+        baseline_summary_csv = _resolve_summary_csv_path(
+            args.baseline_summary_csv,
             table_keys,
             table_idx,
             'baseline',
+            summary_dir,
+            'simple_baselines',
+            table_key,
         )
 
-        disent_columns, disent_rows = _load_table(
-            table_json_path=disent_table_json,
-            entity=args.entity,
-            project=args.project,
-            run_name=args.disent_run_name,
-            table_key=table_key,
-        )
-        baseline_columns, baseline_rows = _load_table(
-            table_json_path=baseline_table_json,
-            entity=args.entity,
-            project=args.project,
-            run_name=args.baseline_run_name,
-            table_key=table_key,
-        )
-
-        disent_metrics, disent_raw_metrics, disent_cancer_types = _table_to_metric_maps(disent_columns, disent_rows)
-        baseline_metrics, baseline_raw_metrics, baseline_cancer_types = _table_to_metric_maps(baseline_columns, baseline_rows)
+        disent_metrics, disent_raw_metrics, disent_cancer_types = _load_summary_csv(disent_summary_csv)
+        baseline_metrics, baseline_raw_metrics, baseline_cancer_types = _load_summary_csv(baseline_summary_csv)
         involved_cancer_types = _resolve_selected_cancer_types(
             disent_cancer_types,
             baseline_cancer_types,

@@ -1,18 +1,12 @@
 import os, sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
-import torch.nn as nn
 import torch
 from torch.utils.data import DataLoader
-import torch.functional as F
-import typing
-from typing import Literal, List
-from collections import defaultdict
-from src.models import repercent, jointopt
 from src.models.repercent import RePercENT
-from posthoc.honeybee.helper_metrics import evaluate_model_cancer_type, evaluate_model_survival_analysis
-from posthoc.honeybee.helper_vis import plot_cancer_type_distribution
-from training.train_repercent import make_dataloaders, make_model
+from posthoc.honeybee.helper_metrics import evaluate_model_cancer_type
+from posthoc.honeybee.plot_utils import plot_cancer_type_distribution
+from training.train_repercent import make_model
 from training.train_jointopt_2m import make_model_jointopt
 from training.main_honeybee import (
     DEFAULT_FILTER_CANCER_TYPES,
@@ -25,7 +19,7 @@ import argparse
 import wandb
 from src.utils.helpers import set_seed
 import numpy as np
-
+import pandas as pd
 
 def _to_float(value):
     if hasattr(value, "item"):
@@ -95,80 +89,65 @@ def _build_wandb_summary_table(summary_metrics):
 
     return table
 
-
-def _aggregate_survival_metrics_across_seeds(seed_reports):
-    aggregated = {}
-
-    for seed_report in seed_reports:
-        if not seed_report:
-            continue
-
-        for component_name, component_metrics in seed_report.items():
-            component_entry = aggregated.setdefault(str(component_name), defaultdict(lambda: defaultdict(list)))
-
-            for cancer_type, cancer_metrics in component_metrics.items():
-                for metric_name, metric_value in cancer_metrics.items():
-                    component_entry[str(cancer_type)][str(metric_name)].append(_to_float(metric_value))
-
-    summary = {}
-    for component_name, component_metrics in aggregated.items():
-        summary[component_name] = {}
-        for cancer_type, cancer_metrics in component_metrics.items():
-            summary[component_name][cancer_type] = {}
-            for metric_name, values in cancer_metrics.items():
-                summary[component_name][cancer_type][metric_name] = {
-                    "mean": float(np.mean(values)),
-                    "std": float(np.std(values, ddof=1)) if len(values) > 1 else 0.0,
-                }
-
-    return summary
-
-
-def _build_survival_summary_table(summary_metrics):
+def save_complete_report(complete_report, script_dir, model_type):
     cancer_types = sorted(
         {
             str(cancer_type)
-            for component_metrics in summary_metrics.values()
-            for cancer_type in component_metrics.keys()
+            for component_metrics in complete_report["summary"].values()
+            for cancer_type in component_metrics["per_cancer_type"].keys()
         }
     )
-    columns = [str(column) for column in ["component", *cancer_types]]
-    table = wandb.Table(columns=columns)
 
-    for component_name in sorted(summary_metrics.keys()):
-        component_metrics = summary_metrics[component_name]
-        row = [component_name]
-
+    summary_rows = []
+    for component_name in sorted(complete_report["summary"].keys()):
+        component_metrics = complete_report["summary"][component_name]
+        summary_rows.append(
+            {
+                "component": component_name,
+                "eval": "overall",
+                "mean": component_metrics["overall"]["mean"],
+                "std": component_metrics["overall"]["std"],
+            }
+        )
         for cancer_type in cancer_types:
-            stats = component_metrics.get(cancer_type)
+            stats = component_metrics["per_cancer_type"].get(cancer_type)
             if stats is None:
-                row.append("N/A")
-            else:
-                row.append(f'{stats["c_index"]["mean"]:.4f} ± {stats["c_index"]["std"]:.4f}')
+                continue
+            summary_rows.append(
+                {
+                    "component": component_name,
+                    "eval": cancer_type,
+                    "mean": stats["mean"],
+                    "std": stats["std"],
+                }
+            )
 
-        table.add_data(*row)
-
-    return table
-
+    summary_report_df = pd.DataFrame(
+        summary_rows,
+        columns=["component", "eval", "mean", "std"],
+    )
+    summary_dir = os.path.join(script_dir, "summary_reports", "cancer_type_component_summary")
+    os.makedirs(summary_dir, exist_ok=True)
+    summary_path = os.path.join(summary_dir, f"{model_type}_cancer_type_component_summary.csv")
+    summary_report_df.to_csv(summary_path, index=False)
+    print(f"Saved cancer type component summary table to {summary_path}")
 
 
 def main():
 
-    parser = argparse.ArgumentParser(description="Train RePercENT model on the IRFL dataset")
+    parser = argparse.ArgumentParser(description="Calculate and log cancer type classification for the Honeybee dataset.")
     parser.add_argument('--datasets_path', type=str, default="../../data/honeybee/datasets/", help='Path to the directory containing the IRFL dataset tensors wrt to this script')
     parser.add_argument('--model_type', type=str, choices=['repercent', 'gmlp', 'gru'], default='repercent', help='Type of model to train, for now only repercent is implemented')
-    parser.add_argument('--wsi_embedding_mode', type=str, choices=['slide', 'patch'], default='slide', help='Method for aggregating WSI embeddings, either path level or slide level')
+    parser.add_argument('--wsi_embedding_mode', type=str, choices=['slide', 'patch'], default='slide', help='Method for aggregating WSI embeddings, either path level or slide level. This should match the embedding mode used during training to load the correct dataset.')
     parser.add_argument('--split_seed', type=int, default= 42, help='Seed for reproducible dataset splits, should match the seed used during training for loading the correct split')
     # Define number of splits and seeds
     parser.add_argument('--base_seed', type=int, default= 2, help='Base seed for reproducibility')
-    parser.add_argument('--cancer_classification', type=bool, default=True, help='Whether to perform cancer type classification evaluation')
-    parser.add_argument('--survival_analysis', type=bool, default=False, help='Whether to perform survival analysis evaluation')
     parser.add_argument('--filter_cancer_types', nargs='+', default=DEFAULT_FILTER_CANCER_TYPES, help='Optional cancer types to keep, e.g. --filter_cancer_types TCGA-BRCA TCGA-LUAD or TCGA-BRCA,TCGA-LUAD. Should match training.')
-    parser.add_argument('--survival_cancer_types', nargs='+', default=None, help='Specific cancer types for survival analysis, e.g. TCGA-BRCA TCGA-LUAD or TCGA-BRCA,TCGA-LUAD')
+    parser.add_argument('--log_to_wandb', type=bool, default=False, help='Whether to log results to wandb')
+    
     args = parser.parse_args()
     filter_cancer_types = _parse_filter_cancer_types(args.filter_cancer_types)
     filter_cancer_types_label = _format_filter_cancer_types(filter_cancer_types)
-    survival_cancer_types = _parse_filter_cancer_types(args.survival_cancer_types)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -215,7 +194,6 @@ def main():
                                 script_dir = script_dir,
                                 train_color = "tab:blue",
                                 test_color = "tab:red")
-    return
     
     # seed check
     n_seeds = analysis_config['hyperparameters']['n_seeds']
@@ -231,7 +209,7 @@ def main():
     # init results storage
     complete_report = {f"seed_{i}": {} for i in range(args.base_seed, args.base_seed + n_seeds)}
     seed_reports = []
-    survival_seed_reports = []
+
     for seed_idx, checkpoint_path in enumerate(analysis_config[args.model_type]['checkpoints']):
         temp_seed = args.base_seed + seed_idx
 
@@ -257,53 +235,39 @@ def main():
 
         model.to(device)
         
-        if args.cancer_classification:
-             temp_metrics = evaluate_model_cancer_type(train_loader, test_loader, model, device)
-             complete_report[f"seed_{temp_seed}"] = temp_metrics
-             seed_reports.append(temp_metrics)
-        if args.survival_analysis:
-           
-            survival_metrics = evaluate_model_survival_analysis(
-                train_loader,
-                test_loader,
-                model,
-                device,
-                cancer_types=survival_cancer_types
-            )
-            if not survival_metrics:
-                raise ValueError(f"No survival metrics were produced for seed {temp_seed}.")
-            complete_report.setdefault("survival_analysis", {})[f"seed_{temp_seed}"] = survival_metrics
+        # Perform cancer type classification evaluation
+        temp_metrics = evaluate_model_cancer_type(train_loader, test_loader, model, device)
+        complete_report[f"seed_{temp_seed}"] = temp_metrics
+        seed_reports.append(temp_metrics)
+        print(f"Seed {seed_idx} completed!")
 
-            survival_seed_reports.append(survival_metrics)
+    # Aggregate metrics across seeds and save the complete report
+    complete_report["summary"] = _aggregate_metrics_across_seeds(seed_reports)
+    print(complete_report["summary"])
 
+    # Save complete report to CSV
+    save_complete_report(complete_report, script_dir, args.model_type)
+
+    if args.log_to_wandb:    
+        wandb.init(
+            project=analysis_config["wandb"]["project"],
+            name=f"{args.model_type}_summary",
+            config={
+                "model_type": args.model_type,
+                "split_seed": args.split_seed,
+                "base_seed": args.base_seed,
+                "n_seeds": n_seeds,
+                "wsi_embedding_mode": args.wsi_embedding_mode,
+                "filter_cancer_types": filter_cancer_types_label,
+            },
+        )
+
+        # Log complete report and summary metrics to wandb
         
-    wandb.init(
-        project=analysis_config["wandb"]["project"],
-        name=f"{args.model_type}_summary",
-        config={
-            "model_type": args.model_type,
-            "split_seed": args.split_seed,
-            "base_seed": args.base_seed,
-            "n_seeds": n_seeds,
-            "wsi_embedding_mode": args.wsi_embedding_mode,
-            "filter_cancer_types": filter_cancer_types_label,
-            "survival_cancer_types": _format_filter_cancer_types(survival_cancer_types),
-        },
-    )
-
-    if args.cancer_classification:
-        complete_report["summary"] = _aggregate_metrics_across_seeds(seed_reports)
         summary_table = _build_wandb_summary_table(complete_report["summary"])
         wandb.log({"cancer_type_component_summary": summary_table})
-    if args.survival_analysis:
-        complete_report["survival_summary"] = _aggregate_survival_metrics_across_seeds(survival_seed_reports)
-        if not complete_report["survival_summary"]:
-            raise ValueError("No aggregated survival metrics were available to log to Weights & Biases.")
-        survival_summary_table = _build_survival_summary_table(complete_report["survival_summary"])
-        print(f"Survival analysis summary metrics: {complete_report['survival_summary']}")
-        print(f"Survival analysis summary table:\n{survival_summary_table}")
-        wandb.log({"survival_analysis_component_summary": survival_summary_table})
-    wandb.finish()
+        
+        wandb.finish()
 
 if __name__ == "__main__":
     main()

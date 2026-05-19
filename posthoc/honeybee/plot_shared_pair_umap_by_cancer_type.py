@@ -18,7 +18,7 @@ from posthoc.honeybee.helper_metrics import (
     format_honeybee_component_name,
     get_honeybee_modality_short_name,
 )
-from posthoc.honeybee.plot_component_utils import (
+from posthoc.honeybee.plot_utils import (
     build_color_map,
     compute_centroid_distance_matrix,
     load_split_features,
@@ -216,7 +216,7 @@ def main():
     script_dir = os.path.dirname(os.path.abspath(__file__))
 
     filter_cancer_types = _parse_filter_cancer_types(args.filter_cancer_types)
-    component_features, labels, _ = load_split_features(
+    component_features, labels = load_split_features(
         args,
         script_dir,
         device,
