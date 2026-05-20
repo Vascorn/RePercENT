@@ -231,7 +231,7 @@ def main():
     parser.add_argument('--k2', type=int, default= 2, help='Number of training seeds per split')
     parser.add_argument('--base_seed', type=int, default=2, help='Base seed for reproducibility')
     parser.add_argument('--save_figures_path', type=str, default='./figures/confusion_matrices/', help='Path to save confusion matrix figures')
-
+    parser.add_argument('--log_to_wandb', action=argparse.BooleanOptionalAction, default=True, help='Whether to log results to Weights & Biases')
     args = parser.parse_args()
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -340,15 +340,17 @@ def main():
             
             
             print(f"Evaluation of split: {split_idx} and seed: {seed_idx} complete!")
+
+
+    # Log results
+    if args.log_to_wandb:
+        run = wandb.init(project= "posthoc_" + model_config["wandb"]["project"], 
+                        name= f"aggregate_{args.model_type}" if args.model_type == "repercent" else f"aggregate_{model_config['shared_encoder']['type']}", 
+                        reinit=True, config={"k1": args.k1, "k2": args.k2, "base_seed": args.base_seed, "model_type": args.model_type, "enc_type": args.enc_type})
+
     
-
-    run = wandb.init(project= "posthoc_" + model_config["wandb"]["project"], 
-                    name= f"aggregate_{args.model_type}" if args.model_type == "repercent" else f"aggregate_{model_config['shared_encoder']['type']}", 
-                    reinit=True, config={"k1": args.k1, "k2": args.k2, "base_seed": args.base_seed, "model_type": args.model_type, "enc_type": args.enc_type})
-
-    aggregate_and_log(all_metrics_summary) 
     if all_linear_results and components is not None:
-        wandb.log({"linear_probe/all_runs": _build_linear_results_table(all_linear_results, components)})
+        print(f"Aggregating linear probe results for {len(all_linear_results)} runs...")
         mean_acc, std_acc = _aggregate_linear_probe_acc(all_linear_results, components)
         fig = _plot_summary_pairwise_confusion_matrices(mean_acc, std_acc, M=M, components=components)
         
@@ -356,15 +358,20 @@ def main():
         os.makedirs(save_figures_path, exist_ok=True)
         fig.savefig(fig_path, bbox_inches='tight')
         print(f"Saved summary pairwise confusion matrices to: {fig_path}")
-        wandb.log({"linear_pairwise_confusion_matrices_summary": wandb.Image(fig)})
+        if args.log_to_wandb:
+            wandb.log({"linear_probe/all_runs": _build_linear_results_table(all_linear_results, components)})
+            wandb.log({"linear_pairwise_confusion_matrices_summary": wandb.Image(fig)})
         plt.close(fig)
 
-    # Log model parameters and flops as well
+        
     model_params = sum(p.numel() for p in model.parameters())
-    model_flops = calculate_flops(model, test_loader, device)
-    
-    wandb.log({"model_params": model_params, "model_flops": model_flops})
-    wandb.finish()
+    model_flops = calculate_flops(model, test_loader, device)    
+
+    print(f"Model parameters: {model_params}, Model FLOPs: {model_flops / 1e6:.2f} MFLOPs")
+    if args.log_to_wandb:
+        aggregate_and_log(all_metrics_summary) 
+        wandb.log({"model_params": model_params, "model_flops": model_flops})
+        wandb.finish()
 
 if __name__ == "__main__":
     main()
