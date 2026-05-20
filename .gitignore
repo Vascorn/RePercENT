@@ -207,6 +207,7 @@ marimo/_lsp/
 __marimo__/
 
 # ignore specific directories & files
+artifacts/
 scripts/
 Dockerfile
 .aliases
@@ -215,9 +216,9 @@ wandb/
 /data/multibench/
 /data/irfl/images/
 checkpoints/
-/posthoc/synthetic/alpha_ablations/
-/posthoc/synthetic/complexity/
-/posthoc/synthetic/structural_comp_ablations/
+/posthoc/synthetic/figures/alpha_ablations/
+/posthoc/synthetic/figures/complexity/
+/posthoc/synthetic/figures/structural_comp_ablations/
 /posthoc/synthetic/alpha_sweep.py
 /posthoc/synthetic/complexity_analysis.py
 /posthoc/synthetic/structural_comp_ablation.py
