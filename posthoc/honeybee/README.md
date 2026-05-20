@@ -1,5 +1,5 @@
 # `HONeYBEE` Posthoc Analysis.
-![Dataset](https://img.shields.io/badge/dataset-HONEyBEE-green)
+![Dataset](https://img.shields.io/badge/dataset-HONeYBEE-green)
 ![Task](https://img.shields.io/badge/task-Cancer%20Type%20classification-purple)
 
 Posthoc scripts for the Honeybee experiments: cancer-type probe metrics, simple
