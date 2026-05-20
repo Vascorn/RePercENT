@@ -13,22 +13,11 @@ import seaborn as sns
 
 from posthoc.plotting_config import apply_paper_plot_style
 from posthoc.honeybee.helper_metrics import HONEYBEE_MODALITIES, get_honeybee_modality_short_name
+from training.main_honeybee import DEFAULT_FILTER_CANCER_TYPES
 
 apply_paper_plot_style()
 
 
-DEFAULT_FILTER_CANCER_TYPES = [
-    'TCGA-BRCA',
-    'TCGA-COAD',
-    'TCGA-GBM',
-    'TCGA-HNSC',
-    'TCGA-KIRC',
-    'TCGA-LGG',
-    'TCGA-LUAD',
-    'TCGA-LUSC',
-    'TCGA-OV',
-    'TCGA-PRAD',
-]
 
 
 def _parse_filter_cancer_types(filter_cancer_types):

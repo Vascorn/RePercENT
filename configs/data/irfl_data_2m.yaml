@@ -1,0 +1,10 @@
+create_data:
+  M: 2 # number of modalities
+  latent_dim: 256 # dimension of each latent factor 
+  ts: [49, 77] # temporal/spatial dimensions of each modality
+  data_type: "train" # "train" or "test"
+  modalities: ["Image", "Caption"]
+
+  
+wandb:
+  project: "irfl-2m-final"

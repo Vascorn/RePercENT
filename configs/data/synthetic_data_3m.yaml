@@ -1,0 +1,13 @@
+create_data:
+  M: 3 # number of modalities
+  N_data: 150000
+  trans_type: "uniform"
+  latent_dim: 16 # dimension of each latent factor 
+  ts: [8, 8, 8] # sequence length for each modality
+  gammas: [1.5, 1.5, 1.5]
+  normalize: false
+  sigma: 0.5
+  dist: "normal"
+
+wandb:
+  project: "synthetic-moe-3M"

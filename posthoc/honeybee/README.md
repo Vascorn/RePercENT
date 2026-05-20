@@ -1,7 +1,9 @@
-# HONeYBEE Posthoc Analysis
+# `HONeYBEE` Posthoc Analysis.
+![Dataset](https://img.shields.io/badge/dataset-HONEyBEE-green)
+![Task](https://img.shields.io/badge/task-Cancer%20Type%20classification-purple)
 
 Posthoc scripts for the Honeybee experiments: cancer-type probe metrics, simple
-raw-embedding baselines, RePercENT-vs-baseline comparisons, UMAP visualizations,
+raw-embedding baselines, RePercENT-vs-baseline comparisons, embedding visualizations,
 and missing-modality robustness.
 
 Run commands from this directory:
@@ -53,18 +55,17 @@ summary_reports/cancer_type_component_summary/simple_baselines_cancer_type_compo
 
 and writes the results to `figures/cancer_type_component_summary/`.
 
-## UMAP Figures
+## Visualizations
 
-For generating different umap embeddings for the unique and shared components of the tcga cohort, you may run:
+For generating different umap embeddings for the unique and shared components, as well as heatmaps for the angular distances across cancer-types of the tcga cohort, you may run:
 
 ```bash
-python plot_raw_embedding_umap_by_cancer_type.py --split test --wsi_embedding_mode slide
-python plot_unique_component_umap_by_cancer_type.py --modality clinical_qwen --split test
-python plot_shared_pair_umap_by_cancer_type.py --split test
+python plot_raw_embedding_by_cancer_type.py --split test --wsi_embedding_mode slide
+python plot_unique_component_by_cancer_type.py --splits test --modality clinical_qwen
+python plot_shared_pair_by_cancer_type.py --split test
 ```
 
-Default outputs are written under `figures/raw_embedding_umap/`,
-`figures/unique_component_umap/`, and `figures/shared_pair_umap/`.
+Default outputs are written under `figures/raw_embedding/`, `figures/unique_component/`, and `figures/shared_pair/`. The generated plots correspond to the raw embeddings, as they are extracted from the [HONEyBEE](https://huggingface.co/datasets/Lab-Rasool/TCGA) preprocessing pipeline 
 
 ## Missingness Analysis
 
@@ -83,5 +84,6 @@ stored in `summary_reports/missingess_summary/`, and panel PDFs are stored in
   logging is optional via `--log_to_wandb True`.
 - `missingness_eval.py` does not contact W&B when regenerating plots from an
   existing summary CSV. Optional logging to W&B via `--log_to_wandb True`.
-- The default cancer-type subset is BRCA, COAD, GBM, HNSC, KIRC, LGG, LUAD,
+- The default cancer-type subset on which the model is trained on is BRCA, COAD, GBM, HNSC, KIRC, LGG, LUAD,
   LUSC, OV, and PRAD.
+- The cancer type distribution for the train/ test set of the used 10 TCGA cancer types, is depicted in `cancer_type_distribution.pdf`

@@ -22,21 +22,21 @@ apply_paper_plot_style()
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Train RePercENT model on the IRFL dataset")
+    parser = argparse.ArgumentParser(description="Visualize embeddings of unique and shared components from the three different modalities (images, captions, definitions) for the IRFL dataset using dimensionality reduction techniques like PCA, t-SNE, or UMAP.")
     parser.add_argument('--datasets_path', type=str, default="../../data/irfl/datasets/", help='Path to the directory containing the IRFL dataset tensors wrt to this script')
     parser.add_argument('--model_type', type=str, choices=['repercent', 'gmlp'], default='repercent', help='Type of model to train, for now only repercent is implemented')
     parser.add_argument('--comp_mod', type=int, choices=[1, 2], default= 1, help='Which modality to compute similarities for (1 for captions, 2 for definitions, 3 for adding \
                                                                                     the similarities between images- captions and images - definitions and then comparing the metrics). \
                                                                                     Note that 2 and 3 is only relevant for the 3-modality setting')
     # Define number of splits and seeds
-    parser.add_argument('--select_seed', type=int, default= 0, help='Select the seed index to visualize (0-based index, should be less than n_seeds)')
+    parser.add_argument('--select_seed', type=int, default= 1, help='Select the seed index to visualize (0-based index, should be less than n_seeds)')
     args = parser.parse_args()
 
     
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     script_dir = os.path.dirname(os.path.abspath(__file__))
     
-    M = 2 # number of modalities, for the IRFL: M = 2 -> images + captions, M = 3 -> images + captions + definitions
+    M = 3 # number of modalities, for the IRFL: M = 2 -> images + captions, M = 3 -> images + captions + definitions
     
     # Loading configurations for data, model, and training
     print("Loading configurations...")

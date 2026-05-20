@@ -1,0 +1,9 @@
+create_data:
+  M: 3 # number of modalities
+  latent_dim: 256 # dimension of each latent factor 
+  ts: [49, 77, 77] # temporal/spatial dimensions of each modality
+  modalities: ["Image", "Caption", "Definition"]
+
+  
+wandb:
+  project: "irfl-3m-final"

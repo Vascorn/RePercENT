@@ -182,7 +182,9 @@ def evaluate_model(model, test_loader, device, M= 3, comp_mod= 1, component: Com
         mrr = (1 / ranks).mean()
 
         # Mean margin of the correct match over the most similar distractor
-        margin = (pos_sim - max_distractor_sim).mean()
+        margin = pos_sim - max_distractor_sim
+        margin_mean = margin.mean() # Average margin across all examples
+        margin_correct = (margin > 0).mean()  # Proportion of examples where the correct match is more similar than all distractors
 
         # Accuracy @1
         acc_at_1 = (pos_sim > max_distractor_sim).mean()
@@ -201,7 +203,8 @@ def evaluate_model(model, test_loader, device, M= 3, comp_mod= 1, component: Com
             "acc@1": float(acc_at_1),
             "acc@2_pairavg": float(acc_at_2_pairavg),
             "MRR": float(mrr),
-            "margin": float(margin),
+            "margin": float(margin_mean),
+            "margin_correct": float(margin_correct)
         }
 
     return metrics

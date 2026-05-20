@@ -418,7 +418,7 @@ def _read_summary_csv(path):
 def _missingness_output_paths(script_dir, args):
     figure_dir = os.path.join(script_dir, "figures", "missingness")
     csv_dir = os.path.join(script_dir, "summary_reports", "missingess_summary")
-    run_stem = f"missingness_wsi_mol_{args.wsi_embedding_mode}_{args.metric}_split{args.split_seed}"
+    run_stem = f"wsi_mol_{args.wsi_embedding_mode}_{args.metric}_split{args.split_seed}"
     csv_stem = f"wsi_mol_{args.wsi_embedding_mode}_{args.metric}_split{args.split_seed}"
     return {
         "csv_dir": csv_dir,
@@ -590,7 +590,7 @@ def main():
     parser.add_argument("--base_seed", type=int, default=2, help="Base seed used for probes and missingness repeats")
     parser.add_argument("--batch_size", type=int, default=32, help="Batch size for RePercENT feature extraction")
     parser.add_argument("--filter_cancer_types", nargs="+", default=DEFAULT_FILTER_CANCER_TYPES, help="Cancer types to keep")
-    parser.add_argument("--metric", type=str, choices=["balanced_accuracy", "macro_f1"], default="macro_f1", help="Missingness curve metric")
+    parser.add_argument("--metric", type=str, choices=["balanced_accuracy", "macro_f1"], default="balanced_accuracy", help="Missingness curve metric")
     parser.add_argument("--num_drop_rates", type=int, default=11, help="Number of evenly spaced drop rates between 0 and 1")
     parser.add_argument("--num_repeats", type=int, default=10, help="Number of missingness masks per drop rate")
     parser.add_argument("--max_iter", type=int, default=10000, help="Maximum iterations for LogisticRegression probes")

@@ -81,8 +81,7 @@ def calculate_flops(model, loader, device, M= 3):
 
 
 def main():
-    
-    parser = argparse.ArgumentParser(description="Train RePercENT model on the IRFL dataset")
+    parser = argparse.ArgumentParser(description="Calculate post-hoc metrics on the IRFL detection task's test set for the trained disentanglement models.")
     parser.add_argument('--datasets_path', type=str, default="../../data/irfl/datasets/", help='Path to the directory containing the IRFL dataset tensors wrt to this script')
     parser.add_argument('--model_type', type=str, choices=['repercent', 'gmlp', 'gru'], default='repercent', help='Type of model to train, for now only repercent is implemented')
     parser.add_argument('--comp_mod', type=int, choices=[1, 2, 3], default= 1, help='Which modality to compute similarities for (1 for captions, 2 for definitions, 3 for adding \
@@ -92,6 +91,7 @@ def main():
                         help='Which component to assess (shared, unique, or both for shared concatenated with unique).')
     # Define number of splits and seeds
     parser.add_argument('--base_seed', type=int, default= 2, help='Base seed for reproducibility')
+    parser.add_argument('--log_to_wandb', action=argparse.BooleanOptionalAction, default=True, help='Whether to log results to Weights & Biases (wandb)')
     args = parser.parse_args()
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -194,43 +194,52 @@ def main():
                 "std": float(values.std(ddof=1)) if len(values) > 1 else 0.0
             }
 
-    match args.comp_mod:
-        case 1:
-            name = f"{args.model_type}_evaluation_images_vs_captions_{args.component}"
-        case 2:
-            name = f"{args.model_type}_evaluation_images_vs_definitions_{args.component}"
-        case 3:
-            name = f"{args.model_type}_evaluation_images_vs_both_{args.component}"
-    if args.component != "shared":
-        name = f"{name}_{args.component}"
-            
-    wandb.init(
-        project= f"irfl_{M}m_posthoc_analysis",
-        name= name,
-        config= analysis_config[args.model_type]
-    )
-
-    summary_table = wandb.Table(columns=["Split", "Metric", "Mean ± Std"])
-
+    print(f"Posthoc analysis on IRFL for {M} modalities and {args.model_type.upper()} done! Complete report:")
     for split_name, metrics_dict in complete_report["summary"].items():
+        print(f"  {split_name}:")
         for metric_name, stats in metrics_dict.items():
-            mean = stats["mean"]
-            std = stats["std"]
+            print(f"    {metric_name}: {stats['mean']:.4f} ± {stats['std']:.4f}")
 
-            summary_table.add_data(
-                split_name,
-                metric_name,
-                f"{mean:.4f} ± {std:.4f}"
-            )
 
-    wandb.log({"Evaluation Summary": summary_table})
-    # Log model parameters and flops as well
-    model_params = sum(p.numel() for p in model.parameters())
-    model_flops = calculate_flops(model, test_loader, device, M= M)
-    print(f"Model parameters: {model_params}")
-    print(f"Model flops: {model_flops}")
-    wandb.log({"model_params": model_params, "model_flops": model_flops})
-    wandb.finish()
+    # Log results to wandb
+    if args.log_to_wandb:
+        match args.comp_mod:
+            case 1:
+                name = f"{args.model_type}_evaluation_images_vs_captions_{args.component}"
+            case 2:
+                name = f"{args.model_type}_evaluation_images_vs_definitions_{args.component}"
+            case 3:
+                name = f"{args.model_type}_evaluation_images_vs_both_{args.component}"
+        if args.component != "shared":
+            name = f"{name}_{args.component}"
+                
+        wandb.init(
+            project= f"irfl_{M}m_posthoc_analysis",
+            name= name,
+            config= analysis_config[args.model_type]
+        )
+
+        summary_table = wandb.Table(columns=["Split", "Metric", "Mean ± Std"])
+
+        for split_name, metrics_dict in complete_report["summary"].items():
+            for metric_name, stats in metrics_dict.items():
+                mean = stats["mean"]
+                std = stats["std"]
+
+                summary_table.add_data(
+                    split_name,
+                    metric_name,
+                    f"{mean:.4f} ± {std:.4f}"
+                )
+
+        wandb.log({"Evaluation Summary": summary_table})
+        # Log model parameters and flops as well
+        model_params = sum(p.numel() for p in model.parameters())
+        model_flops = calculate_flops(model, test_loader, device, M= M)
+        print(f"Model parameters: {model_params}")
+        print(f"Model flops: {model_flops}")
+        wandb.log({"model_params": model_params, "model_flops": model_flops})
+        wandb.finish()
 
 if __name__ == "__main__":
     main()

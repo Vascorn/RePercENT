@@ -89,27 +89,28 @@ def reduce_d(X, method="pca", dim: int= 2, random_state=0, **kwargs):
     if method in {"tsne", "t-sne", "t_sne"}:
         n = X.shape[0]
         # t-SNE constraints: perplexity < n_samples
-        perplexity = kwargs.pop("perplexity", min(30, max(2, (n - 1) // 3)))
+        perplexity = kwargs.pop("perplexity", min(70, max(2, (n - 1) // 3)))
         perplexity = min(perplexity, n - 1)  # ensure valid
         reducer = TSNE(
             n_components=dim,
             random_state=random_state,
-            init="pca",
+            init="random",
             learning_rate="auto",
             perplexity=perplexity,
+            method = "exact",
             **kwargs
         )
         return reducer.fit_transform(X)
 
     if method == "umap":
         # UMAP parameters with sensible defaults
-        n_neighbors = kwargs.pop("n_neighbors", 30)
-        min_dist = kwargs.pop("min_dist", 0.5)
-        metric = kwargs.pop("metric", "seuclidean")
+        n_neighbors = kwargs.pop("n_neighbors", 80)
+        min_dist = kwargs.pop("min_dist", 0.8)
+        metric = kwargs.pop("metric", "euclidean")
         reducer = umap.UMAP(
             n_components=dim,
-            # n_neighbors=n_neighbors,
-            # min_dist=min_dist,
+            n_neighbors=n_neighbors,
+            min_dist=min_dist,
             metric=metric,
             random_state=random_state,
             **kwargs

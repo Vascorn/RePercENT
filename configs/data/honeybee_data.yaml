@@ -1,0 +1,9 @@
+create_data:
+  M: 4 # number of modalities
+  latent_dim: 256 # dimension of each latent factor 
+  ts: [1, 3, 16, 4] # temporal/spatial dimensions of each modality
+  modalities: ["clinical_qwen", "pathology_qwen", "wsi", "molecular"]
+  wsi_embedding_mode: "slide" # `slide` or `patch` - whether to use slide-level or patch-level embeddings for the WSI modality
+  
+wandb:
+  project: "honeybee-4m-final"

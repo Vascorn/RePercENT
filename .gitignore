@@ -206,16 +206,20 @@ marimo/_static/
 marimo/_lsp/
 __marimo__/
 
-# ignore the data/ directory
+# ignore specific directories & files
 /data/
 scripts/
 Dockerfile
 .aliases
 entrypoint.sh
 wandb/
-data/
+/data/multibench/
+/data/irfl/images/
 checkpoints/
+/posthoc/synthetic/alpha_ablations/
+/posthoc/synthetic/complexity/
+/posthoc/synthetic/structural_comp_ablations/
+/posthoc/synthetic/alpha_sweep.py
+/posthoc/synthetic/complexity_analysis.py
+/posthoc/synthetic/structural_comp_ablation.py
 
-# ignore figures 
-posthoc/irfl/figures/grad_cam/
-posthoc/irfl/figures/shap/
