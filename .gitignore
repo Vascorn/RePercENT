@@ -207,7 +207,6 @@ marimo/_lsp/
 __marimo__/
 
 # ignore specific directories & files
-/data/
 scripts/
 Dockerfile
 .aliases
