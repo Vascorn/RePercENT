@@ -471,6 +471,8 @@ def main():
     parser.add_argument("--plot_distributions", action="store_true", help="Whether to plot sample count distributions")
     parser.add_argument("--data_save_path", type=str, default="./data/honeybee/datasets/", help="Path to save the created dataset")
     parser.add_argument("--modalities", nargs="+", default=["clinical_qwen", "pathology_qwen", "wsi", "molecular"], help="Modalities to include in the dataset")
+    # For WSI, "slide" mode pools patch embeddings to slide-level before padding, while "patch" mode keeps patch-level embeddings with an additional patch dimension in the padding.
+    # All the experiments are conducted with the "slide" mode.
     parser.add_argument("--wsi_embedding_mode", type=str, choices=["slide", "patch"], default="slide", help="How to handle WSI embeddings: 'slide' for pooling to slide-level, 'patch' for keeping patch-level with padding")
 
 

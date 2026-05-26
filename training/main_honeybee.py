@@ -101,7 +101,7 @@ def main():
     parser.add_argument('--n_seeds', type=int, default= 5, help='Number of seeds per split for model initialization and training')
     parser.add_argument('--base_seed', type=int, default=2, help='Base seed for model initialization and training reproducibility')
     parser.add_argument('--split_seed', type=int, default=42, help='Seed used only for the reproducible stratified train/test split')
-    parser.add_argument('--add_val_set', type=bool, default=False, help= 'Whether to create a validation set from the training data for monitoring validation loss. If not set, the model will be trained and evaluated only on the test set.')
+    parser.add_argument('--add_val_set', type=bool, default=False, help= 'Whether to create a validation set from the training data for monitoring validation loss. If not set, the model will be trained and at the end evaluated only on the test set.')
     parser.add_argument('--evaluate_final_model', type=bool, default=True, help='Whether to run a final evaluation of the best model checkpoint on the test set after training. If not set, only validation metrics will be logged during training.')
     args = parser.parse_args()
     filter_cancer_types = _parse_filter_cancer_types(args.filter_cancer_types)

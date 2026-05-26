@@ -78,7 +78,7 @@ Existing summary CSVs are reused to regenerate figures. Missingness CSVs are
 stored in `summary_reports/missingess_summary/`, and panel PDFs are stored in
 `figures/missingness/`.
 
-> [!NOTES]
+> [!NOTE]
 > - `calc_metrics.py` and `simple_baselines.py` save local CSVs by default; W&B
   logging is optional via `--log_to_wandb True`.
 > - `missingness_eval.py` does not contact W&B when regenerating plots from an

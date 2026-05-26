@@ -224,7 +224,6 @@ def main():
                 "metrics": final_metrics,
             })
             wandb.finish()
-    return
     
     # global summary run
     run = wandb.init(project= model_config["wandb"]["project"], 
