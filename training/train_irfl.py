@@ -166,7 +166,7 @@ def test_fwd_only(x, model, device, M= 3):
         X.append(defs.to(device))
         X_cross_masks.append(defs_mask.bool().to(device))
 
-    # Forward pass through RePercENT
+    # Forward pass
     outputs = model(X, mask = X_cross_masks)
     
     return outputs
@@ -191,14 +191,14 @@ def train_loop(x, x_aug, model, disen_loss, optimizer, device, M= 3):
         X_aug.append(defs_aug.to(device))
         X_aug_cross_masks.append(defs_mask_aug.bool().to(device))
 
-    # Forward pass through RePercENT
+    # Forward pass
     outputs = model(X, mask = X_cross_masks)
     outputs_aug = model(X_aug, mask = X_aug_cross_masks)
     
     # Compute disentanglement loss
     loss, logs = disen_loss(outputs, outputs_aug)
     
-    # Backward pass for RePercENT
+    # Backward pass
     optimizer.zero_grad()
     loss.backward()
     optimizer.step()
@@ -207,7 +207,7 @@ def train_loop(x, x_aug, model, disen_loss, optimizer, device, M= 3):
 
 def train(train_loader, test_loader, model, optimizer, disen_loss, epochs, device, val_loader=None, checkpoint_dir="./checkpoints", comp_mod = 1):
     """
-    Full training loop for RePercENT model with evaluation on test set
+    Full training loop for RePercENT model with final evaluation on test set
     Args:
         train_loader: DataLoader for training dataset
         test_loader: DataLoader for test dataset. Used for final evaluation after training.

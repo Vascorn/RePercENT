@@ -7,8 +7,7 @@ from typing import Literal, List
 from torch.utils.data import random_split
 import wandb
 from src.utils.helpers import extract_latents_and_labels, linear_probe, plot_confusion_matrix
-from src.models.jointopt_2m import MLP
-from src.models.jointopt import GRUEncoder, JointOpt
+from src.models.jointopt import GRUEncoder, JointOpt, MLP
 from src.models.third_party.g_mlp_repo.g_mlp.core import gMLP
 import numpy as np
 import math

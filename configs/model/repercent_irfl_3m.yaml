@@ -3,7 +3,7 @@ wandb:
 
 # Use the same model configuration for each modality, except for the positional encoding parameters and input channels which are modality-specific
 perceiver: 
-  type: "standard" # "standard" or "disen"
+  type: "disen" # "standard" or "disen"
   depth: 2 # Number of layers in the Perceiver model
   max_freq: null
   num_freq_bands: null

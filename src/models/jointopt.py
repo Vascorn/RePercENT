@@ -9,10 +9,58 @@ from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 from src.DisentangledSSL.models import ProbabilisticEncoder 
 from src.DisentangledSSL.losses import SupConLoss, ortho_loss
 from src.DisentangledSSL.utils import ExponentialScheduler
-from src.models.jointopt_2m import MLP
 from itertools import permutations
+
+
 ActivationName = typing.Literal['relu', 'gelu', 'sigmoid']
 
+class MLP(nn.Module):
+    def __init__(self, input_dim: int = 64, 
+                hidden_dims: List[int] = [64], 
+                latent_dim: int = 32, 
+                activation: ActivationName = 'relu', 
+                dropout: float = 0.3,
+                flatten_input: bool = True) -> None:
+        
+        super(MLP, self).__init__()
+        self.input_dim = input_dim # initial input dimension. If the input is flattened, this should be seq_len * feature_dim
+        self.hidden_dims = hidden_dims # hidden layer dimension
+        self.latent_dim = latent_dim # final output dimension
+        self.dropout = dropout
+        self.flatten_input = flatten_input
+
+        match activation:
+            case 'relu':
+                self.activation = nn.ReLU()
+            case 'gelu':
+                self.activation = nn.GELU()
+            case 'sigmoid':
+                self.activation = nn.Sigmoid()
+            case _:
+                exit ("Unsupported activation function")
+
+        prev_dim = self.input_dim
+        layers: list[nn.Module] = []
+        
+        for h in self.hidden_dims:
+            layer = nn.Linear(prev_dim, h)
+            
+            layers.append(layer)
+            layers.append(self.activation)
+            if self.dropout > 0:
+                layers.append(nn.Dropout(p= self.dropout))
+            prev_dim = h
+        
+        layers.append(nn.Linear(prev_dim, self.latent_dim))
+
+        self.mlp = nn.Sequential(*layers)
+
+    def forward(self, x):
+        # flatten input except batch dimension
+        if self.flatten_input:
+            x = x.flatten(start_dim= -2)
+        out = self.mlp(x)
+        return out
 
 class GRUEncoder(nn.Module):
     def __init__(self, input_dim: int, hidden_dim: int, latent_dim: int, num_layers: int = 1, bidirectional: bool = False, dropout: float = 0.2) -> None:

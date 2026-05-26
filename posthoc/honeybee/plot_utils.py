@@ -16,7 +16,7 @@ from posthoc.honeybee.helper_metrics import HONEYBEE_MODALITIES, _collect_compon
 from src.models.repercent import RePercENT
 from src.utils.helpers import set_seed
 from training.main_honeybee import _filter_dataset_by_cancer_types
-from training.train_jointopt_2m import make_model_jointopt
+from training.train_jointopt import make_model_jointopt
 from training.train_repercent import make_model
 
 apply_paper_plot_style()

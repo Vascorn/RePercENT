@@ -88,7 +88,7 @@ def stratified_split_dataset(dataset, test_size, seed):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Train RePercENT model on the Honeybee dataset")
+    parser = argparse.ArgumentParser(description="Train a disentanglement model on the Honeybee dataset. Supports RePercENT and gmlp and gru variants of jointopt.")
     parser.add_argument('--datasets_path', type=str, default="../data/honeybee/datasets/", help='Path to the directory containing the Honeybee dataset tensors wrt to this script')
     
     parser.add_argument('--load_test_split', type=bool, default=True, help='Whether to load a pre-split dataset with fixed train/test split by cancer type. If False, a new random split will be created.')

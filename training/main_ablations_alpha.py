@@ -29,14 +29,14 @@ import random
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Train RePercENT or Jointopt model on synthetic data")
+    parser = argparse.ArgumentParser(description="Ablation study for different values of alpha")
     parser.add_argument('--model_type', type=str, choices=['jointopt', 'repercent'], default='repercent', help='Type of model to train')
 
     # Define number of splits and seeds
     parser.add_argument('--k1', type=int, default= 3, help='Number of different train/test splits')
     parser.add_argument('--base_seed', type=int, default=2, help='Base seed for reproducibility')
-    parser.add_argument('--alpha_values', nargs='+', type=float, default=[10.0, 100.0], help='Values of alpha to iterate over')
-    parser.add_argument('--M_values', nargs='+', type=int, default=[5], help='Numbers of modalities to iterate over')
+    parser.add_argument('--alpha_values', nargs='+', type=float, default=[0.01, 0.1, 1.0, 10.0, 100.0], help='Values of alpha to iterate over')
+    parser.add_argument('--M_values', nargs='+', type=int, default=[3, 4, 5], help='Number of modalities to iterate over. The number of modalities, should correspond to the existing generated synthetic datasets.')
 
     args = parser.parse_args()
 
@@ -60,11 +60,17 @@ def main():
 
         
 
-        # Load the dataset
+        # Load the dataset if it exists
         load_path = os.path.join(script_dir, "..", "data", "repercent_synthetic", f"dataset2{M}")
-        dataset = torch.load(os.path.join(load_path, "dataset.pt"), weights_only=False)
-        
-        
+        try:
+            dataset = torch.load(os.path.join(load_path, "dataset.pt"), weights_only=False)
+        except FileNotFoundError as e:
+            raise ValueError(
+                f"The synthetic dataset for M = {M} does not exist. "
+                f"Please first create the dataset for {M} modalities and then run the script "
+                f"or change the `--M_values` argument."
+            ) from e
+
         group_name = f"{args.model_type}_splits_{args.k1}" if args.model_type == "repercent" else f"_{model_config['shared_encoder']['type']}_splits_{args.k1}"
         group_name += f"_{M}M" # modality number identifier for wandb grouping
         

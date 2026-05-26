@@ -171,6 +171,7 @@ def train(train_loader, test_loader, model, optimizer, disen_loss, epochs, devic
         device: Device to run the training on (CPU/GPU)
         val_loader: DataLoader for validation dataset. Optional, if not provided, no validation will be performed during training and model checkpoints will be saved based on training loss.
         checkpoint_dir: Directory to save model checkpoints
+        generator: A generator to control stochasticity and have reproducable results
     """
     # clear memory
     torch.cuda.empty_cache()

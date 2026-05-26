@@ -62,8 +62,10 @@ def main():
     # Define number of splits and seeds
     parser.add_argument('--n_seeds', type=int, default= 5, help='Number of seeds per split for model initialization and training')
     parser.add_argument('--base_seed', type=int, default= 2, help='Base seed for reproducibility')
-    parser.add_argument('--add_val_set', type=bool, default=False, help= 'Whether to create a validation set from the training data for monitoring validation loss. If not set, the model will be trained and evaluated only on the test set.')
+    parser.add_argument('--add_val_set', type=bool, default=False, help= 'Whether to create a validation set from the training data for monitoring validation loss. If not set, the model will be trained for a fixed number of epochs and evaluated on the test set at the end.')
     parser.add_argument('--comp_mod', type=int, default= 1, help="Modality for the images to be compared with. Choices are 1 (for Captions) and 2 (Definitions). This is only used for the test set evaluation.")
+    parser.add_argument('--add_SE', type=argparse.BooleanOptionalAction, default=True, help="Whether to add semantic encoding for the latent representations.")
+    parser.add_argument('--add_GSA', type=argparse.BooleanOptionalAction, default=True, help="Whether to use Group Slot Attention")
     args = parser.parse_args()
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -98,7 +100,7 @@ def main():
     test_dataset, test_data_dict = make_dataset(total_data= total_test_data | total_test_data_aug, num_modalities= data_config["create_data"]["M"], data_type='test', include_original=True)
 
 
-    group_name = time.strftime("%Y-%m-%d_%H-%M-%S") + f"_IRFL_{args.model_type}_wo_SE_wo_GSA_seeds_{args.n_seeds}"
+    group_name = time.strftime("%Y-%m-%d_%H-%M-%S") + f"_IRFL_{args.model_type}_w{'o' if not args.add_SE else ''}_SE_w{'o' if not args.add_GSA else ''}_GSA_seeds_{args.n_seeds}"
     # Initialize list to store final metrics across all runs
     all_final_metrics = []
     print(f"Starting training runs...n_seeds: {args.n_seeds}, base_seed: {args.base_seed}")
@@ -134,7 +136,7 @@ def main():
             }
         )
         
-        model_config["perceiver"]["use_slot_attn"] = False
+        model_config["perceiver"]["use_slot_attn"] = True if args.add_GSA else False
         log_model_details(run, model_name=args.model_type, data_config=data_config_path, model_config=model_config_path, training_config=training_config_path)
         
         # model creation
@@ -144,7 +146,7 @@ def main():
                             disenEncoder=disenEncoders,
                             disen_mapping=model_config["repercent"]["disen_mapping"],
                             vmfkappa=model_config["repercent"]["vmfkappa"],
-                            add_pos_encoding=False
+                            add_pos_encoding=True if args.add_SE else False
                             ).to(device)
         else:
             model = make_model_jointopt(model_config).to(device)

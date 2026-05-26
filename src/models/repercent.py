@@ -9,7 +9,6 @@ from src.DisentangledSSL.models import ProbabilisticEncoder
 from src.DisentangledSSL.losses import SupConLoss, ortho_loss, kl_vmf
 from src.DisentangledSSL.utils import ExponentialScheduler
 from itertools import permutations
-from src.models.jointopt_2m import MLP
 
 class simpleEncoder(nn.Module):
     def __init__(self, input_dim: int = 64, latent_dim: int = 32, activation: typing.Literal['relu', 'tanh', 'sigmoid'] = 'relu'):
@@ -222,7 +221,10 @@ class RePercENT(nn.Module):
 
 
 # This function with calculate the custom pairwise loss for the RePercENT model
-# It is based on the JointDisenModel from the DisentangledSSL package (https://github.com/uhlerlab/DisentangledSSL)
+# This is the end-to-end multimodal optimization objective, for the disentangled representation learning.
+# The step-by-step approach for the case of two modalitiescan be found from the DisentangledSSL package (https://github.com/uhlerlab/DisentangledSSL)
+# NOTE: The loss implementation is designed to support a variable number of modalities, by averaging the pairwise disentanglement losses across all the possible pairs of modalities (i,j) with i<j.
+# Additionally, both the RePercENT model as well as the JointOpt variants that use separate encoders per component, can be used with this loss, as the loss takes as input the outputs of the model in a flexible way that can accommodate both architectures.
 class DisenLoss(nn.Module):
     def __init__(self, alpha: float = 1.0, 
                 beta: float = 0.005,
