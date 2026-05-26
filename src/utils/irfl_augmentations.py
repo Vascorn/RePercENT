@@ -143,7 +143,7 @@ def make_image_augmentation_function(
 
 
 # ============================================================
-# 2) IDIOM/TEXT AUGMENTATIONS (do NOT cue figurativity)
+# 2) IDIOM/TEXT AUGMENTATIONS
 # ============================================================
 @dataclass(frozen=True)
 class IdiomTextAugConfig:
@@ -154,7 +154,7 @@ class IdiomTextAugConfig:
         "caption: {t}",
         "phrase: {t}"
     )
-    # formatting-only variants (still neutral)
+    # formatting-only variants
     add_quotes: bool = False
     add_period: bool = True
     add_exclamation: bool = False  # keep false by default
@@ -182,7 +182,7 @@ def make_text_augmentation_function(
 
 
 # ============================================================
-# 3) DEFINITION AUGMENTATIONS (safe-ish semantic edits allowed)
+# 3) DEFINITION AUGMENTATIONS
 # ============================================================
 @dataclass(frozen=True)
 class DefinitionAugConfig:
@@ -193,12 +193,12 @@ class DefinitionAugConfig:
         "explanation: {t}",
         "description: {t}",
     )
-    # mild stochastic edits (should not change meaning too much)
+    # mild stochastic edits
     word_dropout_p: float = 0.08     # drop some non-critical tokens
     max_drops: int = 3
     swap_p: float = 0.15            # swap adjacent words a couple times
     max_swaps: int = 2
-    # avoid dropping very short / important tokens
+   
     protect_tokens_regex: str = r"^\d+$|^[A-Z]{2,}$"  # numbers, acronyms
     unique: bool = True
     seed: Optional[int] = None
@@ -208,7 +208,6 @@ _WORD_RE = re.compile(r"\w+|[^\w\s]", re.UNICODE)
 
 
 def _tokenize_simple(s: str) -> List[str]:
-    # keeps punctuation as tokens
     return _WORD_RE.findall(s)
 
 
@@ -231,7 +230,7 @@ def make_definition_augmentation_function(
     protect_re = re.compile(cfg.protect_tokens_regex)
 
     def _word_dropout(tokens: List[str]) -> List[str]:
-        # drop only word-like tokens (not punctuation), protect important tokens
+        # drop only word-like tokens
         word_idxs = [
             i for i, tok in enumerate(tokens)
             if re.match(r"^\w+$", tok) and not protect_re.match(tok)
@@ -257,7 +256,7 @@ def make_definition_augmentation_function(
 
         outs.extend(wrapped)
 
-        # Stochastic semantic-preserving-ish edits (a few samples)
+        # Stochastic semantic-preserving edits
         for base in wrapped:
             toks = _tokenize_simple(base)
 
@@ -278,24 +277,3 @@ def make_definition_augmentation_function(
         return outs
 
     return augment_definition
-
-
-# ============================================================
-# Example usage
-# ============================================================
-if __name__ == "__main__":
-    # Image: returns list of normalized tensors by default
-    augment_image = make_image_augmentation_function(
-        ImageAugConfig(samples_per_recipe=2),
-        return_tensors_normalized=True,
-        seed=0,
-    )
-    # text
-    augment_text = make_text_augmentation_function()
-    augment_def = make_definition_augmentation_function(DefinitionAugConfig(seed=0))
-
-    # Example:
-    # img_views = augment_image(Image.open("some.jpg"))
-    # text_views = augment_text("as red as a cherry")
-    # def_views = augment_def("very red; vivid in color; intensely crimson")
-    pass

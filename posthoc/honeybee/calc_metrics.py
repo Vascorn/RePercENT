@@ -7,7 +7,7 @@ from src.models.repercent import RePercENT
 from posthoc.honeybee.helper_metrics import evaluate_model_cancer_type
 from posthoc.honeybee.plot_utils import plot_cancer_type_distribution
 from training.train_repercent import make_model
-from training.train_jointopt_2m import make_model_jointopt
+from training.train_jointopt import make_model_jointopt
 from training.main_honeybee import (
     DEFAULT_FILTER_CANCER_TYPES,
     _filter_dataset_by_cancer_types,

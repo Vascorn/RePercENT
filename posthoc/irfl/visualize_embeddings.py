@@ -11,7 +11,7 @@ from src.models import repercent, jointopt
 from src.models.repercent import RePercENT
 from src.utils.irfl_dataset import make_dataset
 from training.train_repercent import make_dataloaders, make_model
-from training.train_jointopt_2m import make_model_jointopt
+from training.train_jointopt import make_model_jointopt
 import wandb
 from src.utils.helpers import set_seed
 from torch.utils.data import DataLoader

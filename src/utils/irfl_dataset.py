@@ -28,7 +28,7 @@ def make_dataset(total_data: Dict[str, Any]= None, data_type: Literal['train', '
 
     prefix = f"{data_type}_"
     
-    # Base keys (always included)
+    
     data = {
         "images": total_data.get(prefix + "images", None) if data_type == 'train' else total_data.get(prefix + "answers", None), # for test data, the "answers" key contains the original images, while the "images" key contains the images for the train.
         "texts": total_data[prefix + "phrases"],

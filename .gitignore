@@ -221,4 +221,6 @@ checkpoints/
 /posthoc/synthetic/alpha_sweep.py
 /posthoc/synthetic/complexity_analysis.py
 /posthoc/synthetic/structural_comp_ablation.py
-
+/training/sweep*.py
+/src/preprocessing/
+notebooks/

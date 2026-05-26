@@ -12,7 +12,7 @@ from src.models.repercent import RePercENT
 from src.utils.irfl_dataset import make_dataset
 from posthoc.irfl.helper_metrics import evaluate_model
 from training.train_repercent import make_dataloaders, make_model
-from training.train_jointopt_2m import make_model_jointopt
+from training.train_jointopt import make_model_jointopt
 import yaml
 import argparse
 import wandb

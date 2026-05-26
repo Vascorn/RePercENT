@@ -11,7 +11,7 @@ from src.models import repercent, jointopt
 from src.models.repercent import RePercENT
 from src.utils.helpers import ProbeEvaluator, extract_latents_and_labels, linear_probe, non_linear_probe, regression_probe, plot_confusion_matrix, plot_pairwise_confusion_matrices
 from training.train_repercent import make_model
-from training.train_jointopt_2m import make_model_jointopt
+from training.train_jointopt import make_model_jointopt
 from posthoc.synthetic.helper_metrics import linear_probe_disentanglement_metric
 import yaml
 import argparse

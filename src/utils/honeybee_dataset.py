@@ -11,19 +11,19 @@ import os
 
 
 def load_honeybee_dataset():
-    # Clinical data embeddings (4 models available)
+    # Clinical data embeddings - We select the Qwen embeddings
     clinical_qwen = load_dataset("Lab-Rasool/TCGA", "clinical", split="qwen")
 
-    # Pathology report embeddings (4 models available)
+    # Pathology report embeddings - We select the Qwen embeddings
     pathology_qwen = load_dataset("Lab-Rasool/TCGA", "pathology_report", split="qwen")
 
-    # Whole slide image embeddings
+    # Whole slide image embeddings 
     wsi_dataset = load_dataset("Lab-Rasool/TCGA", "wsi", split="uni")
 
     # Molecular data embeddings
     molecular_dataset = load_dataset("Lab-Rasool/TCGA", "molecular", split="senmo")
 
-    # Radiology embeddings (2 models available)
+    # Radiology embeddings
     radiology_remedis = load_dataset("Lab-Rasool/TCGA", "radiology", split="remedis")
 
 

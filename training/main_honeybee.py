@@ -9,7 +9,7 @@ from src.models.perceiver import Perceiver
 from src.models.repercent import DisenEncoder, RePercENT, DisenLoss
 from training.train_repercent import make_dataloaders, make_model
 from training.train_honeybee import train
-from training.train_jointopt_2m import make_model_jointopt
+from training.train_jointopt import make_model_jointopt
 from training.log_data import log_model_details, log_model_checkpoint
 import math
 import numpy as np

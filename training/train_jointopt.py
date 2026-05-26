@@ -10,7 +10,6 @@ from src.utils.helpers import extract_latents_and_labels, linear_probe, plot_con
 from src.models.jointopt_2m import MLP
 from src.models.jointopt import GRUEncoder, JointOpt
 from src.models.third_party.g_mlp_repo.g_mlp.core import gMLP
-from training.train_repercent_2m import train_loop, test_loop
 import numpy as np
 import math
 

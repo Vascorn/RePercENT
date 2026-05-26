@@ -32,5 +32,6 @@ python calc_metrics.py \
 
 By default this loads the corresponding pre-trained models from a path specified in `../../configs/posthoc_analysis/synthetic_{M}m.yaml`. The parameters `--k1` and `--k2` represent the separte splits and seeds for each split the models are trained on, and should match the training protocol. The final confusion matrices across all runs are saved in `/figures/confusion_matrices`.
 
-## Notes
-- Here, `{M}` is replaced by the values passed to `--M` denoting the number of modalities for the experiment. 
+
+> [!NOTE]
+> Here `{M}` is replaced by the value passed to `--M`, which denotes the number of modalities used in the experiment.

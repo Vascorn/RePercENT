@@ -78,12 +78,11 @@ Existing summary CSVs are reused to regenerate figures. Missingness CSVs are
 stored in `summary_reports/missingess_summary/`, and panel PDFs are stored in
 `figures/missingness/`.
 
-## Notes
-
-- `calc_metrics.py` and `simple_baselines.py` save local CSVs by default; W&B
+> [!NOTES]
+> - `calc_metrics.py` and `simple_baselines.py` save local CSVs by default; W&B
   logging is optional via `--log_to_wandb True`.
-- `missingness_eval.py` does not contact W&B when regenerating plots from an
+> - `missingness_eval.py` does not contact W&B when regenerating plots from an
   existing summary CSV. Optional logging to W&B via `--log_to_wandb True`.
-- The default cancer-type subset on which the model is trained on is BRCA, COAD, GBM, HNSC, KIRC, LGG, LUAD,
-  LUSC, OV, and PRAD.
-- The cancer type distribution for the train/ test set of the used 10 TCGA cancer types, is depicted in `cancer_type_distribution.pdf`
+> - The default cancer-type subset on which the model is trained on is __BRCA, COAD, GBM, HNSC, KIRC, LGG, LUAD,
+  LUSC, OV,__ and __PRAD__.
+> - The cancer type distribution for the train/ test set of the used 10 TCGA cancer types, is depicted in `cancer_type_distribution.pdf`

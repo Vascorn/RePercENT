@@ -10,7 +10,7 @@ from src.models.repercent import DisenEncoder, RePercENT, DisenLoss
 from src.utils.helpers import set_seed, extract_latents_and_labels
 from training.train_repercent import split_dataset, make_dataloaders, train, make_model
 from training.log_data import log_model_details, log_model_checkpoint, log_dataset
-from training.train_jointopt_2m import make_model_jointopt
+from training.train_jointopt import make_model_jointopt
 import math
 from torch.utils.data import random_split
 from sklearn.metrics import accuracy_score

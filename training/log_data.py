@@ -1,6 +1,9 @@
 import wandb
 import os
 
+# This module provides helper functions for logging model details, checkpoints, 
+# and datasets to Weights & Biases (WandB) during training and evaluation. 
+
 
 def log_model_details(run, model_name, data_config, model_config, training_config):
     """
