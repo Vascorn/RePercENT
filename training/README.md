@@ -32,7 +32,11 @@ The directory's logic can be split into the following main components:
 
 ## How to use: 
 
-### 🧪 Synthetic Experiments
+### Synthetic Experiments
+
+![Dataset: Synthetic](https://img.shields.io/badge/dataset-Synthetic-pink)
+![Script](https://img.shields.io/badge/script-main.py-lightgrey)
+
 
 To train on the synthetic dataset, use the main synthetic entry point:
 
@@ -41,13 +45,16 @@ python training/main.py \
   --load_data True \ # whether to load a saved synthetic dataset
   --model_type repercent \ # switch to jointopt for the gmlp, gru, mlp baselines
   --k1 3 \ # set number of train/val/test splits
-  --k2 2 \# number of random seeds per split
+  --k2 2 \ # number of random seeds per split
   --base_seed 2 # base seed for reproducibility
 ``` 
 
 ---
 
-### 🖼️ IRFL dataset 
+### IRFL experiments
+
+![Dataset: IRFL](https://img.shields.io/badge/dataset-IRFL-blue)
+![Script](https://img.shields.io/badge/script-main__irfl.py-lightgrey)
 
 To train on IRFL, use the preprocessed IRFL tensors and select the model variant:
 
@@ -62,7 +69,10 @@ python training/main_irfl.py \
 
 ---
 
-### 🧬 TCGA/HONeYBEE dataset 
+### HONeYBEE/ TCGA cohort
+
+![Dataset: HONeYBEE](https://img.shields.io/badge/dataset-HONeYBEE-green)
+![Script](https://img.shields.io/badge/script-main__honeybee.py-lightgrey)
 
 To train on the Honeybee/TCGA cohort, use the Honeybee entry point and select the model variant:
 
@@ -79,8 +89,10 @@ python training/main_honeybee.py \
 ```
 
 ---
+### Alpha ablations
 
-### 📊 Alpha ablations
+![Ablation](https://img.shields.io/badge/experiment-alpha_ablation-purple)
+![Script](https://img.shields.io/badge/script-main__ablations__alpha.py-lightgrey)
 
 To run the RePercENT alpha ablations across modality counts, provide the alpha values and modality counts explicitly:
 
@@ -96,7 +108,7 @@ python training/main_ablations_alpha.py \
 ---
 
 > [!IMPORTANT]
-> > - For the two real-world datasets, IRFL and the TCGA cohort, all preprocessing must be completed before training. For the synthetic experiments, the data can optionally be generated on the fly; however, to reproduce the reported results, use the pre-generated datasets in `../data/repercent_synthetic/` and select the appropriate `dataset2{M}` directory, where `{M}` is the number of modalities: 2, 3, 4, or 5.
+> - For the two real-world datasets, IRFL and the TCGA cohort, all preprocessing must be completed before training. For the synthetic experiments, the data can optionally be generated on the fly; however, to reproduce the reported results, use the pre-generated datasets in `../data/repercent_synthetic/` and select the appropriate `dataset2{M}` directory, where `{M}` is the number of modalities: 2, 3, 4, or 5.
 
 > [!NOTE]
 > - For the training of the models in the `main_*.py` files all results are by default logged to Weights & Biases.

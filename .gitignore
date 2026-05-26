@@ -207,7 +207,10 @@ marimo/_lsp/
 __marimo__/
 
 # ignore specific directories & files
-/data/
+/data/honeybee/
+/data/irfl/
+/data/multibench/
+/data/repercent_synthetic/
 artifacts/
 scripts/
 Dockerfile
