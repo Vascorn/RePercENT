@@ -213,7 +213,7 @@ __marimo__/
 /data/repercent_synthetic/
 artifacts/
 scripts/
-Dockerfile
+Dockerfile.private
 .aliases
 entrypoint.sh
 wandb/
