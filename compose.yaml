@@ -1,5 +1,5 @@
 x-repercent-common: &repercent-common
-  image: ${REPERCENT_IMAGE:-repercent_test}
+  image: ${REPERCENT_IMAGE:-repercent:latest}
   build:
     context: .
     args:

@@ -31,7 +31,7 @@ If the repo is already cloned
 git submodule update --init --recursive
 ```
 
-The repository includes a Dockerfile and `compose.yaml` configuration file, which wraps the usual `docker build` and `docker run` commands.
+The repository includes a Dockerfile and `compose.yaml` configuration file, which provides an easy minimal `docker build` and `docker run` commands.
 
 To build the image:
 
