@@ -8,9 +8,14 @@ from torch.utils.data import random_split
 import wandb
 from src.utils.helpers import extract_latents_and_labels, linear_probe, plot_confusion_matrix
 from src.models.jointopt import GRUEncoder, JointOpt, MLP
-from src.models.third_party.g_mlp_repo.g_mlp.core import gMLP
 import numpy as np
 import math
+
+try:
+    from src.models.third_party.g_mlp_repo.g_mlp.core import gMLP
+except ModuleNotFoundError:
+    gMLP = None
+
 
 def build_encoders(cfg: dict):
     t = cfg["type"].lower()
@@ -37,7 +42,16 @@ def build_encoders(cfg: dict):
                 )
             encs.append(enc)
 
-    elif t in ("gmlp"):
+    elif t == "gmlp":
+        if gMLP is None:
+            raise ModuleNotFoundError(
+                "The gMLP baseline requires the third-party submodule at "
+                "src/models/third_party/g_mlp_repo. Run "
+                "`git submodule update --init --recursive "
+                "src/models/third_party/g_mlp_repo` from the repository root, "
+                "then rebuild the Docker image if you are not bind-mounting the repo."
+            )
+
         d_models= cfg["d_model"]
         d_ffs= cfg["d_ff"]
         seq_lens= cfg["seq_len"]

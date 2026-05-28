@@ -11,16 +11,70 @@ RePercENT takes pre-extracted Foundation Model (__FM__) embeddings as input. For
 
 In addition to the RePercENT model, this repository provides implementations of JointOpt baseline alternatives, which use the same training regime but separate encoders for each representation component. We include three JointOpt variants: MLP, GRU, and gMLP. 
 
-We codebase also provides the synthetic data generation and experiment pipeline implementation, as well as the real-world dataset preparation and posthoc evaluation scripts.
+The codebase also provides the synthetic data generation and experiment pipeline implementation, as well as the real-world dataset preparation and posthoc evaluation scripts.
 
 ![Model overview](.github/image.png)
 
 
 # ⚙️ Setup
 
+Clone the repo, including the gMLP submodule:
+
 ```bash
-pip install -r requirements.txt
+git clone --recurse-submodules https://github.com/Vascorn/RePercENT.git
+cd RePercENT
 ```
+
+If the repo is already cloned
+
+```bash
+git submodule update --init --recursive
+```
+
+The repository includes a Dockerfile and `compose.yaml` configuration file, which wraps the usual `docker build` and `docker run` commands.
+
+To build the image:
+
+```bash
+docker compose build repercent
+```
+
+To start an interactive container:
+
+```bash
+docker compose run --rm repercent
+```
+
+On a Linux machine with NVIDIA GPU, use the following:
+
+```bash
+docker compose run --rm repercent-gpu
+```
+
+By default, `compose` tags the image as `repercent`. To use a different image name, set `REPERCENT_IMAGE`:
+
+```bash
+REPERCENT_IMAGE=<repercent_image_name> docker compose build repercent
+REPERCENT_IMAGE=<repercent_image_name> docker compose run --rm repercent
+REPERCENT_IMAGE=<repercent_image_name> docker compose run --rm repercent-gpu
+```
+
+> [!IMPORTANT]
+> On Apple Silicon Macs, the default `linux/amd64` platform runs under emulation and is intended for smoke tests, and small CPU runs. Full CUDA training should be run on a Linux machine with NVIDIA Docker support. GPU access is kept in the explicit `repercent-gpu` service so the default service remains portable across Mac, CPU-only Linux, and GPU Linux hosts.
+
+> [!NOTE]
+> For running, `WANDB_MODE=offline` by default so local tests do not upload runs to Weights & Biases. To change this, set `WANDB_MODE` to `online` and add your `WANDB_API_KEY`, for example:
+>
+> ```bash
+> WANDB_MODE=online WANDB_API_KEY=<your-key> REPERCENT_IMAGE=<repercent_image_name> docker compose run --rm repercent
+> ```
+
+<!-- 
+
+## Expected Data Layout
+
+Dataset files are not tracked in git and are excluded from Docker image builds.
+See [`data/README.md`](data/README.md) for the expected local directory layout. -->
 
 # 🗺️ Repository Map
 

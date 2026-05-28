@@ -1,12 +1,12 @@
 # syntax=docker/dockerfile:1
 
-FROM nvcr.io/nvidia/pytorch:24.01-py3
+ARG BASE_PLATFORM=linux/amd64
+FROM --platform=${BASE_PLATFORM} nvcr.io/nvidia/pytorch:24.01-py3
 
 ENV DEBIAN_FRONTEND=noninteractive \
     TZ=Etc/UTC \
-    LANG=en_US.UTF-8 \
-    LANGUAGE=en_US:en \
-    LC_ALL=en_US.UTF-8 \
+    LANG=C.UTF-8 \
+    LC_ALL=C.UTF-8 \
     PYTHONUNBUFFERED=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
     PIP_NO_CACHE_DIR=1 \
@@ -14,20 +14,16 @@ ENV DEBIAN_FRONTEND=noninteractive \
 
 WORKDIR /workspace
 
-RUN ln -snf /usr/share/zoneinfo/${TZ} /etc/localtime && \
-    echo "${TZ}" > /etc/timezone && \
-    apt-get update && \
+RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         build-essential \
         ca-certificates \
         cmake \
         curl \
-        dvipng \
         git \
         git-lfs \
         g++ \
         inkscape \
-        libcupti-dev \
         libcurl4-openssl-dev \
         libfreetype6-dev \
         libjpeg-dev \
@@ -37,21 +33,23 @@ RUN ln -snf /usr/share/zoneinfo/${TZ} /etc/localtime && \
         libxrender1 \
         libzmq3-dev \
         locales \
-        lmodern \
         pkg-config \
         swig \
-        texlive-fonts-extra \
-        texlive-fonts-recommended \
-        texlive-latex-base \
-        texlive-latex-extra \
-        texlive-latex-recommended \
-        texlive-xetex \
+        tzdata \
         unzip \
         wget \
         zlib1g-dev && \
+    sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen && \
     locale-gen en_US.UTF-8 && \
+    update-locale LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8 && \
+    ln -snf /usr/share/zoneinfo/${TZ} /etc/localtime && \
+    echo "${TZ}" > /etc/timezone && \
     git lfs install --system && \
     rm -rf /var/lib/apt/lists/*
+
+ENV LANG=en_US.UTF-8 \
+    LANGUAGE=en_US:en \
+    LC_ALL=en_US.UTF-8
 
 COPY requirements.txt .
 

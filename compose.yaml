@@ -1,0 +1,29 @@
+x-repercent-common: &repercent-common
+  image: ${REPERCENT_IMAGE:-repercent_test}
+  build:
+    context: .
+    args:
+      BASE_PLATFORM: ${BASE_PLATFORM:-linux/amd64}
+  platform: ${DOCKER_PLATFORM:-linux/amd64}
+  working_dir: /workspace
+  environment:
+    WANDB_MODE: ${WANDB_MODE:-offline}
+    WANDB_API_KEY: ${WANDB_API_KEY:-}
+  volumes:
+    - .:/workspace
+  stdin_open: true
+  tty: true
+
+services:
+  repercent:
+    <<: *repercent-common
+
+  repercent-gpu:
+    <<: *repercent-common
+    profiles:
+      - gpu
+    gpus: all
+    ipc: host
+    ulimits:
+      memlock: -1
+      stack: 67108864
