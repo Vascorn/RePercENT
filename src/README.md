@@ -29,7 +29,7 @@ This directory contains the core model implementations, data utilities, and adap
 | File | Purpose |
 | --- | --- |
 | `utils/synthetic_dataset.py` | Synthetic multimodal dataset generation. The main experiments use `GenerateTokenizedData`; `GenerateData` and `GeneratePermData` are kept as useful variants. |
-| `utils/irfl_preprocessing.py` | Notebook containing a step-by-step complete pre-processing pipeline for constructing the irfl dataset containing __images__, __captions__ and __definitions__. The notebook also pre-extracts random augmentations for image/ text view so that the final dataset does not require any forward pass through the backbone CLIP model.|
+| `utils/irfl_preprocess.py` | A preprocessing script containing a step-by-step complete pipeline for constructing the irfl dataset containing __images__, __captions__ and __definitions__. The script also pre-extracts random augmentations for image/ text view so that the final dataset does not require any forward pass through the backbone CLIP model.|
 | `utils/irfl_dataset.py` | Dataset wrapper and construction helpers for IRFL tensors. |
 | `utils/irfl_augmentations.py` | IRFL augmentation utilities. |
 | `utils/honeybee_dataset.py` | TCGA cohort embedding extraction and preprocessing helpers for __molecular__, __clinical__, __pathology-report__, and __whole-slide-image__ modalities. |

@@ -69,13 +69,6 @@ REPERCENT_IMAGE=<repercent_image_name> docker compose run --rm repercent-gpu
 > WANDB_MODE=online WANDB_API_KEY=<your-key> REPERCENT_IMAGE=<repercent_image_name> docker compose run --rm repercent
 > ```
 
-<!-- 
-
-## Expected Data Layout
-
-Dataset files are not tracked in git and are excluded from Docker image builds.
-See [`data/README.md`](data/README.md) for the expected local directory layout. -->
-
 # 🗺️ Repository Map
 
 | Path | Contents |
@@ -88,12 +81,44 @@ See [`data/README.md`](data/README.md) for the expected local directory layout. 
 | [`posthoc/honeybee/`](posthoc/honeybee/README.md) | TCGA/HONeYBEE cancer-type probes, baselines, visualizations, and missing modality analysis. |
 | [`fine_tuning/`](fine_tuning/) | CLIP fine-tuning helpers for IRFL-related experiments. |
 
+# 📁 Data layout
+
+Dataset files are excluded from the repository. For the synthetic dataset one can easily regenerate on-the-fly the different synthetic datasets, using the same configuration setup provided in the [`configs/data/synthetic_data_*m.yaml`](configs/data/), while for the two datasets we provide the dedicated preprocessing pipelines used in the [`src/utils/`](src/utils/)
+
+See [`data/README.md`](data/README.md) for the expected local directory layout.
 
 # 🏃 Quick Start
 
+1. Start with the lightweight demo in [`training/demo.py`](training/demo.py). It generates random tensors for each modality, mimicking pre-extracted embeddings $Z_i \in \mathbb{R}^{S_i \times E_i}$, where $S_i$ is the sequence length and $E_i$ is the embedding dimension. The script then trains RePercENT with the same end-to-end objective used by the full pipelines, making it the shortest example of how to plug arbitrary modality embeddings into the model.
+
+Inside an interactive container, run:
+
+```bash
+python training/demo.py --M 2 --base_seed 2
+```
+
+Demo configs are provided for `--M 2` and `--M 3`, where `M` is the number of modalities.
+
+2. For synthetic experiments, no external preprocessing is required. The training script can generate data from the provided [`configs/`](configs/) or load a saved synthetic dataset. To generate data on the fly and train RePercENT:
+
+```bash
+python training/main.py \
+  --no-load_data \
+  --model_type repercent \
+  --k1 3 \
+  --k2 2 \
+  --base_seed 2
+```
+
+Use `--model_type jointopt` for the JointOpt baselines.
+
+3. For the real-world IRFL and HONeYBEE/TCGA experiments, generate or place the expected train/test tensors before launching training. See [`data/README.md`](data/README.md) for data preparation and [`training/README.md`](training/README.md) for the training entry points.
+
 # 🔐 Available upon request
 
-- The preprocessed HONeYBEE train/ test split.
+For exact reproducibility fo the results, we can provide upon request:
+
+- The exact preprocessed HONeYBEE train/ test splits used.
 - The final train-test tensor and augmented views for the IRFL detection pipeline.
 - The used generated synthetic datasets. 
 
