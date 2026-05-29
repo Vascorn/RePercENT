@@ -7,7 +7,7 @@
 
 Official PyTorch implementation of __RePercENT__, a multimodal representation learning framework for disentangling modality-specific and shared representations across more than two modalities.
 
-RePercENT takes pre-extracted Foundation Model (__FM__) embeddings as input. For each modality pair $ (i, j) $, it learns modality-specific components $ \mathbf{u}_{ij} $ and $ \mathbf{u}_{ji} $, together with shared components $ \mathbf{s}_{ij} $ and $ \mathbf{s}_{ji} $. The framework is agnostic to both the input modalities and the backbone FMs, allowing it to operate on embeddings from arbitrary modality sets and encoders.
+RePercENT takes pre-extracted Foundation Model (**FM**) embeddings as input. For each modality pair $`(i, j)`$, it learns modality-specific components $`\mathbf{u}_{ij}`$ and $`\mathbf{u}_{ji}`$, together with shared components $`\mathbf{s}_{ij}`$ and $`\mathbf{s}_{ji}`$. The framework is agnostic to both the input modalities and the backbone FMs, allowing it to operate on embeddings from arbitrary modality sets and encoders.
 
 In addition to the RePercENT model, this repository provides implementations of JointOpt baseline alternatives, which use the same training regime but separate encoders for each representation component. We include three JointOpt variants: MLP, GRU, and gMLP. 
 
