@@ -1,7 +1,6 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
-import yaml
 import argparse
 import os, sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -13,7 +12,7 @@ from src.utils.irfl_dataset import make_dataset
 from training.train_repercent import make_dataloaders, make_model
 from training.train_jointopt import make_model_jointopt
 import wandb
-from src.utils.helpers import set_seed
+from src.utils.helpers import load_yaml, set_seed
 from torch.utils.data import DataLoader
 from posthoc.irfl.helper_vis import plot_embeddings, extract_all_embeddings
 
@@ -41,16 +40,13 @@ def main():
     # Loading configurations for data, model, and training
     print("Loading configurations...")
     data_config_path = os.path.join(script_dir, "../..", "configs", "data", f"irfl_data_{M}m.yaml")
-    with open(data_config_path, 'r') as f:
-        data_config = yaml.safe_load(f)
+    data_config = load_yaml(data_config_path)
 
     model_config_path = os.path.join(script_dir, "../..", "configs", "model", f"{args.model_type}_irfl_{M}m.yaml")
-    with open(model_config_path, 'r') as f:
-        model_config = yaml.safe_load(f)
+    model_config = load_yaml(model_config_path)
 
     analysis_config_path = os.path.join(script_dir, "../..", "configs", "posthoc_analysis", f"irfl_{M}m.yaml")
-    with open(analysis_config_path, 'r') as f:
-        analysis_config = yaml.safe_load(f)
+    analysis_config = load_yaml(analysis_config_path)
     
     # Check that the requested seed index is valid
     n_seeds = analysis_config['hyperparameters']['n_seeds']
@@ -107,6 +103,5 @@ def main():
 
 if __name__ == "__main__":
     main()
-
 
 

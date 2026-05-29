@@ -14,10 +14,9 @@ from training.main_honeybee import (
     _format_filter_cancer_types,
     _parse_filter_cancer_types,
 )
-import yaml
 import argparse
 import wandb
-from src.utils.helpers import set_seed
+from src.utils.helpers import load_yaml, set_seed
 import numpy as np
 import pandas as pd
 
@@ -155,16 +154,13 @@ def main():
     # Loading configurations for data, model, and training
     print("Loading configurations...")
     data_config_path = os.path.join(script_dir, "../..", "configs", "data", f"honeybee_data.yaml")
-    with open(data_config_path, 'r') as f:
-        data_config = yaml.safe_load(f)
+    data_config = load_yaml(data_config_path)
 
     model_config_path = os.path.join(script_dir, "../..", "configs", "model", f"{args.model_type}_honeybee.yaml")
-    with open(model_config_path, 'r') as f:
-        model_config = yaml.safe_load(f)
+    model_config = load_yaml(model_config_path)
 
     analysis_config_path = os.path.join(script_dir, "../..", "configs", "posthoc_analysis", f"honeybee.yaml")
-    with open(analysis_config_path, 'r') as f:
-        analysis_config = yaml.safe_load(f)
+    analysis_config = load_yaml(analysis_config_path)
     
 
     # Load the full dataset once and create a fixed stratified split by cancer type.

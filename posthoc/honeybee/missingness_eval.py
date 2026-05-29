@@ -17,12 +17,11 @@ from sklearn.metrics import balanced_accuracy_score, f1_score
 from sklearn.preprocessing import LabelEncoder
 from torch.utils.data import DataLoader, Subset
 import wandb
-import yaml
 
 from posthoc.honeybee.helper_metrics import HONEYBEE_MODALITIES
 from posthoc.plotting_config import apply_paper_plot_style, get_line_style, percent_formatter
 from src.models.repercent import RePercENT
-from src.utils.helpers import set_seed
+from src.utils.helpers import load_yaml, set_seed
 from training.main_honeybee import (
     DEFAULT_FILTER_CANCER_TYPES,
     _filter_dataset_by_cancer_types,
@@ -627,12 +626,9 @@ def main():
     data_config_path = os.path.join(script_dir, "../..", "configs", "data", "honeybee_data.yaml")
     model_config_path = os.path.join(script_dir, "../..", "configs", "model", "repercent_honeybee.yaml")
     analysis_config_path = os.path.join(script_dir, "../..", "configs", "posthoc_analysis", "honeybee.yaml")
-    with open(data_config_path, "r") as f:
-        data_config = yaml.safe_load(f)
-    with open(model_config_path, "r") as f:
-        model_config = yaml.safe_load(f)
-    with open(analysis_config_path, "r") as f:
-        analysis_config = yaml.safe_load(f)
+    data_config = load_yaml(data_config_path)
+    model_config = load_yaml(model_config_path)
+    analysis_config = load_yaml(analysis_config_path)
 
     modality_order = data_config["create_data"].get("modalities", HONEYBEE_MODALITIES)
     if WSI_MODALITY not in modality_order or MOL_MODALITY not in modality_order:

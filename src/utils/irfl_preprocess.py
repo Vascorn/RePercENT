@@ -19,17 +19,20 @@ from __future__ import annotations
 import argparse
 import ast
 import json
+import os
 import random
 import sys
 from pathlib import Path
 from typing import Any
+from zipfile import ZipFile
 
 import pandas as pd
 import torch
 from datasets import load_dataset
+from huggingface_hub import hf_hub_download
 from PIL import Image
 from tqdm import tqdm
-
+import matplotlib.pyplot as plt
 
 def find_repo_root(start: Path) -> Path:
     for candidate in [start, *start.parents]:
@@ -635,8 +638,8 @@ def prepare_dataframes(datasets_dir: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
     complete, complete_detection, complete_retrieval = build_csvs(datasets_dir)
 
     complete = add_manual_definitions(complete, datasets_dir)
-    complete_w_defs_path = datasets_dir / "IRFL_complete_datasets_w_all_defs.csv"
-    save_csv(complete, complete_w_defs_path)
+    complete_figurative = complete[complete["category"] == "Figurative"].copy()
+    save_csv(complete_figurative, datasets_dir / "IRFL_complete_datasets_w_all_defs.csv")
     save_csv(complete, datasets_dir / "IRFL_complete_datasets_full_w_all_defs.csv")
 
     complete_detection = fill_missing_task_definitions(complete_detection, complete)
@@ -651,7 +654,7 @@ def prepare_dataframes(datasets_dir: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
         datasets_dir / "IRFL_complete_retrieval_tasks_w_all_defs.csv",
     )
 
-    train_df, test_df = make_train_test_split(complete, complete_detection)
+    train_df, test_df = make_train_test_split(complete_figurative, complete_detection)
     save_csv(train_df, datasets_dir / "IRFL_train_dataset_2.csv")
     save_csv(test_df, datasets_dir / "IRFL_test_detect_dataset_2.csv")
     return train_df, test_df
@@ -745,6 +748,34 @@ def get_image(image_id: Any, image_dir: Path) -> Image.Image:
     return Image.open(path).convert("RGB")
 
 
+def download_irfl_images(image_dir: Path) -> None:
+    """Download and flatten the IRFL image archive into image_dir."""
+    image_dir.mkdir(parents=True, exist_ok=True)
+    zip_path = hf_hub_download(
+        repo_id=IRFL_DATASET,
+        filename="IRFL_images.zip",
+        repo_type="dataset",
+        local_dir=ROOT_DIR / "data" / "irfl",
+    )
+
+    extracted = 0
+    with ZipFile(zip_path, "r") as zf:
+        for member in zf.infolist():
+            member_path = Path(member.filename)
+            if member.is_dir() or member_path.suffix.lower() not in {".jpeg", ".jpg"}:
+                continue
+
+            image_id = parse_image_id(member_path.stem)
+            output_path = image_dir / f"{image_id}.jpeg"
+            with zf.open(member) as source, output_path.open("wb") as destination:
+                destination.write(source.read())
+            extracted += 1
+
+    if extracted == 0:
+        raise RuntimeError(f"No JPEG images found in downloaded archive: {zip_path}")
+    print(f"Extracted {extracted} IRFL JPEGs to: {image_dir}")
+
+
 def definition_text(row: Any) -> str:
     definitions = parse_definition(row.definition)
     return ". ".join(definitions) + "."
@@ -757,6 +788,33 @@ def concat_tensors(items: list[torch.Tensor]) -> torch.Tensor:
 def concat_augmented(items: list[torch.Tensor]) -> torch.Tensor:
     return torch.cat([item.unsqueeze(0) for item in items], dim=0)
 
+def visualize_test_sample(data_dir: str , image_dir: str, idx: int = None) -> None:
+    # load detection task dataframe
+    complete_detection_dataset_path = os.path.join(data_dir, "IRFL_complete_detection_tasks_w_all_defs.csv")
+    complete_detection_task_datasets = pd.read_csv(complete_detection_dataset_path)
+    if idx is None:
+        idx = random.randint(0, len(complete_detection_task_datasets) - 1)
+    row = complete_detection_task_datasets.iloc[idx]
+    distractors = json.loads(row['distractors'])
+    answer = json.loads(row['answer'])[0]
+    phrase = row['phrase']
+    definition = row['definition']
+
+    fig, axes = plt.subplots(1, len(distractors) + 1, figsize=(15, 5))
+    for i, img_id in enumerate(distractors):
+        img = get_image(img_id, image_dir)
+        axes[i].imshow(img)
+        axes[i].set_title(f"Distractor {i+1}")
+        axes[i].axis('off')
+
+    img = get_image(answer, image_dir)
+    axes[-1].imshow(img)
+    axes[-1].set_title("Answer")
+    axes[-1].axis('off')
+
+    plt.suptitle(f"Phrase: {phrase}\nDefinition: {definition}")
+    fig.savefig(ROOT_DIR / "data" / "irfl" / "datasets" / f"test_sample_{idx}.png")
+    plt.show()
 
 def extract_base_tensors(
     train_df: pd.DataFrame,
@@ -1030,7 +1088,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--output-suffix",
         default="_2",
-        help="Suffix for tensor files. Default matches training/main_irfl.py.",
+        help="Suffix for tensor files. Default matches training/main_irfl.py default loaded files.",
     )
     parser.add_argument("--seed", type=int, default=2)
     parser.add_argument(
@@ -1047,6 +1105,11 @@ def parse_args() -> argparse.Namespace:
         "--skip-augmented",
         action="store_true",
         help="Skip augmented tensor extraction.",
+    )
+    parser.add_argument(
+        "--visualize-test-sample",
+        action="store_true",
+        help="Visualize a test sample with one correct image and three distractor images from the detection task."
     )
     return parser.parse_args()
 
@@ -1069,11 +1132,13 @@ def main() -> None:
     if device == "cuda" and not torch.cuda.is_available():
         raise RuntimeError("CUDA was requested but is not available.")
 
-    if not args.image_dir.exists():
-        raise FileNotFoundError(
-            f"IRFL image directory does not exist: {args.image_dir}. "
-            "Place the IRFL JPEGs there before extracting tensors."
+    has_images = args.image_dir.exists() and any(args.image_dir.glob("*.jpeg"))
+    if not has_images:
+        print(
+            f"IRFL JPEGs were not found in {args.image_dir}. "
+            "Downloading and extracting them before extracting tensors."
         )
+        download_irfl_images(args.image_dir)
 
     extractor = OpenCLIPTokenExtractor(
         model_name=args.clip_model,
@@ -1081,6 +1146,10 @@ def main() -> None:
         device=device,
     )
 
+    if args.visualize_test_sample:
+        visualize_test_sample(data_dir=args.datasets_dir, image_dir=args.image_dir)
+
+    
     extract_base_tensors(
         train_df=train_df,
         test_df=test_df,

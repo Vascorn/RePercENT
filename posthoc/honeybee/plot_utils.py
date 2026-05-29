@@ -8,13 +8,12 @@ import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
 import torch
-import yaml
 from torch.utils.data import DataLoader
 
 from posthoc.plotting_config import apply_paper_plot_style
 from posthoc.honeybee.helper_metrics import HONEYBEE_MODALITIES, _collect_component_features
 from src.models.repercent import RePercENT
-from src.utils.helpers import set_seed
+from src.utils.helpers import load_yaml, set_seed
 from training.main_honeybee import _filter_dataset_by_cancer_types
 from training.train_jointopt import make_model_jointopt
 from training.train_repercent import make_model
@@ -64,16 +63,13 @@ def build_model(model_type, model_config, data_config, device):
 
 def load_split_features(args, script_dir, device, filter_cancer_types=None):
     data_config_path = os.path.join(script_dir, "../..", "configs", "data", "honeybee_data.yaml")
-    with open(data_config_path, "r") as f:
-        data_config = yaml.safe_load(f)
+    data_config = load_yaml(data_config_path)
 
     model_config_path = os.path.join(script_dir, "../..", "configs", "model", f"{args.model_type}_honeybee.yaml")
-    with open(model_config_path, "r") as f:
-        model_config = yaml.safe_load(f)
+    model_config = load_yaml(model_config_path)
 
     analysis_config_path = os.path.join(script_dir, "../..", "configs", "posthoc_analysis", "honeybee.yaml")
-    with open(analysis_config_path, "r") as f:
-        analysis_config = yaml.safe_load(f)
+    analysis_config = load_yaml(analysis_config_path)
 
     checkpoints = analysis_config[args.model_type]["checkpoints"]
     n_seeds = analysis_config["hyperparameters"]["n_seeds"]

@@ -30,6 +30,19 @@ CLIP_MEAN = (0.48145466, 0.4578275, 0.40821073)
 CLIP_STD  = (0.26862954, 0.26130258, 0.27577711)
 
 
+def make_gaussian_noise_transform(mean: float, sigma: float, clip: bool) -> Callable[[torch.Tensor], torch.Tensor]:
+    if hasattr(v2, "GaussianNoise"):
+        return v2.GaussianNoise(mean=mean, sigma=sigma, clip=clip)
+
+    def add_gaussian_noise(image: torch.Tensor) -> torch.Tensor:
+        noisy = image + torch.randn_like(image) * sigma + mean
+        if clip:
+            noisy = noisy.clamp(0.0, 1.0)
+        return noisy
+
+    return add_gaussian_noise
+
+
 # ============================================================
 # 1) IMAGE AUGMENTATIONS (IRFL-safe: no hue/sat/color jitter)
 # ============================================================
@@ -86,7 +99,7 @@ def make_image_augmentation_function(
 
     gaussian_blur = v2.GaussianBlur(kernel_size= cfg.blur_kernel)
 
-    noise = v2.GaussianNoise(mean=cfg.mean, sigma=cfg.sigma, clip=cfg.clip)
+    noise = make_gaussian_noise_transform(mean=cfg.mean, sigma=cfg.sigma, clip=cfg.clip)
 
     gaussian_noise = v2.Compose([
         v2.ToImage(),                           # PIL -> TVTensor

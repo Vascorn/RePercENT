@@ -1,0 +1,8 @@
+create_data:
+  M: 3 # number of modalities
+  N_data: 100
+  latent_dim: 16 # dimension of each latent factor 
+  ts: [8, 8, 8] # sequence dimension of each modality
+  normalize: false
+  sigma: 0.5
+

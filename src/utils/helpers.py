@@ -20,6 +20,13 @@ from typing import Any, Callable, Dict, Optional, Tuple
 from dataclasses import dataclass, field
 import random
 from itertools import combinations
+import yaml
+
+
+def load_yaml(path):
+    with open(path, "r") as f:
+        return yaml.safe_load(f)
+    
 
 def set_seed(seed: int):
     # Python & NumPy

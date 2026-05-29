@@ -13,10 +13,9 @@ from src.utils.helpers import ProbeEvaluator, extract_latents_and_labels, linear
 from training.train_repercent import make_model
 from training.train_jointopt import make_model_jointopt
 from posthoc.synthetic.helper_metrics import linear_probe_disentanglement_metric
-import yaml
 import argparse
 import wandb
-from src.utils.helpers import set_seed
+from src.utils.helpers import load_yaml, set_seed
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -243,20 +242,16 @@ def main():
     # Loading configurations for data, model, and training
     print("Loading configurations...")
     data_config_path = os.path.join(script_dir, "../..", "configs", "data", f"synthetic_data_{M}m.yaml")
-    with open(data_config_path, 'r') as f:
-        data_config = yaml.safe_load(f)
+    data_config = load_yaml(data_config_path)
 
     model_config_path = os.path.join(script_dir, "../..", "configs", "model", f"{args.model_type}_{M}m.yaml")
-    with open(model_config_path, 'r') as f:
-        model_config = yaml.safe_load(f)
+    model_config = load_yaml(model_config_path)
 
     training_config_path = os.path.join(script_dir, "../..", "configs", "training", f"train_synthetic_{M}m.yaml")
-    with open(training_config_path, 'r') as f:
-        training_config = yaml.safe_load(f)
+    training_config = load_yaml(training_config_path)
 
     analysis_config_path = os.path.join(script_dir, "../..", "configs", "posthoc_analysis", f"synthetic_{M}m.yaml")
-    with open(analysis_config_path, 'r') as f:
-        analysis_config = yaml.safe_load(f)
+    analysis_config = load_yaml(analysis_config_path)
 
 
     if args.model_type == "jointopt" and (args.enc_type.lower() != model_config["shared_encoder"]["type"].lower()):

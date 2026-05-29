@@ -9,11 +9,11 @@ import numpy as np
 import pandas as pd
 import torch
 import wandb
-import yaml
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score
 from sklearn.preprocessing import LabelEncoder
 
+from src.utils.helpers import load_yaml
 from training.main_honeybee import (
     DEFAULT_FILTER_CANCER_TYPES,
     _filter_dataset_by_cancer_types,
@@ -207,8 +207,7 @@ def main():
     script_dir = os.path.dirname(os.path.abspath(__file__))
 
     analysis_config_path = os.path.join(script_dir, "../..", "configs", "posthoc_analysis", "honeybee.yaml")
-    with open(analysis_config_path, 'r') as f:
-        analysis_config = yaml.safe_load(f)
+    analysis_config = load_yaml(analysis_config_path)
 
     dataset_split = torch.load(
         os.path.join(script_dir, args.datasets_path, f"dataset_01_{args.wsi_embedding_mode}_split_{args.split_seed}.pt"),

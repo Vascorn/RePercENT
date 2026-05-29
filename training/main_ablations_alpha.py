@@ -7,7 +7,7 @@ from torch.utils.data import DataLoader
 from src.utils.synthetic_dataset import GenerateTokenizedData, MultimodalDataset, save_dataset, save_data_split, GeneratePermData, GenerateData
 from src.models.perceiver import Perceiver
 from src.models.repercent import DisenEncoder, RePercENT, DisenLoss
-from src.utils.helpers import set_seed, extract_latents_and_labels
+from src.utils.helpers import load_yaml, set_seed, extract_latents_and_labels
 from training.train_repercent import split_dataset, make_dataloaders, train, make_model
 from training.log_data import log_model_details, log_model_checkpoint, log_dataset
 from training.train_jointopt import make_model_jointopt
@@ -17,7 +17,6 @@ from torch.utils.data import random_split
 from sklearn.metrics import accuracy_score
 from sklearn.linear_model import LogisticRegression
 import numpy as np
-import yaml
 import argparse
 import time
 
@@ -47,16 +46,13 @@ def main():
     
         # Loading configurations for data, model, and training
         data_config_path = os.path.join(script_dir, "..", "configs", "data", f"synthetic_data_{M}m.yaml")
-        with open(data_config_path, 'r') as f:
-            data_config = yaml.safe_load(f)
+        data_config = load_yaml(data_config_path)
 
         model_config_path = os.path.join(script_dir, "..", "configs", "model", f"{args.model_type}_{M}m.yaml")
-        with open(model_config_path, 'r') as f:
-            model_config = yaml.safe_load(f)
+        model_config = load_yaml(model_config_path)
 
         training_config_path = os.path.join(script_dir, "..", "configs", "training", f"train_synthetic_{M}m.yaml")
-        with open(training_config_path, 'r') as f:
-            training_config = yaml.safe_load(f)
+        training_config = load_yaml(training_config_path)
 
         
 
