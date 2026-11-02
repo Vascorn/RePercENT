@@ -1,7 +1,5 @@
 <h1 align="center">RePercENT</h1>
 
-<p align="center">Official Pytorch implementation of the paper</p>
-
 <h3 align="center"><em>Scaling Disentangled Representation Learning Beyond Two Modalities</em></h3>
 
 <p align="center"><strong>Accepted at <em>NeurIPS 2026</em></strong></p>
@@ -13,8 +11,8 @@
 [![PyTorch](https://img.shields.io/badge/PyTorch-core-EE4C2C?logo=pytorch&logoColor=white)](https://pytorch.org/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](https://opensource.org/licenses/MIT)
 
-# 🧩 Overview
-**Re**duced complexity **Perc**eiver-based dis**ENT**anglement - __RePercENT__: a multimodal representation learning framework for extracting disentangled pairwise modality-specific and shared representations beyond two modalities.
+## 🧩 Overview
+Official Pytorch implementations of __RePercENT__ (**Re**duced complexity **Perc**eiver-based dis**ENT**anglement): a multimodal representation learning framework for extracting disentangled pairwise modality-specific and shared representations beyond two modalities.
 
 RePercENT takes pre-extracted Foundation Model (**FM**) embeddings as input. For each modality pair $`(i, j)`$, it learns modality-specific components $`\mathbf{u}_{ij}`$ and $`\mathbf{u}_{ji}`$, together with shared components $`\mathbf{s}_{ij}`$ and $`\mathbf{s}_{ji}`$. The framework is agnostic to both the input modalities and the backbone FMs, allowing it to operate on embeddings from arbitrary modality sets and encoders.
 
@@ -25,7 +23,7 @@ The codebase also provides the synthetic data generation and experiment pipeline
 ![Model overview](.github/image.png)
 
 
-# ⚙️ Setup
+## ⚙️ Setup
 
 Clone the repo, including the gMLP submodule:
 
@@ -78,7 +76,7 @@ REPERCENT_IMAGE=<repercent_image_name> docker compose run --rm repercent-gpu
 > WANDB_MODE=online WANDB_API_KEY=<your-key> REPERCENT_IMAGE=<repercent_image_name> docker compose run --rm repercent
 > ```
 
-# 🗺️ Repository Map
+## 🗺️ Repository Map
 
 | Path | Contents |
 | --- | --- |
@@ -90,13 +88,13 @@ REPERCENT_IMAGE=<repercent_image_name> docker compose run --rm repercent-gpu
 | [`posthoc/honeybee/`](posthoc/honeybee/README.md) | TCGA/HONeYBEE cancer-type probes, baselines, visualizations, and missing modality analysis. |
 | [`fine_tuning/`](fine_tuning/) | CLIP fine-tuning helpers for IRFL-related experiments. |
 
-# 📁 Data layout
+## 📁 Data layout
 
 Dataset files are excluded from the repository. For the synthetic dataset one can easily regenerate on-the-fly the different synthetic datasets, using the same configuration setup provided in the [`configs/data/synthetic_data_*m.yaml`](configs/data/), while for the two datasets we provide the dedicated preprocessing pipelines used in the [`src/utils/`](src/utils/)
 
 See [`data/README.md`](data/README.md) for the expected local directory layout.
 
-# 🏃 Quick Start
+## 🏃 Quick Start
 
 1. Start with the lightweight demo in [`training/demo.py`](training/demo.py). It generates random tensors for each modality, mimicking pre-extracted embeddings $Z_i \in \mathbb{R}^{S_i \times E_i}$, where $S_i$ is the sequence length and $E_i$ is the embedding dimension. The script then trains RePercENT with the same end-to-end objective used by the full pipelines, making it the shortest example of how to plug arbitrary modality embeddings into the model.
 
@@ -123,7 +121,7 @@ Use `--model_type jointopt` for the JointOpt baselines.
 
 3. For the real-world IRFL and HONeYBEE/TCGA experiments, generate or place the expected train/test tensors before launching training. See [`data/README.md`](data/README.md) for data preparation and [`training/README.md`](training/README.md) for the training entry points.
 
-# 🔐 Available upon request
+## 🔐 Available upon request
 
 For exact reproducibility fo the results, we can provide upon request:
 
@@ -131,9 +129,9 @@ For exact reproducibility fo the results, we can provide upon request:
 - The final train-test tensor and augmented views for the IRFL detection pipeline.
 - The used generated synthetic datasets. 
 
-# 📝 Citation
+## 📝 Citation
 _To be anounced_
 
-# 🤝 Acknowledgements
+## 🤝 Acknowledgements
 
 Parts of this repository adapt code from: <a href="https://github.com/uhlerlab/DisentangledSSL/tree/master"><img src="https://cdn.simpleicons.org/github/58a6ff" width="14" alt="GitHub"> DisentangledSSL</a>, and for the gMLP baseline we use third-party code <a href="https://github.com/jaketae/g-mlp"><img src="https://cdn.simpleicons.org/github/58a6ff" width="14" alt="GitHub"> g-mlp</a> under src/models/third_party/ which provides a PyTorch implementation for [Pay Attention to MLPs](https://arxiv.org/abs/2105.08050).
