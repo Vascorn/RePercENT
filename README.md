@@ -1,11 +1,20 @@
-# RePercENT: Scaling Disentangled Representation Learning Beyond Two Modalities 
+<h1 align="center">RePercENT</h1>
+
+<p align="center">Official Pytorch implementation of the paper</p>
+
+<h3 align="center"><em>Scaling Disentangled Representation Learning Beyond Two Modalities</em></h3>
+
+<p align="center"><strong>Accepted at <em>NeurIPS 2026</em></strong></p>
+
+---
 
 [![arXiv](https://img.shields.io/badge/arXiv-preprint-b31b1b.svg)](https://arxiv.org/abs/2606.05109)
 [![Python](https://img.shields.io/badge/python-3.10%2B-3776AB?logo=python&logoColor=white)](requirements.txt)
 [![PyTorch](https://img.shields.io/badge/PyTorch-core-EE4C2C?logo=pytorch&logoColor=white)](https://pytorch.org/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](https://opensource.org/licenses/MIT)
 
-Official PyTorch implementation of __RePercENT__, a multimodal representation learning framework for disentangling modality-specific and shared representations across more than two modalities.
+# 🧩 Overview
+**Re**duced complexity **Perc**eiver-based dis**ENT**anglement - __RePercENT__: a multimodal representation learning framework for extracting disentangled pairwise modality-specific and shared representations beyond two modalities.
 
 RePercENT takes pre-extracted Foundation Model (**FM**) embeddings as input. For each modality pair $`(i, j)`$, it learns modality-specific components $`\mathbf{u}_{ij}`$ and $`\mathbf{u}_{ji}`$, together with shared components $`\mathbf{s}_{ij}`$ and $`\mathbf{s}_{ji}`$. The framework is agnostic to both the input modalities and the backbone FMs, allowing it to operate on embeddings from arbitrary modality sets and encoders.
 

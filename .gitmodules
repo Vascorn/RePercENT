@@ -1,3 +1,9 @@
 [submodule "src/models/third_party/g_mlp_repo"]
 	path = src/models/third_party/g_mlp_repo
 	url = https://github.com/jaketae/g-mlp.git
+[submodule "src/multibench"]
+	path = src/multibench
+	url = https://github.com/pliang279/MultiBench.git
+[submodule "src/factorcl"]
+	path = src/factorcl
+	url = https://github.com/pliang279/FactorCL.git
