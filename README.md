@@ -130,7 +130,18 @@ For exact reproducibility fo the results, we can provide upon request:
 - The used generated synthetic datasets. 
 
 ## 📝 Citation
-_To be anounced_
+
+If you find our work inspiring or use our codebase in your research, please consider giving a star ⭐ and a citation.
+
+```
+@inproceedings{
+rizou2026repercent,
+title={RePerc{ENT}: Scaling Disentangled Representation Learning Beyond Two Modalities},
+author={Rizou, Vasiliki and Frossard, Pascal and Thanou, Dorina},
+booktitle={The Fortieth Annual Conference on Neural Information Processing Systems},
+year={2026}
+}
+```
 
 ## 🤝 Acknowledgements
 
